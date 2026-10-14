@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/transaction.dart';
 import 'home_screen.dart';
-import 'analytics_screen.dart';
+import 'insights_screen.dart';
 import 'add_transaction_screen.dart';
-import 'chat_screen.dart';
-import 'games_screen.dart';
+import 'challenges_screen.dart';
+import 'profile_screen.dart';
 
 /// The Main Shell widget holding the persistent Bottom Navigation Bar and primary screens.
+/// Bottom Nav: Home | Insights | + (Add) | Challenges | Profile
 class MainShell extends StatefulWidget {
   final int initialIndex;
 
@@ -31,7 +32,8 @@ class _MainShellState extends State<MainShell> {
       // Center Add button opens AddTransactionScreen
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => const AddTransactionScreen(initialType: TransactionType.expense),
+          builder: (_) =>
+              const AddTransactionScreen(initialType: TransactionType.expense),
         ),
       );
       return;
@@ -43,17 +45,17 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    // List of tab views
+    // Map nav indices skipping 2 (Add button)
     final screens = [
       HomeScreen(
-        onOpenAnalytics: () => setState(() => _currentIndex = 1),
-        onOpenChat: () => setState(() => _currentIndex = 3),
-        onOpenGames: () => setState(() => _currentIndex = 4),
+        onOpenInsights: () => setState(() => _currentIndex = 1),
+        onOpenChallenges: () => setState(() => _currentIndex = 3),
+        onOpenProfile: () => setState(() => _currentIndex = 4),
       ),
-      const AnalyticsScreen(),
+      const InsightsScreen(),
       const SizedBox.shrink(), // Placeholder for center Add button
-      const ChatScreen(),
-      const GamesScreen(),
+      const ChallengesScreen(),
+      const ProfileScreen(),
     ];
 
     return Scaffold(
@@ -78,7 +80,7 @@ class _MainShellState extends State<MainShell> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -89,8 +91,8 @@ class _MainShellState extends State<MainShell> {
                   onTap: () => _onTabSelected(0),
                 ),
                 _NavBarItem(
-                  icon: Icons.insert_chart_rounded,
-                  label: 'Analytics',
+                  icon: Icons.insights_rounded,
+                  label: 'Insights',
                   isSelected: _currentIndex == 1,
                   onTap: () => _onTabSelected(1),
                 ),
@@ -98,8 +100,8 @@ class _MainShellState extends State<MainShell> {
                 GestureDetector(
                   onTap: () => _onTabSelected(2),
                   child: Container(
-                    width: 50,
-                    height: 50,
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
                       color: AppTheme.primaryMint,
                       shape: BoxShape.circle,
@@ -120,14 +122,14 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 _NavBarItem(
-                  icon: Icons.chat_bubble_rounded,
-                  label: 'Chat',
+                  icon: Icons.emoji_events_rounded,
+                  label: 'Challenges',
                   isSelected: _currentIndex == 3,
                   onTap: () => _onTabSelected(3),
                 ),
                 _NavBarItem(
-                  icon: Icons.sports_esports_rounded,
-                  label: 'Games',
+                  icon: Icons.person_rounded,
+                  label: 'Profile',
                   isSelected: _currentIndex == 4,
                   onTap: () => _onTabSelected(4),
                 ),
@@ -172,7 +174,8 @@ class _NavBarItem extends StatelessWidget {
               style: TextStyle(
                 color: color,
                 fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontWeight:
+                    isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ],

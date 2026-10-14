@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'onboarding_screens.dart';
+import 'auth_screens.dart';
 
 /// Screen 1 — Splash / Welcome Screen
 /// Pixel-perfect implementation based on the Pixel 10 Pro design reference.
@@ -19,33 +20,8 @@ class SplashScreen extends StatelessWidget {
 
 
   void _onExistingUser(BuildContext context) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.info_outline, color: Color(0xFF94FBA3), size: 20),
-            SizedBox(width: 10),
-            Text(
-              "Account login is coming soon!",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF091F1A),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF94FBA3), width: 1.2),
-        ),
-        duration: const Duration(seconds: 2),
-      ),
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 

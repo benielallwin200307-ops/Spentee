@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../state/app_state.dart';
-import 'main_shell.dart';
+import 'auth_screens.dart';
 
 class _NotificationItemData {
   final String keyName;
@@ -63,9 +63,8 @@ class NotificationsScreen extends StatelessWidget {
   ];
 
   void _onContinue(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const MainShell()),
-      (route) => false,
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 
