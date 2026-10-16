@@ -1,11 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
-import 'language_screen.dart';
+import 'auth_screens.dart';
 
-/// Full 4-step Onboarding flow (Screens 2–4 + Language entry)
+/// Full 3-step Onboarding flow (Welcome, Roast, and Language selection)
 /// Pixel-perfect recreation of Image 1 using Image 2 (onboarding_welcome_art.png) as background.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -17,11 +18,40 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentStep = 0;
   late final PageController _pageController;
+  String _selectedLanguage = 'English';
+  bool _initializedLanguage = false;
 
   static const Color bgNavy = Color(0xFF00111A);
   static const Color mintGreen = Color(0xFF65FFA7);
   static const Color subtitleMint = Color(0xFF5CFFA9);
   static const Color darkText = Color(0xFF00241D);
+
+  static const List<_LanguageOption> _languages = [
+    _LanguageOption(
+      name: 'English',
+      flagAsset: 'Assets/extracted/flag_uk.png',
+    ),
+    _LanguageOption(
+      name: 'Tamil',
+      flagAsset: 'Assets/extracted/flag_india.png',
+    ),
+    _LanguageOption(
+      name: 'Telugu',
+      flagAsset: 'Assets/extracted/flag_india.png',
+    ),
+    _LanguageOption(
+      name: 'Hindi',
+      flagAsset: 'Assets/extracted/flag_india.png',
+    ),
+    _LanguageOption(
+      name: 'Malayalam',
+      flagAsset: 'Assets/extracted/flag_india.png',
+    ),
+    _LanguageOption(
+      name: 'Kannada',
+      flagAsset: 'Assets/extracted/flag_india.png',
+    ),
+  ];
 
   final List<_OnboardingStep> _steps = const [
     _OnboardingStep(
@@ -41,19 +71,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       fallbackEmoji: '🔥',
     ),
     _OnboardingStep(
-      heading: 'Play, compete',
-      highlight: 'and grow',
-      subtitleLine1: 'Solve puzzles, challenge others',
-      subtitleLine2: 'and climb the global leaderboard.',
-      mascotAsset: 'Assets/extracted/avatar_win.png',
-      fallbackEmoji: '🏆',
-    ),
-    _OnboardingStep(
-      heading: 'Choose your',
+      heading: 'Pick your',
       highlight: 'language',
-      subtitleLine1: 'Get roasts, insights and the app',
-      subtitleLine2: 'in your preferred language.',
-      mascotAsset: 'Assets/extracted/avatar_ai.png',
+      subtitleLine1: '',
+      subtitleLine2: '',
+      mascotAsset: 'Assets/extracted/lang_top_bg_clean.png',
       fallbackEmoji: '🌐',
     ),
   ];
@@ -65,9 +87,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initializedLanguage) {
+      final appState = AppStateScope.of(context);
+      if (appState.selectedLanguage.isNotEmpty) {
+        _selectedLanguage = appState.selectedLanguage;
+      }
+      _initializedLanguage = true;
+    }
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _onSelectLanguage(String name) {
+    setState(() => _selectedLanguage = name);
+    final appState = AppStateScope.of(context);
+    appState.setLanguage(name);
   }
 
   void _onNext() {
@@ -77,8 +117,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
+      final appState = AppStateScope.of(context);
+      appState.setLanguage(_selectedLanguage);
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LanguageScreen()),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
     }
   }
@@ -132,11 +174,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 offsetY = (screenHeight - renderedH) / 2.0;
               }
 
-              // Main speech bubble mathematically mapped to Image 1 / Image 2
-              final bubbleLeft = offsetX + (189.0 / 502.0) * renderedW;
-              final bubbleTop = offsetY + (332.0 / 1024.0) * renderedH;
-              final bubbleWidth = (281.0 / 502.0) * renderedW;
-              final bubbleHeight = (193.0 / 1024.0) * renderedH;
+              // Main speech bubble fitted snugly to the text
+              final bubbleLeft = offsetX + (205.0 / 502.0) * renderedW;
+              final bubbleTop = offsetY + (348.0 / 1024.0) * renderedH;
+              final bubbleWidth = (212.0 / 502.0) * renderedW;
+              final bubbleHeight = (138.0 / 1024.0) * renderedH;
 
               return Stack(
                 children: [
@@ -177,7 +219,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                   ),
 
-                  // 4. Roast speech bubble overlay for Step 1
+                  // 4. Background artwork for Step 2 (Language Selection) matching user mockup
+                  Positioned.fill(
+                    child: AnimatedOpacity(
+                      opacity: _currentStep == 2 ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: Image.asset(
+                        'Assets/onboarding_language_art.png',
+                        fit: BoxFit.cover,
+                        alignment: Alignment.center,
+                        errorBuilder: (context, error, stackTrace) =>
+                            Container(color: bgNavy),
+                      ),
+                    ),
+                  ),
+
+                  // 5. Roast speech bubble overlay for Step 1
                   if (_currentStep == 1)
                     Positioned(
                       left: bubbleLeft,
@@ -194,36 +251,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
 
-                  // 5. Subtle radial glow for steps > 1
-                  if (_currentStep > 1)
-                    Positioned(
-                      top: screenHeight * 0.32,
-                      left: -screenWidth * 0.20,
-                      right: -screenWidth * 0.20,
-                      child: Center(
-                        child: Container(
-                          width: screenWidth * 1.35,
-                          height: screenHeight * 0.46,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                const Color(0xFF00B87A).withValues(alpha: 0.18),
-                                const Color(0xFF004D36).withValues(alpha: 0.08),
-                                Colors.transparent,
-                              ],
-                              radius: 0.65,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
                   // 6. Subtle ambient sparkles for Step 0 only
                   if (_currentStep == 0) ...[
                     Positioned(
                       left: screenWidth * 0.11,
-                      top: screenHeight * 0.155,
+                      top: screenHeight * 0.188,
                       child: const SparkleStar(
                         size: 15,
                         color: Color(0xFF00E676),
@@ -232,7 +264,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                     Positioned(
                       right: screenWidth * 0.11,
-                      top: screenHeight * 0.165,
+                      top: screenHeight * 0.198,
                       child: const SparkleStar(
                         size: 13,
                         color: Color(0xFF00E676),
@@ -243,6 +275,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                   // 7. Main content overlaid on the background
                   SafeArea(
+                    top: false,
                     child: Column(
                       children: [
                         // Header & central content in PageView
@@ -255,6 +288,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               setState(() => _currentStep = index);
                             },
                             itemBuilder: (context, index) {
+                              if (index == 2) {
+                                return _LanguageStepView(
+                                  screenHeight: screenHeight,
+                                  screenWidth: screenWidth,
+                                  languages: _languages,
+                                  selectedLanguage: _selectedLanguage,
+                                  onSelectLanguage: _onSelectLanguage,
+                                );
+                              }
                               return _OnboardingPageView(
                                 step: _steps[index],
                                 screenHeight: screenHeight,
@@ -265,15 +307,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
 
-                        // Four progress indicators with first one highlighted mint green
+                        // Progress indicators matching step count
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: List.generate(_steps.length, (index) {
-                            // In Image 2 and Section 6: First indicator is an elongated mint-green pill,
-                            // remaining three are small dark-grey circles.
-                            final isActive = (_currentStep == 1)
-                                ? (index == 0)
-                                : (index == _currentStep);
+                            final isActive = index == _currentStep;
                             return AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
                               margin:
@@ -412,10 +450,11 @@ class _OnboardingPageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (stepIndex == 1) {
+      final topPadding = MediaQuery.paddingOf(context).top;
       // Step 1: "Get roasted (with love)" recreation matching Image 2
       return Column(
         children: [
-          SizedBox(height: screenHeight * 0.034),
+          SizedBox(height: topPadding + math.max(22.0, screenHeight * 0.028)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
@@ -470,9 +509,15 @@ class _OnboardingPageView extends StatelessWidget {
     }
 
     final isFirst = stepIndex == 0;
+    final topPadding = MediaQuery.paddingOf(context).top;
     return Column(
       children: [
-        SizedBox(height: screenHeight * 0.016),
+        SizedBox(
+          height: topPadding +
+              (isFirst
+                  ? math.max(26.0, screenHeight * 0.038)
+                  : math.max(16.0, screenHeight * 0.024)),
+        ),
 
         // Header section
         Padding(
@@ -614,7 +659,7 @@ class _OnboardingPageView extends StatelessWidget {
   }
 }
 
-/// Custom-painted Roast Speech Bubble exactly reproducing Image 2
+/// Custom-painted Roast Speech Bubble fitting text snugly
 class _RoastSpeechBubble extends StatelessWidget {
   final double width;
   final double height;
@@ -626,6 +671,8 @@ class _RoastSpeechBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fontSize = (width * 0.082).clamp(15.5, 17.5);
+
     return SizedBox(
       width: width,
       height: height,
@@ -633,16 +680,16 @@ class _RoastSpeechBubble extends StatelessWidget {
         painter: const _RoastBubblePainter(),
         child: Padding(
           padding: EdgeInsets.only(
-            left: width * (32.0 / 281.0),
-            top: height * (23.0 / 193.0),
-            right: width * (22.0 / 281.0),
-            bottom: height * ((193.0 - 153.0 + 8.0) / 193.0),
+            left: width * 0.09,
+            top: height * 0.10,
+            right: width * 0.09,
+            bottom: height * 0.28,
           ),
           child: Align(
-            alignment: Alignment.topLeft,
+            alignment: Alignment.centerLeft,
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              alignment: Alignment.topLeft,
+              alignment: Alignment.centerLeft,
               child: Text.rich(
                 TextSpan(
                   children: [
@@ -654,7 +701,7 @@ class _RoastSpeechBubble extends StatelessWidget {
                       child: Text(
                         '😂',
                         style: TextStyle(
-                          fontSize: width * (24.0 / 281.0),
+                          fontSize: fontSize * 1.05,
                         ),
                       ),
                     ),
@@ -663,9 +710,9 @@ class _RoastSpeechBubble extends StatelessWidget {
                 textAlign: TextAlign.left,
                 style: TextStyle(
                   color: const Color(0xFF00241D),
-                  fontSize: width * (23.5 / 281.0),
+                  fontSize: fontSize,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
+                  letterSpacing: -0.4,
                   height: 1.18,
                 ),
               ),
@@ -686,15 +733,15 @@ class _RoastBubblePainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // Based on reference metrics: width=281, height=193, main rect height=153, r=32
-    final rectH = h * (153.0 / 193.0);
-    final r = 32.0 * (w / 281.0);
+    // Main rounded rectangle height (leaving room for tail at the bottom)
+    final rectH = h * 0.78;
+    final r = math.min(20.0, w * 0.11);
 
-    // Anchor points on bottom edge: x1 = 92, x2 = 170. Tip = (107, 193)
-    final x1 = w * (92.0 / 281.0);
-    final x2 = w * (170.0 / 281.0);
-    final xtip = w * (107.0 / 281.0);
+    // Tail anchor points on bottom edge pointing down towards mascot
+    final xtip = w * 0.44;
     final ytip = h;
+    final x1 = xtip - (w * 0.12);
+    final x2 = xtip + (w * 0.28);
 
     final path = Path();
     // Top-left to top-right
@@ -711,20 +758,20 @@ class _RoastBubblePainter extends CustomPainter {
 
     // Curve down-left to tail tip (concave swoop)
     path.cubicTo(
-      x2 - 14.0 * (w / 281.0),
-      rectH + 15.0 * (h / 193.0),
-      xtip + 24.0 * (w / 281.0),
-      h - 12.0 * (h / 193.0),
+      x2 - (w * 0.08),
+      rectH + (h * 0.08),
+      xtip + (w * 0.10),
+      h - (h * 0.06),
       xtip,
       ytip,
     );
 
     // Curve up-left to left side of tail
     path.cubicTo(
-      xtip + 6.0 * (w / 281.0),
-      h - 15.0 * (h / 193.0),
-      x1 + 18.0 * (w / 281.0),
-      rectH + 12.0 * (h / 193.0),
+      xtip + (w * 0.03),
+      h - (h * 0.08),
+      x1 + (w * 0.08),
+      rectH + (h * 0.06),
       x1,
       rectH,
     );
@@ -739,7 +786,7 @@ class _RoastBubblePainter extends CustomPainter {
     path.close();
 
     // Soft drop shadow
-    canvas.drawShadow(path, const Color(0x35000000), 14.0, true);
+    canvas.drawShadow(path, const Color(0x35000000), 12.0, true);
 
     // Solid white fill
     final fillPaint = Paint()
@@ -750,5 +797,250 @@ class _RoastBubblePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _CurvedUnderlinePainter extends CustomPainter {
+  final Color color;
+
+  const _CurvedUnderlinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    path.moveTo(0, size.height * 0.85);
+    path.quadraticBezierTo(
+      size.width * 0.5,
+      -size.height * 0.35,
+      size.width,
+      size.height * 0.55,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.5,
+      size.height * 0.15,
+      0,
+      size.height * 0.85,
+    );
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CurvedUnderlinePainter oldDelegate) =>
+      color != oldDelegate.color;
+}
+
+class _LanguageOption {
+  final String name;
+  final String flagAsset;
+
+  const _LanguageOption({
+    required this.name,
+    required this.flagAsset,
+  });
+}
+
+class _LanguageStepView extends StatelessWidget {
+  final double screenHeight;
+  final double screenWidth;
+  final List<_LanguageOption> languages;
+  final String selectedLanguage;
+  final ValueChanged<String> onSelectLanguage;
+
+  const _LanguageStepView({
+    required this.screenHeight,
+    required this.screenWidth,
+    required this.languages,
+    required this.selectedLanguage,
+    required this.onSelectLanguage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.paddingOf(context).top;
+
+    // Responsive card dimensions to fit 6 cards comfortably without overlap
+    final cardHeight = (screenHeight * 0.048).clamp(40.0, 46.0);
+    final cardSpacing = (screenHeight * 0.007).clamp(4.0, 7.0);
+
+    return Stack(
+      children: [
+        // 1. Header: Heading + Underline only (subtext completely removed)
+        Positioned(
+          top: math.max(screenHeight * 0.052, topPadding + 8.0),
+          left: 24,
+          right: 24,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Heading: 3 lines ("Pick your\nlanguage,\nlet's begin!")
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'Pick your\n',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: math.min(screenWidth * 0.092, 38.0),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                        height: 1.12,
+                      ),
+                    ),
+                    TextSpan(
+                      text: 'language,\n',
+                      style: TextStyle(
+                        color: _OnboardingScreenState.mintGreen,
+                        fontSize: math.min(screenWidth * 0.092, 38.0),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                        height: 1.12,
+                      ),
+                    ),
+                    TextSpan(
+                      text: "let's begin!",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: math.min(screenWidth * 0.092, 38.0),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                        height: 1.12,
+                      ),
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 6),
+
+              // Curved mint underline
+              CustomPaint(
+                size: const Size(116, 5),
+                painter: _CurvedUnderlinePainter(
+                  color: _OnboardingScreenState.mintGreen,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // 2. 6 Language Selection Cards positioned directly under mascot hoodie and foliage
+        Positioned(
+          top: screenHeight * (515.0 / 1024.0),
+          left: 24,
+          right: 24,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(languages.length, (index) {
+              final item = languages[index];
+              final isSelected = item.name == selectedLanguage;
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index < languages.length - 1 ? cardSpacing : 0,
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onSelectLanguage(item.name),
+                    borderRadius: BorderRadius.circular(22),
+                    splashColor:
+                        _OnboardingScreenState.mintGreen.withValues(alpha: 0.1),
+                    highlightColor: Colors.transparent,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      height: cardHeight,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF012421)
+                            : const Color(0xFF021B1E),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: isSelected
+                              ? _OnboardingScreenState.mintGreen
+                              : const Color(0xFF144144),
+                          width: isSelected ? 1.8 : 1.0,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: _OnboardingScreenState.mintGreen
+                                      .withValues(alpha: 0.35),
+                                  blurRadius: 14,
+                                  spreadRadius: 1,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        children: [
+                          // Circular flag icon
+                          Image.asset(
+                            item.flagAsset,
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(width: 14),
+
+                          // Language name in English ONLY
+                          Expanded(
+                            child: Text(
+                              item.name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15.0,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+
+                          // Radio selection indicator
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected
+                                  ? _OnboardingScreenState.mintGreen
+                                  : Colors.transparent,
+                              border: isSelected
+                                  ? null
+                                  : Border.all(
+                                      color: const Color(0xFF1B4E4F),
+                                      width: 1.6,
+                                    ),
+                            ),
+                            child: isSelected
+                                ? const Center(
+                                    child: Icon(
+                                      Icons.check,
+                                      size: 13,
+                                      color: Color(0xFF012421),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
 }
 

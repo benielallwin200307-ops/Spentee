@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../state/app_state.dart';
@@ -321,10 +320,10 @@ class NotificationsScreen extends StatelessWidget {
                         behavior: HitTestBehavior.opaque,
                         onTap: () => _onContinue(context),
                         child: Container(
-                          height: 56,
+                          height: 64,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(28),
+                            borderRadius: BorderRadius.circular(36),
                             gradient: const LinearGradient(
                               colors: [
                                 Color(0xFF6DFDB5),
@@ -347,9 +346,9 @@ class NotificationsScreen extends StatelessWidget {
                                 'Continue',
                                 style: TextStyle(
                                   color: Color(0xFF002B21),
-                                  fontSize: 18,
+                                  fontSize: 18.5,
                                   fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.3,
+                                  letterSpacing: -0.2,
                                 ),
                               ),
                               Positioned(
@@ -366,7 +365,7 @@ class NotificationsScreen extends StatelessWidget {
                       ),
                     ),
 
-                    SizedBox(height: math.max(mediaQuery.padding.bottom + 16, 28)),
+                    SizedBox(height: mediaQuery.padding.bottom + 20),
                   ],
                 ),
               ),

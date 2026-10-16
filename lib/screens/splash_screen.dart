@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'onboarding_screens.dart';
-import 'auth_screens.dart';
 
 /// Screen 1 — Splash / Welcome Screen
 /// Pixel-perfect implementation based on the Pixel 10 Pro design reference.
@@ -15,13 +14,6 @@ class SplashScreen extends StatelessWidget {
   void _onGetStarted(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-    );
-  }
-
-
-  void _onExistingUser(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 
@@ -234,28 +226,7 @@ class SplashScreen extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 18),
-                                // Secondary Action Text
-                                GestureDetector(
-                                  onTap: () => _onExistingUser(context),
-                                  behavior: HitTestBehavior.opaque,
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 6,
-                                      horizontal: 16,
-                                    ),
-                                    child: Text(
-                                      'I already have an account',
-                                      style: TextStyle(
-                                        color: Color(0xFFD3DFE8),
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0.1,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: math.max(16.0, screenHeight * 0.024)),
+                                const SizedBox(height: 20),
                               ],
                             ),
                           ),
