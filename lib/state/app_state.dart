@@ -1,21 +1,234 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../models/roast.dart';
 import '../theme/app_theme.dart';
+import '../services/auth_service.dart';
 
-/// Central in-memory state manager for Spentee demo application.
+/// Central state manager with persistent user profile and theme preferences.
 class AppState extends ChangeNotifier {
   // Balance
   double _balance = 12450.0;
   double get balance => _balance;
 
+  // User Profile
+  String _userUid = '';
+  String get userUid => _userUid;
+
+  String _userName = 'Alex';
+  String get userName => _userName;
+
+  String _userEmail = 'alex@example.com';
+  String get userEmail => _userEmail;
+
+  String _userGender = 'male';
+  String get userGender => _userGender;
+
+  bool _isAuthenticated = false;
+  bool get isAuthenticated => _isAuthenticated;
+
   // Selected mascot ('male' or 'female')
   String _selectedMascot = 'male';
   String get selectedMascot => _selectedMascot;
 
-  void setSelectedMascot(String mascot) {
+  // Isolated per-user profile mapping keyed by user UID
+  final Map<String, dynamic> _userProfiles = {};
+
+  AppState() {
+    // Listen to Firebase auth state changes to keep session synchronized
+    AuthService.instance.authStateChanges.listen((user) {
+      if (user == null && _isAuthenticated) {
+        _isAuthenticated = false;
+        _userUid = '';
+        notifyListeners();
+      } else if (user != null && !_isAuthenticated) {
+        _isAuthenticated = true;
+        _userUid = user.uid;
+        _userEmail = user.email ?? _userEmail;
+        if (user.displayName != null && user.displayName!.isNotEmpty) {
+          _userName = user.displayName!;
+        }
+        if (_userProfiles.containsKey(user.uid) &&
+            _userProfiles[user.uid]['selectedMascot'] != null) {
+          _selectedMascot = _userProfiles[user.uid]['selectedMascot'];
+          _userGender = _selectedMascot;
+        }
+        notifyListeners();
+      }
+    });
+  }
+
+  bool hasSavedMascotForUser(String uid) {
+    if (uid.isEmpty) return false;
+    return _userProfiles.containsKey(uid) &&
+        _userProfiles[uid] is Map &&
+        _userProfiles[uid]['selectedMascot'] != null;
+  }
+
+  String? getSavedMascotForUser(String uid) {
+    if (hasSavedMascotForUser(uid)) {
+      return _userProfiles[uid]['selectedMascot'] as String?;
+    }
+    return null;
+  }
+
+  void setSelectedMascot(String mascot, {String? uid}) {
     _selectedMascot = mascot;
+    _userGender = mascot;
+    final targetUid = uid ?? _userUid;
+    if (targetUid.isNotEmpty) {
+      final existing = _userProfiles[targetUid] is Map
+          ? Map<String, dynamic>.from(_userProfiles[targetUid])
+          : <String, dynamic>{};
+      existing['selectedMascot'] = mascot;
+      existing['userGender'] = mascot;
+      _userProfiles[targetUid] = existing;
+    }
     notifyListeners();
+    saveToStorage();
+  }
+
+  void setUserProfile({
+    required String name,
+    required String email,
+    required String gender,
+    String? uid,
+  }) {
+    _userName = name;
+    _userEmail = email;
+    _userGender = gender;
+    _selectedMascot = gender;
+    _isAuthenticated = true;
+    final targetUid = uid ?? _userUid;
+    if (targetUid.isNotEmpty) {
+      _userUid = targetUid;
+      final existing = _userProfiles[targetUid] is Map
+          ? Map<String, dynamic>.from(_userProfiles[targetUid])
+          : <String, dynamic>{};
+      existing['userName'] = name;
+      existing['userEmail'] = email;
+      existing['selectedMascot'] = gender;
+      existing['userGender'] = gender;
+      _userProfiles[targetUid] = existing;
+    }
+    notifyListeners();
+    saveToStorage();
+  }
+
+  void setAuthenticated(bool value) {
+    _isAuthenticated = value;
+    notifyListeners();
+    saveToStorage();
+  }
+
+  Future<void> logout() async {
+    try {
+      await AuthService.instance.signOut();
+    } catch (e) {
+      debugPrint('Sign out error: $e');
+    }
+    _isAuthenticated = false;
+    _userUid = '';
+    notifyListeners();
+    await saveToStorage();
+  }
+
+  Future<File?> _getStorageFile() async {
+    try {
+      // Primary Android path
+      final androidFiles = Directory('/data/user/0/com.spentee.spentee/files');
+      if (await androidFiles.exists()) {
+        return File('${androidFiles.path}/user_profile.json');
+      }
+      final androidAppFlutter =
+          Directory('/data/user/0/com.spentee.spentee/app_flutter');
+      if (await androidAppFlutter.exists()) {
+        return File('${androidAppFlutter.path}/user_profile.json');
+      }
+      // Fallback for desktop / unit tests / local run
+      final localDir = Directory('.spentee_storage');
+      if (!await localDir.exists()) {
+        await localDir.create(recursive: true);
+      }
+      return File('${localDir.path}/user_profile.json');
+    } catch (e) {
+      debugPrint('Storage directory lookup error: $e');
+      return null;
+    }
+  }
+
+  Future<void> saveToStorage() async {
+    try {
+      final file = await _getStorageFile();
+      if (file == null) return;
+      final data = {
+        'userName': _userName,
+        'userEmail': _userEmail,
+        'userGender': _userGender,
+        'selectedMascot': _selectedMascot,
+        'selectedLanguage': _selectedLanguage,
+        'isAuthenticated': _isAuthenticated,
+        'userProfiles': _userProfiles,
+      };
+      await file.writeAsString(jsonEncode(data));
+    } catch (e) {
+      debugPrint('Error saving user profile to storage: $e');
+    }
+  }
+
+  Future<void> initFromStorage() async {
+    try {
+      final file = await _getStorageFile();
+      if (file != null && await file.exists()) {
+        final content = await file.readAsString();
+        if (content.trim().isNotEmpty) {
+          final Map<String, dynamic> data = jsonDecode(content);
+          if (data.containsKey('userProfiles') && data['userProfiles'] is Map) {
+            _userProfiles.addAll(Map<String, dynamic>.from(data['userProfiles']));
+          }
+          if (data.containsKey('userName') && data['userName'] != null) {
+            _userName = data['userName'];
+          }
+          if (data.containsKey('userEmail') && data['userEmail'] != null) {
+            _userEmail = data['userEmail'];
+          }
+          if (data.containsKey('userGender') && data['userGender'] != null) {
+            _userGender = data['userGender'];
+          }
+          if (data.containsKey('selectedMascot') && data['selectedMascot'] != null) {
+            _selectedMascot = data['selectedMascot'];
+          }
+          if (data.containsKey('selectedLanguage') &&
+              data['selectedLanguage'] != null) {
+            _selectedLanguage = data['selectedLanguage'];
+          }
+        }
+      }
+
+      // Restore session from Firebase Authentication
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser != null) {
+        _isAuthenticated = true;
+        _userUid = currentUser.uid;
+        _userEmail = currentUser.email ?? _userEmail;
+        if (currentUser.displayName != null && currentUser.displayName!.isNotEmpty) {
+          _userName = currentUser.displayName!;
+        }
+        if (_userProfiles.containsKey(currentUser.uid) &&
+            _userProfiles[currentUser.uid]['selectedMascot'] != null) {
+          _selectedMascot = _userProfiles[currentUser.uid]['selectedMascot'];
+          _userGender = _selectedMascot;
+        }
+      } else {
+        _isAuthenticated = false;
+        _userUid = '';
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading user profile from storage: $e');
+    }
   }
 
   // Language selection

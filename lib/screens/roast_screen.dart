@@ -103,7 +103,8 @@ class _RoastScreenState extends State<RoastScreen> {
                                 roastAvatar,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
-                                    Image.asset('Assets/extracted/mascot_main.png'),
+                                    const Icon(Icons.face_rounded,
+                                        color: AppTheme.accentPink, size: 36),
                               ),
                             ),
                           ),

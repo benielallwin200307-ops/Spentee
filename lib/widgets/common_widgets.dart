@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
 /// Primary neon mint green action button with bold styling.
@@ -123,33 +124,41 @@ class SpenteeCard extends StatelessWidget {
 /// Circular avatar for character illustration.
 class MascotAvatar extends StatelessWidget {
   final double size;
-  final String imagePath;
+  final String? imagePath;
   final VoidCallback? onTap;
   final bool hasGlow;
 
   const MascotAvatar({
     super.key,
     this.size = 40,
-    this.imagePath = 'Assets/extracted/mascot_main.png',
+    this.imagePath,
     this.onTap,
     this.hasGlow = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    String resolvedPath = imagePath ??
+        (AppStateScope.of(context).selectedMascot == 'female'
+            ? 'Assets/extracted/female_main.png'
+            : 'Assets/extracted/mascot_main.png');
+
+    final isFemale = AppStateScope.of(context).selectedMascot == 'female';
+    final accentColor = isFemale ? const Color(0xFFFF528E) : AppTheme.primaryMint;
+
     Widget avatar = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: hasGlow ? AppTheme.primaryMint : const Color(0x4400E676),
+          color: hasGlow ? accentColor : accentColor.withValues(alpha: 0.35),
           width: 2,
         ),
         boxShadow: hasGlow
             ? [
                 BoxShadow(
-                  color: AppTheme.primaryMint.withValues(alpha: 0.3),
+                  color: accentColor.withValues(alpha: 0.3),
                   blurRadius: 10,
                   spreadRadius: 2,
                 )
@@ -158,7 +167,7 @@ class MascotAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: Image.asset(
-          imagePath,
+          resolvedPath,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) => Container(
             color: AppTheme.bgElevated,

@@ -96,7 +96,8 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
-    final avatarImg = appState.selectedMascot == 'female'
+    final isFemale = appState.selectedMascot == 'female';
+    final avatarImg = isFemale
         ? 'Assets/extracted/female_main.png'
         : 'Assets/extracted/mascot_main.png';
 
@@ -127,9 +128,9 @@ class HomeScreen extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const Text(
-                              'Hi, Alex! ',
-                              style: TextStyle(
+                            Text(
+                              'Hi, ${appState.userName}! ',
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
@@ -157,20 +158,23 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
 
                 // ─── Total Balance Card ─────────────────────────────────────
                 SpenteeCard(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0F2C4A), Color(0xFF091C30)],
+                  gradient: LinearGradient(
+                    colors: isFemale
+                        ? const [Color(0xFF28112A), Color(0xFF160918)]
+                        : const [Color(0xFF0F2C4A), Color(0xFF091C30)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   border: Border.all(
-                    color: AppTheme.primaryMint.withValues(alpha: 0.35),
+                    color: isFemale
+                        ? const Color(0xFFFF528E).withValues(alpha: 0.35)
+                        : AppTheme.primaryMint.withValues(alpha: 0.35),
                     width: 1.5,
                   ),
                   child: Row(
@@ -203,10 +207,12 @@ class HomeScreen extends StatelessWidget {
                                 const Icon(Icons.visibility_outlined,
                                     size: 14, color: AppTheme.textGrey),
                                 const SizedBox(width: 4),
-                                const Text(
+                                Text(
                                   'Local Mode • Secure',
                                   style: TextStyle(
-                                    color: AppTheme.primaryMint,
+                                    color: isFemale
+                                        ? const Color(0xFFFF528E)
+                                        : AppTheme.primaryMint,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -222,21 +228,22 @@ class HomeScreen extends StatelessWidget {
                         height: 80,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppTheme.primaryMint.withValues(alpha: 0.12),
+                          color: isFemale
+                              ? const Color(0xFFFF528E).withValues(alpha: 0.15)
+                              : AppTheme.primaryMint.withValues(alpha: 0.12),
                         ),
                         child: ClipOval(
                           child: Image.asset(
-                            appState.selectedMascot == 'female'
+                            isFemale
                                 ? 'Assets/extracted/female_happy.png'
                                 : 'Assets/extracted/avatar_happy.png',
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
-                                Image.asset(
-                              'Assets/extracted/mascot_main.png',
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.face_rounded,
-                                      color: AppTheme.primaryMint, size: 36),
-                            ),
+                                Icon(Icons.face_rounded,
+                                    color: isFemale
+                                        ? const Color(0xFFFF528E)
+                                        : AppTheme.primaryMint,
+                                    size: 36),
                           ),
                         ),
                       ),
@@ -316,7 +323,9 @@ class HomeScreen extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.asset(
-                            'Assets/extracted/avatar_ai.png',
+                            isFemale
+                                ? 'Assets/extracted/female_ai.png'
+                                : 'Assets/extracted/avatar_ai.png',
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 const Icon(Icons.smart_toy_rounded,

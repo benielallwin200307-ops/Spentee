@@ -454,7 +454,7 @@ class _OnboardingPageView extends StatelessWidget {
       // Step 1: "Get roasted (with love)" recreation matching Image 2
       return Column(
         children: [
-          SizedBox(height: topPadding + math.max(22.0, screenHeight * 0.028)),
+          SizedBox(height: topPadding + math.max(52.0, screenHeight * 0.062)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
@@ -464,7 +464,7 @@ class _OnboardingPageView extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: math.min(screenWidth * 0.092, 38.0),
+                    fontSize: math.min(screenWidth * 0.087, 36.0),
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.8,
                     height: 1.12,
@@ -478,7 +478,7 @@ class _OnboardingPageView extends StatelessWidget {
                         text: 'Fun insights and meme-style\nroasts to ',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: math.min(screenWidth * 0.043, 17.5),
+                          fontSize: math.min(screenWidth * 0.038, 15.5),
                           fontWeight: FontWeight.w600,
                           height: 1.28,
                           letterSpacing: -0.1,
@@ -488,7 +488,7 @@ class _OnboardingPageView extends StatelessWidget {
                         text: 'keep you on track.',
                         style: TextStyle(
                           color: _OnboardingScreenState.mintGreen,
-                          fontSize: math.min(screenWidth * 0.043, 17.5),
+                          fontSize: math.min(screenWidth * 0.038, 15.5),
                           fontWeight: FontWeight.w600,
                           height: 1.28,
                           letterSpacing: -0.1,
@@ -643,7 +643,10 @@ class _OnboardingPageView extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Image.asset(
-                      step.mascotAsset,
+                      (step.mascotAsset.contains('roast') &&
+                              AppStateScope.of(context).selectedMascot == 'female')
+                          ? 'Assets/extracted/female_roast.png'
+                          : step.mascotAsset,
                       width: math.min(screenWidth * 0.68, 280.0),
                       height: math.min(screenWidth * 0.68, 280.0),
                       fit: BoxFit.contain,
@@ -671,7 +674,7 @@ class _RoastSpeechBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fontSize = (width * 0.082).clamp(15.5, 17.5);
+    final fontSize = (width * 0.092).clamp(17.5, 19.5);
 
     return SizedBox(
       width: width,
@@ -680,10 +683,10 @@ class _RoastSpeechBubble extends StatelessWidget {
         painter: const _RoastBubblePainter(),
         child: Padding(
           padding: EdgeInsets.only(
-            left: width * 0.09,
-            top: height * 0.10,
-            right: width * 0.09,
-            bottom: height * 0.28,
+            left: width * 0.075,
+            top: height * 0.09,
+            right: width * 0.075,
+            bottom: height * 0.27,
           ),
           child: Align(
             alignment: Alignment.centerLeft,

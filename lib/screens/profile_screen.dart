@@ -53,11 +53,17 @@ class ProfileScreen extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: AppTheme.primaryMint, width: 2),
+                            color: appState.selectedMascot == 'female'
+                                ? const Color(0xFFFF528E)
+                                : AppTheme.primaryMint,
+                            width: 2,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  AppTheme.primaryMint.withValues(alpha: 0.25),
+                              color: (appState.selectedMascot == 'female'
+                                      ? const Color(0xFFFF528E)
+                                      : AppTheme.primaryMint)
+                                  .withValues(alpha: 0.25),
                               blurRadius: 12,
                               spreadRadius: 2,
                             ),
@@ -86,18 +92,18 @@ class ProfileScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Alex',
-                              style: TextStyle(
+                            Text(
+                              appState.userName,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
-                              'alex@example.com',
-                              style: TextStyle(
+                            Text(
+                              appState.userEmail,
+                              style: const TextStyle(
                                 color: AppTheme.textGrey,
                                 fontSize: 13,
                               ),
@@ -157,6 +163,37 @@ class ProfileScreen extends StatelessWidget {
                   title: 'App Settings',
                   items: [
                     _ProfileItem(
+                      icon: Icons.face_rounded,
+                      color: appState.selectedMascot == 'female'
+                          ? const Color(0xFFFF528E)
+                          : AppTheme.primaryMint,
+                      label: 'Mascot Theme',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            appState.selectedMascot == 'female'
+                                ? 'Female'
+                                : 'Male',
+                            style: TextStyle(
+                              color: appState.selectedMascot == 'female'
+                                  ? const Color(0xFFFF528E)
+                                  : AppTheme.primaryMint,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppTheme.textGrey,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                      onTap: () => _showMascotSwitchSheet(context, appState),
+                    ),
+                    _ProfileItem(
                       icon: Icons.notifications_rounded,
                       color: AppTheme.accentOrange,
                       label: 'Reminders',
@@ -179,7 +216,7 @@ class ProfileScreen extends StatelessWidget {
                     _ProfileItem(
                       icon: Icons.brightness_2_rounded,
                       color: AppTheme.accentBlue,
-                      label: 'Theme',
+                      label: 'Display Theme',
                       trailing: const Text(
                         'Dark',
                         style: TextStyle(
@@ -288,6 +325,207 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  void _showMascotSwitchSheet(BuildContext context, AppState appState) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF00151B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final currentMascot = appState.selectedMascot;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Choose Mascot Companion',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Your financial transactions, budgets, and balance remain completely untouched when switching characters.',
+                  style: TextStyle(
+                    color: Color(0xFF88A0A8),
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    // Male Option Card
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          appState.setSelectedMascot('male');
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Switched to Male Mascot Theme! 🕶️'),
+                              backgroundColor: Color(0xFF012026),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: currentMascot == 'male'
+                                ? const Color(0xFF032535)
+                                : const Color(0xFF031826),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: currentMascot == 'male'
+                                  ? const Color(0xFF65FFA7)
+                                  : const Color(0xFF17465A),
+                              width: currentMascot == 'male' ? 2 : 1,
+                            ),
+                            boxShadow: currentMascot == 'male'
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF65FFA7)
+                                          .withValues(alpha: 0.2),
+                                      blurRadius: 12,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              ClipOval(
+                                child: Image.asset(
+                                  'Assets/extracted/mascot_main.png',
+                                  width: 68,
+                                  height: 68,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Male Mascot',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                currentMascot == 'male' ? 'Active' : 'Tap to select',
+                                style: TextStyle(
+                                  color: currentMascot == 'male'
+                                      ? const Color(0xFF65FFA7)
+                                      : const Color(0xFF88A0A8),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Female Option Card
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          appState.setSelectedMascot('female');
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Switched to Female Mascot Theme! 💖'),
+                              backgroundColor: Color(0xFF012026),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: currentMascot == 'female'
+                                ? const Color(0xFF291023)
+                                : const Color(0xFF031826),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: currentMascot == 'female'
+                                  ? const Color(0xFFFF528E)
+                                  : const Color(0xFF17465A),
+                              width: currentMascot == 'female' ? 2 : 1,
+                            ),
+                            boxShadow: currentMascot == 'female'
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFFF528E)
+                                          .withValues(alpha: 0.25),
+                                      blurRadius: 12,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              ClipOval(
+                                child: Image.asset(
+                                  'Assets/extracted/female_main.png',
+                                  width: 68,
+                                  height: 68,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Female Mascot',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                currentMascot == 'female' ? 'Active' : 'Tap to select',
+                                style: TextStyle(
+                                  color: currentMascot == 'female'
+                                      ? const Color(0xFFFF528E)
+                                      : const Color(0xFF88A0A8),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showComingSoon(BuildContext context, String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -362,8 +600,10 @@ class ProfileScreen extends StatelessWidget {
                 style: TextStyle(color: AppTheme.textGrey)),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
+              await AppStateScope.of(context).logout();
+              if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const SplashScreen()),
                 (route) => false,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'leaderboard_screen.dart';
@@ -334,10 +335,14 @@ class _GamesScreenState extends State<GamesScreen> {
                               ),
                               child: ClipOval(
                                 child: Image.asset(
-                                  'Assets/extracted/avatar_win.png',
+                                  AppStateScope.of(context).selectedMascot ==
+                                          'female'
+                                      ? 'Assets/extracted/female_win.png'
+                                      : 'Assets/extracted/avatar_win.png',
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
-                                      Image.asset('Assets/extracted/mascot_main.png'),
+                                      const Icon(Icons.emoji_events_rounded,
+                                          color: AppTheme.primaryMint, size: 28),
                                 ),
                               ),
                             ),

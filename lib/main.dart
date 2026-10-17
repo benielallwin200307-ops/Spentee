@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'theme/app_theme.dart';
 import 'state/app_state.dart';
 import 'screens/splash_screen.dart';
+import 'screens/main_shell.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SpenteeApp());
+  await Firebase.initializeApp();
+  final appState = AppState();
+  await appState.initFromStorage();
+  runApp(SpenteeApp(appState: appState));
 }
+
 
 /// The root widget of Spentee.
 class SpenteeApp extends StatefulWidget {
-  const SpenteeApp({super.key});
+  final AppState? appState;
+  const SpenteeApp({super.key, this.appState});
 
   @override
   State<SpenteeApp> createState() => _SpenteeAppState();
@@ -22,7 +29,10 @@ class _SpenteeAppState extends State<SpenteeApp> {
   @override
   void initState() {
     super.initState();
-    _appState = AppState();
+    _appState = widget.appState ?? AppState();
+    if (widget.appState == null) {
+      _appState.initFromStorage();
+    }
   }
 
   @override
@@ -35,11 +45,18 @@ class _SpenteeAppState extends State<SpenteeApp> {
   Widget build(BuildContext context) {
     return AppStateScope(
       state: _appState,
-      child: MaterialApp(
-        title: 'Spentee',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        home: const SplashScreen(),
+      child: ListenableBuilder(
+        listenable: _appState,
+        builder: (context, _) {
+          return MaterialApp(
+            title: 'Spentee',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.darkTheme,
+            home: _appState.isAuthenticated
+                ? const MainShell()
+                : const SplashScreen(),
+          );
+        },
       ),
     );
   }

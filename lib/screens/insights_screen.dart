@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 
@@ -395,7 +396,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.asset(
-                            'Assets/extracted/avatar_ai.png',
+                            AppStateScope.of(context).selectedMascot == 'female'
+                                ? 'Assets/extracted/female_ai.png'
+                                : 'Assets/extracted/avatar_ai.png',
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 const Icon(Icons.smart_toy_rounded,

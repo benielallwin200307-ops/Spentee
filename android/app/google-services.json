@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "46636408233",
+    "project_id": "spentee-41ec7",
+    "storage_bucket": "spentee-41ec7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:46636408233:android:0c89e358afd76eff60b8b8",
+        "android_client_info": {
+          "package_name": "com.spentee.spentee"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "46636408233-epfqboouuh20ucfnnfppm8ih45q0oem0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAR6B7_9yJHPfo08rLfOwkKnLMJNmRPFlU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "46636408233-epfqboouuh20ucfnnfppm8ih45q0oem0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
