@@ -1,334 +1,604 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
-import '../widgets/common_widgets.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
+import 'about_screen.dart';
+import 'budget_management_screen.dart';
+import 'category_management_screen.dart';
+import 'help_support_screen.dart';
+import 'reminders_screen.dart';
 import 'splash_screen.dart';
 
-/// Screen 15 — Profile Settings Screen
+/// Screen 15 — Spentee Profile & Preferences Screen
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
+    final mascotImage = appState.selectedMascot == 'female'
+        ? 'Assets/extracted/female_main.png'
+        : 'Assets/extracted/mascot_main.png';
+
+    final mascotLabel =
+        appState.selectedMascot == 'female' ? 'Female' : 'Male';
+
+    final displayThemeLabel = _getThemeLabel(appState.displayTheme);
 
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: const Color(0xFF030D11),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Profile',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Top Header Row: Title + "Edit Profile" Pill Button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Profile',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Manage your account and preferences.',
+                        style: TextStyle(
+                          color: Color(0xFF7E9DAA),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Profile Header Card
-                SpenteeCard(
-                  padding: const EdgeInsets.all(20),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0C2740), Color(0xFF081A28)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                  InkWell(
+                    onTap: () => _showEditProfileModal(context, appState),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF041E1C),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppTheme.primaryMint,
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryMint.withValues(alpha: 0.15),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.edit_rounded,
+                            color: AppTheme.primaryMint,
+                            size: 15,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Edit Profile',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  border: Border.all(
-                      color: AppTheme.primaryMint.withValues(alpha: 0.2),
-                      width: 1),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // 2. User Profile Card
+              InkWell(
+                onTap: () => _showEditProfileModal(context, appState),
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF072F29), Color(0xFF061820)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: AppTheme.primaryMint.withValues(alpha: 0.35),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryMint.withValues(alpha: 0.1),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
                   child: Row(
                     children: [
-                      // Avatar
+                      // Mascot Avatar with glowing neon green ring
                       Container(
-                        width: 64,
-                        height: 64,
+                        width: 66,
+                        height: 66,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: appState.selectedMascot == 'female'
-                                ? const Color(0xFFFF528E)
-                                : AppTheme.primaryMint,
-                            width: 2,
+                            color: AppTheme.primaryMint,
+                            width: 2.2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: (appState.selectedMascot == 'female'
-                                      ? const Color(0xFFFF528E)
-                                      : AppTheme.primaryMint)
-                                  .withValues(alpha: 0.25),
-                              blurRadius: 12,
+                              color:
+                                  AppTheme.primaryMint.withValues(alpha: 0.35),
+                              blurRadius: 14,
                               spreadRadius: 2,
                             ),
                           ],
                         ),
                         child: ClipOval(
                           child: Image.asset(
-                            appState.selectedMascot == 'female'
-                                ? 'Assets/extracted/female_main.png'
-                                : 'Assets/extracted/mascot_main.png',
+                            mascotImage,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              color: AppTheme.bgElevated,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: const Color(0xFF092520),
                               child: const Icon(
                                 Icons.person_rounded,
                                 color: AppTheme.primaryMint,
-                                size: 32,
+                                size: 34,
                               ),
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 16),
+                      // User Info
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              appState.userName,
+                              appState.userName.isNotEmpty
+                                  ? appState.userName
+                                  : 'Team Seven',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 20,
+                                fontSize: 19,
                                 fontWeight: FontWeight.w800,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              appState.userEmail,
+                              appState.userEmail.isNotEmpty
+                                  ? appState.userEmail
+                                  : 'teamseven7official@gmail.com',
                               style: const TextStyle(
-                                color: AppTheme.textGrey,
+                                color: Color(0xFF7E9DA9),
                                 fontSize: 13,
                               ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color:
-                                    AppTheme.primaryMint.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                    color: AppTheme.primaryMint
-                                        .withValues(alpha: 0.4)),
-                              ),
-                              child: const Text(
-                                '✨ Level 4 • Savvy Saver',
-                                style: TextStyle(
-                                  color: AppTheme.primaryMint,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppTheme.primaryMint,
+                        size: 24,
+                      ),
                     ],
                   ),
                 ),
+              ),
 
-                const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-                // Settings sections
-                _ProfileSection(
-                  title: 'Finance',
-                  items: [
-                    _ProfileItem(
-                      icon: Icons.account_balance_wallet_rounded,
-                      color: AppTheme.primaryMint,
-                      label: 'Manage Budget',
-                      onTap: () => _showComingSoon(context, 'Manage Budget'),
-                    ),
-                    _ProfileItem(
-                      icon: Icons.category_rounded,
-                      color: AppTheme.accentPurple,
-                      label: 'Categories',
-                      onTap: () => _showComingSoon(context, 'Categories'),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                _ProfileSection(
-                  title: 'App Settings',
-                  items: [
-                    _ProfileItem(
-                      icon: Icons.face_rounded,
-                      color: appState.selectedMascot == 'female'
-                          ? const Color(0xFFFF528E)
-                          : AppTheme.primaryMint,
-                      label: 'Mascot Theme',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            appState.selectedMascot == 'female'
-                                ? 'Female'
-                                : 'Male',
-                            style: TextStyle(
-                              color: appState.selectedMascot == 'female'
-                                  ? const Color(0xFFFF528E)
-                                  : AppTheme.primaryMint,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: AppTheme.textGrey,
-                            size: 18,
-                          ),
-                        ],
-                      ),
-                      onTap: () => _showMascotSwitchSheet(context, appState),
-                    ),
-                    _ProfileItem(
-                      icon: Icons.notifications_rounded,
-                      color: AppTheme.accentOrange,
-                      label: 'Reminders',
-                      onTap: () => _showComingSoon(context, 'Reminders'),
-                    ),
-                    _ProfileItem(
-                      icon: Icons.language_rounded,
-                      color: AppTheme.accentCyan,
-                      label: 'Language',
-                      trailing: Text(
-                        appState.selectedLanguage,
-                        style: const TextStyle(
-                          color: AppTheme.primaryMint,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+              // 3. Section 1: Finance
+              _SectionHeader(
+                title: 'Finance',
+                subtitle: 'Manage how you track your money',
+              ),
+              const SizedBox(height: 10),
+              _GroupCard(
+                children: [
+                  _ProfileOptionTile(
+                    icon: Icons.account_balance_wallet_rounded,
+                    iconBg: const Color(0xFF08332A),
+                    iconColor: AppTheme.primaryMint,
+                    title: 'Manage Budget',
+                    subtitle: 'Set budgets and track your goals',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BudgetManagementScreen(),
                         ),
-                      ),
-                      onTap: () => _showComingSoon(context, 'Language'),
-                    ),
-                    _ProfileItem(
-                      icon: Icons.brightness_2_rounded,
-                      color: AppTheme.accentBlue,
-                      label: 'Display Theme',
-                      trailing: const Text(
-                        'Dark',
-                        style: TextStyle(
-                          color: AppTheme.textGrey,
-                          fontSize: 13,
+                      );
+                    },
+                  ),
+                  const _CardDivider(),
+                  _ProfileOptionTile(
+                    icon: Icons.category_rounded,
+                    iconBg: const Color(0xFF24163E),
+                    iconColor: const Color(0xFFA855F7),
+                    title: 'Categories',
+                    subtitle: 'Manage your transaction categories',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CategoryManagementScreen(),
                         ),
-                      ),
-                      onTap: () => _showComingSoon(context, 'Theme'),
-                    ),
-                  ],
-                ),
+                      );
+                    },
+                  ),
+                ],
+              ),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 24),
 
-                _ProfileSection(
-                  title: 'Support',
-                  items: [
-                    _ProfileItem(
-                      icon: Icons.help_outline_rounded,
-                      color: AppTheme.accentYellow,
-                      label: 'Help & Support',
-                      onTap: () => _showComingSoon(context, 'Help & Support'),
-                    ),
-                    _ProfileItem(
-                      icon: Icons.info_outline_rounded,
-                      color: AppTheme.textGrey,
-                      label: 'About Spentee',
-                      onTap: () => _showAbout(context),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Logout Button
-                GestureDetector(
-                  onTap: () => _onLogout(context),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentPink.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                          color: AppTheme.accentPink.withValues(alpha: 0.4)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.logout_rounded,
-                            color: AppTheme.accentPink, size: 20),
-                        SizedBox(width: 10),
-                        Text(
-                          'Logout',
-                          style: TextStyle(
-                            color: AppTheme.accentPink,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
+              // 4. Section 2: App Settings
+              _SectionHeader(
+                title: 'App Settings',
+                subtitle: 'Personalize your Spentee experience',
+              ),
+              const SizedBox(height: 10),
+              _GroupCard(
+                children: [
+                  _ProfileOptionTile(
+                    icon: Icons.face_rounded,
+                    iconBg: const Color(0xFF08332A),
+                    iconColor: AppTheme.primaryMint,
+                    title: 'Mascot Theme',
+                    subtitle: 'Choose your favourite mascot',
+                    trailingText: mascotLabel,
+                    trailingTextColor: AppTheme.primaryMint,
+                    onTap: () => _showMascotSwitchSheet(context, appState),
+                  ),
+                  const _CardDivider(),
+                  _ProfileOptionTile(
+                    icon: Icons.notifications_rounded,
+                    iconBg: const Color(0xFF33220A),
+                    iconColor: const Color(0xFFFFB300),
+                    title: 'Reminders',
+                    subtitle: 'Get notified and stay on track',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const RemindersScreen(),
                         ),
-                      ],
+                      );
+                    },
+                  ),
+                  const _CardDivider(),
+                  _ProfileOptionTile(
+                    icon: Icons.language_rounded,
+                    iconBg: const Color(0xFF072B36),
+                    iconColor: const Color(0xFF00E5FF),
+                    title: 'Language',
+                    subtitle: 'Choose your preferred language',
+                    trailingText: appState.selectedLanguage,
+                    trailingTextColor: AppTheme.primaryMint,
+                    onTap: () => _showLanguageSheet(context, appState),
+                  ),
+                  const _CardDivider(),
+                  _ProfileOptionTile(
+                    icon: Icons.nightlight_round,
+                    iconBg: const Color(0xFF131D3F),
+                    iconColor: const Color(0xFF5C7CFA),
+                    title: 'Display Theme',
+                    subtitle: 'Light, Dark or System',
+                    trailingText: displayThemeLabel,
+                    trailingTextColor: const Color(0xFF88A6B2),
+                    onTap: () => _showThemeSheet(context, appState),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // 5. Section 3: Support
+              _SectionHeader(
+                title: 'Support',
+                subtitle: "We're here to help",
+              ),
+              const SizedBox(height: 10),
+              _GroupCard(
+                children: [
+                  _ProfileOptionTile(
+                    icon: Icons.help_rounded,
+                    iconBg: const Color(0xFF2E270A),
+                    iconColor: const Color(0xFFFFD600),
+                    title: 'Help & Support',
+                    subtitle: 'FAQs, contact support and more',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HelpSupportScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const _CardDivider(),
+                  _ProfileOptionTile(
+                    icon: Icons.info_rounded,
+                    iconBg: const Color(0xFF13222B),
+                    iconColor: const Color(0xFF88A8B4),
+                    title: 'About Spentee',
+                    subtitle: 'App version, terms and privacy',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AboutScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // 6. Section 4: Logout
+              InkWell(
+                onTap: () => _confirmLogout(context, appState),
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF260D14),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFFF4D6D).withValues(alpha: 0.35),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // Footer branding
-                Center(
-                  child: Column(
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SizedBox(
-                        height: 28,
-                        child: Image.asset(
-                          'Assets/spentee_splash_wordmark.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Text(
-                            'Spentee',
-                            style: TextStyle(
-                              color: AppTheme.primaryMint,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
+                      Icon(
+                        Icons.logout_rounded,
+                        color: Color(0xFFFF4D6D),
+                        size: 18,
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Version 1.0.0 • Your AI Money Companion',
+                      SizedBox(width: 8),
+                      Text(
+                        'Log Out',
                         style: TextStyle(
-                          color: AppTheme.textDim,
-                          fontSize: 11,
+                          color: Color(0xFFFF4D6D),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
                 ),
+              ),
 
-                const SizedBox(height: 24),
-              ],
-            ),
+              const SizedBox(height: 32),
+            ],
           ),
         ),
       ),
     );
   }
 
+  static String _getThemeLabel(String theme) {
+    switch (theme.toLowerCase()) {
+      case 'light':
+        return 'Light';
+      case 'system':
+        return 'System';
+      case 'dark':
+      default:
+        return 'Dark';
+    }
+  }
+
+  // --- MODAL: Edit Profile ---
+  void _showEditProfileModal(BuildContext context, AppState appState) {
+    final nameController = TextEditingController(text: appState.userName);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A181D),
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E3842),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Edit Profile',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Update your display name across Spentee.',
+                style: TextStyle(color: Color(0xFF7A9BA8), fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Full Name',
+                style: TextStyle(
+                  color: Color(0xFF90B0BC),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: nameController,
+                autofocus: false,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFF061418),
+                  hintText: 'Enter your name',
+                  hintStyle: const TextStyle(color: Color(0xFF4C6B77)),
+                  prefixIcon: const Icon(
+                    Icons.person_outline_rounded,
+                    color: AppTheme.primaryMint,
+                    size: 20,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFF143540)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: AppTheme.primaryMint),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Email Address (Linked Account)',
+                style: TextStyle(
+                  color: Color(0xFF90B0BC),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF041014),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF0F262F)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.mail_outline_rounded,
+                      color: Color(0xFF5B7D8A),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        appState.userEmail.isNotEmpty
+                            ? appState.userEmail
+                            : 'teamseven7official@gmail.com',
+                        style: const TextStyle(
+                          color: Color(0xFF829FA8),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.lock_rounded,
+                      color: Color(0xFF4B6974),
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final newName = nameController.text.trim();
+                    if (newName.isNotEmpty) {
+                      await appState.updateUserName(newName);
+                      if (context.mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Profile updated to "$newName" ✨',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            backgroundColor: const Color(0xFF092E27),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryMint,
+                    foregroundColor: const Color(0xFF03161C),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- MODAL: Mascot Switch ---
   void _showMascotSwitchSheet(BuildContext context, AppState appState) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF00151B),
+      backgroundColor: const Color(0xFF0A181D),
+      barrierColor: Colors.black.withValues(alpha: 0.7),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -336,85 +606,86 @@ class ProfileScreen extends StatelessWidget {
         final currentMascot = appState.selectedMascot;
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Choose Mascot Companion',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                      ),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3842),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Choose Mascot Companion',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Your financial transactions, budgets, and balance remain completely untouched when switching characters.',
-                  style: TextStyle(
-                    color: Color(0xFF88A0A8),
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
+                  'Switch companions anytime. All your financial data remains completely safe.',
+                  style: TextStyle(color: Color(0xFF7E9DAA), fontSize: 13),
                 ),
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    // Male Option Card
+                    // Male Option
                     Expanded(
-                      child: GestureDetector(
+                      child: InkWell(
                         onTap: () {
                           appState.setSelectedMascot('male');
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Switched to Male Mascot Theme! 🕶️'),
-                              backgroundColor: Color(0xFF012026),
+                              content: Text('Switched to Male Mascot 🕶️'),
+                              backgroundColor: Color(0xFF092E27),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
                         },
+                        borderRadius: BorderRadius.circular(20),
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: currentMascot == 'male'
-                                ? const Color(0xFF032535)
-                                : const Color(0xFF031826),
+                                ? const Color(0xFF062B25)
+                                : const Color(0xFF06151B),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: currentMascot == 'male'
-                                  ? const Color(0xFF65FFA7)
-                                  : const Color(0xFF17465A),
+                                  ? AppTheme.primaryMint
+                                  : const Color(0xFF14333F),
                               width: currentMascot == 'male' ? 2 : 1,
                             ),
-                            boxShadow: currentMascot == 'male'
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(0xFF65FFA7)
-                                          .withValues(alpha: 0.2),
-                                      blurRadius: 12,
-                                    ),
-                                  ]
-                                : null,
                           ),
                           child: Column(
                             children: [
-                              ClipOval(
-                                child: Image.asset(
-                                  'Assets/extracted/mascot_main.png',
-                                  width: 68,
-                                  height: 68,
-                                  fit: BoxFit.cover,
+                              Container(
+                                width: 68,
+                                height: 68,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: currentMascot == 'male'
+                                        ? AppTheme.primaryMint
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: ClipOval(
+                                  child: Image.asset(
+                                    'Assets/extracted/mascot_main.png',
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -428,13 +699,13 @@ class ProfileScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                currentMascot == 'male' ? 'Active' : 'Tap to select',
+                                currentMascot == 'male' ? 'Active' : 'Select',
                                 style: TextStyle(
                                   color: currentMascot == 'male'
-                                      ? const Color(0xFF65FFA7)
-                                      : const Color(0xFF88A0A8),
+                                      ? AppTheme.primaryMint
+                                      : const Color(0xFF6B8B97),
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -442,52 +713,55 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    // Female Option Card
+                    const SizedBox(width: 14),
+                    // Female Option
                     Expanded(
-                      child: GestureDetector(
+                      child: InkWell(
                         onTap: () {
                           appState.setSelectedMascot('female');
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Switched to Female Mascot Theme! 💖'),
-                              backgroundColor: Color(0xFF012026),
+                              content: Text('Switched to Female Mascot 💖'),
+                              backgroundColor: Color(0xFF092E27),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
                         },
+                        borderRadius: BorderRadius.circular(20),
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: currentMascot == 'female'
-                                ? const Color(0xFF291023)
-                                : const Color(0xFF031826),
+                                ? const Color(0xFF260D1E)
+                                : const Color(0xFF06151B),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: currentMascot == 'female'
                                   ? const Color(0xFFFF528E)
-                                  : const Color(0xFF17465A),
+                                  : const Color(0xFF14333F),
                               width: currentMascot == 'female' ? 2 : 1,
                             ),
-                            boxShadow: currentMascot == 'female'
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(0xFFFF528E)
-                                          .withValues(alpha: 0.25),
-                                      blurRadius: 12,
-                                    ),
-                                  ]
-                                : null,
                           ),
                           child: Column(
                             children: [
-                              ClipOval(
-                                child: Image.asset(
-                                  'Assets/extracted/female_main.png',
-                                  width: 68,
-                                  height: 68,
-                                  fit: BoxFit.cover,
+                              Container(
+                                width: 68,
+                                height: 68,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: currentMascot == 'female'
+                                        ? const Color(0xFFFF528E)
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: ClipOval(
+                                  child: Image.asset(
+                                    'Assets/extracted/female_main.png',
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -501,13 +775,13 @@ class ProfileScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                currentMascot == 'female' ? 'Active' : 'Tap to select',
+                                currentMascot == 'female' ? 'Active' : 'Select',
                                 style: TextStyle(
                                   color: currentMascot == 'female'
                                       ? const Color(0xFFFF528E)
-                                      : const Color(0xFF88A0A8),
+                                      : const Color(0xFF6B8B97),
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -517,7 +791,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
               ],
             ),
           ),
@@ -526,91 +800,304 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature — coming soon!'),
-        backgroundColor: AppTheme.bgCard,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  // --- MODAL: Language ---
+  void _showLanguageSheet(BuildContext context, AppState appState) {
+    final languages = [
+      {'code': 'English', 'native': 'English'},
+      {'code': 'Hindi', 'native': 'हिंदी (Hindi)'},
+      {'code': 'Telugu', 'native': 'తెలుగు (Telugu)'},
+      {'code': 'Tamil', 'native': 'தமிழ் (Tamil)'},
+      {'code': 'Kannada', 'native': 'ಕನ್ನಡ (Kannada)'},
+      {'code': 'Malayalam', 'native': 'മലയാളം (Malayalam)'},
+    ];
 
-  void _showAbout(BuildContext context) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.bgCard,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'About Spentee',
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Spentee — Your AI Money Companion\n\nTrack every rupee without the stress. Get roasted (with love), play financial puzzles, and build smart money habits.',
-              style:
-                  TextStyle(color: AppTheme.textGrey, fontSize: 13, height: 1.5),
+      backgroundColor: const Color(0xFF0A181D),
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3842),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Choose Language',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...languages.map((lang) {
+                  final code = lang['code']!;
+                  final isSelected = appState.selectedLanguage == code;
+                  return InkWell(
+                    onTap: () {
+                      appState.setSelectedLanguage(code);
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Language updated to $code'),
+                          backgroundColor: const Color(0xFF092E27),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF082B24)
+                            : const Color(0xFF06151B),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.primaryMint
+                              : const Color(0xFF122C38),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              lang['native']!,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? AppTheme.primaryMint
+                                    : Colors.white,
+                                fontSize: 15,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppTheme.primaryMint,
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
             ),
-            SizedBox(height: 12),
-            Text(
-              'Version 1.0.0',
-              style: TextStyle(
-                  color: AppTheme.primaryMint,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          NeonButton(
-            text: 'Close',
-            onPressed: () => Navigator.pop(ctx),
-            height: 44,
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  void _onLogout(BuildContext context) {
+  // --- MODAL: Display Theme ---
+  void _showThemeSheet(BuildContext context, AppState appState) {
+    final themes = [
+      {
+        'id': 'Dark',
+        'title': 'Dark Mode',
+        'desc': 'Optimized for OLED & low light',
+        'icon': Icons.nightlight_round,
+        'color': const Color(0xFF5C7CFA),
+      },
+      {
+        'id': 'Light',
+        'title': 'Light Mode',
+        'desc': 'Clean and crisp daytime look',
+        'icon': Icons.wb_sunny_rounded,
+        'color': const Color(0xFFFFB300),
+      },
+      {
+        'id': 'System',
+        'title': 'System Default',
+        'desc': 'Automatically match device theme',
+        'icon': Icons.settings_brightness_rounded,
+        'color': AppTheme.primaryMint,
+      },
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A181D),
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3842),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Display Theme',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...themes.map((t) {
+                  final isSelected =
+                      appState.displayTheme.toLowerCase() ==
+                          (t['id'] as String).toLowerCase();
+                  return InkWell(
+                    onTap: () {
+                      appState.setDisplayTheme(t['id'] as String);
+                      Navigator.pop(ctx);
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF082B24)
+                            : const Color(0xFF06151B),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.primaryMint
+                              : const Color(0xFF122C38),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            t['icon'] as IconData,
+                            color: t['color'] as Color,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t['title'] as String,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? AppTheme.primaryMint
+                                        : Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  t['desc'] as String,
+                                  style: const TextStyle(
+                                    color: Color(0xFF7A9AA6),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppTheme.primaryMint,
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // --- LOGOUT CONFIRMATION ---
+  void _confirmLogout(BuildContext context, AppState appState) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.bgCard,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: const Color(0xFF091C24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
-          'Logout?',
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
+          'Log Out of Spentee?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         content: const Text(
-          'Your data will be cleared. Are you sure you want to logout?',
-          style: TextStyle(color: AppTheme.textGrey, fontSize: 13),
+          'Are you sure you want to log out? Your recorded transactions and financial budgets will remain safely stored on this device.',
+          style: TextStyle(color: Color(0xFF88A8B6), fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel',
-                style: TextStyle(color: AppTheme.textGrey)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF88A8B6)),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              await AppStateScope.of(context).logout();
-              if (!context.mounted) return;
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const SplashScreen()),
-                (route) => false,
-              );
+              await appState.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const SplashScreen()),
+                  (route) => false,
+                );
+              }
             },
-            child: const Text('Logout',
-                style: TextStyle(color: AppTheme.accentPink)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF4D6D),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Log Out',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -618,73 +1105,36 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _ProfileSection extends StatelessWidget {
-  final String title;
-  final List<_ProfileItem> items;
+// --- REUSABLE PROFILE WIDGETS ---
 
-  const _ProfileSection({required this.title, required this.items});
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _SectionHeader({
+    required this.title,
+    required this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
           style: const TextStyle(
-            color: AppTheme.textGrey,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 10),
-        SpenteeCard(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: items.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              return Column(
-                children: [
-                  ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: item.color.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(item.icon, color: item.color, size: 20),
-                    ),
-                    title: Text(
-                      item.label,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    trailing: item.trailing ??
-                        const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          color: AppTheme.textDim,
-                          size: 14,
-                        ),
-                    onTap: item.onTap,
-                  ),
-                  if (index < items.length - 1)
-                    const Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: AppTheme.borderSubtle,
-                    ),
-                ],
-              );
-            }).toList(),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: Color(0xFF6B8B97),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -692,18 +1142,126 @@ class _ProfileSection extends StatelessWidget {
   }
 }
 
-class _ProfileItem {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final Widget? trailing;
-  final VoidCallback? onTap;
+class _GroupCard extends StatelessWidget {
+  final List<Widget> children;
 
-  const _ProfileItem({
+  const _GroupCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF071820),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF0F2B38),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: children,
+      ),
+    );
+  }
+}
+
+class _ProfileOptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String? trailingText;
+  final Color? trailingTextColor;
+  final VoidCallback onTap;
+
+  const _ProfileOptionTile({
     required this.icon,
-    required this.color,
-    required this.label,
-    this.trailing,
-    this.onTap,
+    required this.iconBg,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.trailingText,
+    this.trailingTextColor,
+    required this.onTap,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 21),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFF6C8C98),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (trailingText != null) ...[
+              Text(
+                trailingText!,
+                style: TextStyle(
+                  color: trailingTextColor ?? AppTheme.primaryMint,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF5B7D8C),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CardDivider extends StatelessWidget {
+  const _CardDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(
+      color: Color(0xFF0D2530),
+      height: 1,
+      thickness: 1,
+      indent: 16,
+      endIndent: 16,
+    );
+  }
 }

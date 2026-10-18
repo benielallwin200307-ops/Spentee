@@ -117,4 +117,35 @@ class AppTheme {
       useMaterial3: true,
     );
   }
+
+  /// Light ThemeData for MaterialApp
+  static ThemeData get lightTheme {
+    return ThemeData(
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+      primaryColor: const Color(0xFF00B359),
+      canvasColor: const Color(0xFFE2E8F0),
+      cardColor: Colors.white,
+      colorScheme: const ColorScheme.light(
+        primary: Color(0xFF00B359),
+        secondary: Color(0xFF0284C7),
+        surface: Colors.white,
+        onSurface: Color(0xFF0F172A),
+        error: accentPink,
+      ),
+      fontFamily: 'Roboto',
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        iconTheme: IconThemeData(color: Color(0xFF0F172A)),
+        titleTextStyle: TextStyle(
+          color: Color(0xFF0F172A),
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      useMaterial3: true,
+    );
+  }
 }

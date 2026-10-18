@@ -4,11 +4,11 @@ import '../models/transaction.dart';
 import 'home_screen.dart';
 import 'insights_screen.dart';
 import 'add_transaction_screen.dart';
-import 'challenges_screen.dart';
+import 'chat_screen.dart';
 import 'profile_screen.dart';
 
 /// The Main Shell widget holding the persistent Bottom Navigation Bar and primary screens.
-/// Bottom Nav: Home | Insights | + (Add) | Challenges | Profile
+/// Bottom Nav: Home | Insights | + (Add) | Spentee AI | Profile
 class MainShell extends StatefulWidget {
   final int initialIndex;
 
@@ -54,7 +54,7 @@ class _MainShellState extends State<MainShell> {
       ),
       const InsightsScreen(),
       const SizedBox.shrink(), // Placeholder for center Add button
-      const ChallengesScreen(),
+      const ChatScreen(),
       const ProfileScreen(),
     ];
 
@@ -91,12 +91,12 @@ class _MainShellState extends State<MainShell> {
                   onTap: () => _onTabSelected(0),
                 ),
                 _NavBarItem(
-                  icon: Icons.insights_rounded,
+                  icon: Icons.bar_chart_rounded,
                   label: 'Insights',
                   isSelected: _currentIndex == 1,
                   onTap: () => _onTabSelected(1),
                 ),
-                // Raised Center '+' Button
+                // Raised Center '+' Button with radiant glow
                 GestureDetector(
                   onTap: () => _onTabSelected(2),
                   child: Container(
@@ -107,9 +107,9 @@ class _MainShellState extends State<MainShell> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.primaryMint.withValues(alpha: 0.45),
-                          blurRadius: 14,
-                          spreadRadius: 1,
+                          color: AppTheme.primaryMint.withValues(alpha: 0.5),
+                          blurRadius: 16,
+                          spreadRadius: 2,
                           offset: const Offset(0, 2),
                         ),
                       ],
@@ -122,8 +122,8 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 _NavBarItem(
-                  icon: Icons.emoji_events_rounded,
-                  label: 'Challenges',
+                  icon: Icons.chat_bubble_rounded,
+                  label: 'Spentee AI',
                   isSelected: _currentIndex == 3,
                   onTap: () => _onTabSelected(3),
                 ),

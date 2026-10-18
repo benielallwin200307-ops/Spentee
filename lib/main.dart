@@ -51,7 +51,9 @@ class _SpenteeAppState extends State<SpenteeApp> {
           return MaterialApp(
             title: 'Spentee',
             debugShowCheckedModeBanner: false,
-            theme: AppTheme.darkTheme,
+            themeMode: _appState.themeMode,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
             home: _appState.isAuthenticated
                 ? const MainShell()
                 : const SplashScreen(),
