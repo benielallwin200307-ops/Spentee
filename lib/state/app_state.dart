@@ -4,15 +4,18 @@ import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../models/roast.dart';
 import '../models/budget.dart';
+import '../models/savings_goal.dart';
 import '../models/category_model.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/ai_chat_service.dart';
+import '../services/roast_engine.dart';
+import '../services/roast_library.dart';
 
 /// Central state manager with persistent user profile and theme preferences.
 class AppState extends ChangeNotifier {
-  // Balance
-  double _balance = 12450.0;
+  // Balance (starts strictly at 0.0 for new users)
+  double _balance = 0.0;
   double get balance => _balance;
 
   // User Profile
@@ -34,32 +37,53 @@ class AppState extends ChangeNotifier {
   // Selected mascot ('male' or 'female')
   String _selectedMascot = 'male';
   String get selectedMascot => _selectedMascot;
+  bool get isFemaleMascot => _selectedMascot == 'female';
+  MascotThemeData get mascotTheme =>
+      _selectedMascot == 'female' ? MascotThemeData.female : MascotThemeData.male;
 
   // Isolated per-user profile mapping keyed by user UID
   final Map<String, dynamic> _userProfiles = {};
+  Map<String, dynamic> get userProfiles => _userProfiles;
+  final Set<String> _legacyUserUids = {
+    'dss2jlEKu5MZxx6diMLLBez92vj2',
+    'TbAJfw8lhRRYRp4olcHD7zGlCnp2',
+    '2SQElZNM3vaItUjEssRvtGZhv3m1',
+  };
 
   AppState() {
     // Listen to Firebase auth state changes to keep session synchronized
-    AuthService.instance.authStateChanges.listen((user) {
-      if (user == null && _isAuthenticated) {
-        _isAuthenticated = false;
-        _userUid = '';
-        notifyListeners();
-      } else if (user != null && !_isAuthenticated) {
-        _isAuthenticated = true;
-        _userUid = user.uid;
-        _userEmail = user.email ?? _userEmail;
-        if (user.displayName != null && user.displayName!.isNotEmpty) {
-          _userName = user.displayName!;
+    try {
+      AuthService.instance.authStateChanges.listen((user) async {
+        if (user == null && _isAuthenticated && !_userUid.startsWith('local_')) {
+          _isAuthenticated = false;
+          _userUid = '';
+          _transactions.clear();
+          _balance = 0.0;
+          _budgets.clear();
+          refreshRoast();
+          notifyListeners();
+        } else if (user != null && (!_isAuthenticated || _userUid != user.uid)) {
+          _isAuthenticated = true;
+          _userUid = user.uid;
+          _userEmail = user.email ?? _userEmail;
+          if (user.displayName != null && user.displayName!.isNotEmpty) {
+            _userName = user.displayName!;
+          }
+          if (_userProfiles.containsKey(user.uid) &&
+              _userProfiles[user.uid]['selectedMascot'] != null) {
+            _selectedMascot = _userProfiles[user.uid]['selectedMascot'];
+            _userGender = _selectedMascot;
+          }
+          await loadTransactionsFromStorage();
+          await loadBudgetsFromStorage();
+          await loadSavingsGoalsFromStorage();
+          refreshRoast();
+          notifyListeners();
         }
-        if (_userProfiles.containsKey(user.uid) &&
-            _userProfiles[user.uid]['selectedMascot'] != null) {
-          _selectedMascot = _userProfiles[user.uid]['selectedMascot'];
-          _userGender = _selectedMascot;
-        }
-        notifyListeners();
-      }
-    });
+      });
+    } catch (e) {
+      debugPrint('Auth listener init error: $e');
+    }
   }
 
   bool hasSavedMascotForUser(String uid) {
@@ -92,12 +116,12 @@ class AppState extends ChangeNotifier {
     saveToStorage();
   }
 
-  void setUserProfile({
+  Future<void> setUserProfile({
     required String name,
     required String email,
     required String gender,
     String? uid,
-  }) {
+  }) async {
     _userName = name;
     _userEmail = email;
     _userGender = gender;
@@ -115,8 +139,12 @@ class AppState extends ChangeNotifier {
       existing['userGender'] = gender;
       _userProfiles[targetUid] = existing;
     }
+    await loadTransactionsFromStorage();
+    await loadBudgetsFromStorage();
+    await loadSavingsGoalsFromStorage();
+    refreshRoast();
     notifyListeners();
-    saveToStorage();
+    await saveToStorage();
   }
 
   Future<void> updateUserName(String newName) async {
@@ -151,6 +179,10 @@ class AppState extends ChangeNotifier {
     }
     _isAuthenticated = false;
     _userUid = '';
+    _transactions.clear();
+    _balance = 0.0;
+    _budgets.clear();
+    refreshRoast();
     notifyListeners();
     await saveToStorage();
   }
@@ -193,6 +225,7 @@ class AppState extends ChangeNotifier {
         'notifications': _notifications,
         'notificationTime': _notificationTime,
         'isAuthenticated': _isAuthenticated,
+        'userUid': _userUid,
         'userProfiles': _userProfiles,
       };
       await file.writeAsString(jsonEncode(data));
@@ -204,12 +237,18 @@ class AppState extends ChangeNotifier {
   Future<void> initFromStorage() async {
     try {
       final file = await _getStorageFile();
+      Map<String, dynamic> data = {};
       if (file != null && await file.exists()) {
         final content = await file.readAsString();
         if (content.trim().isNotEmpty) {
-          final Map<String, dynamic> data = jsonDecode(content);
+          data = jsonDecode(content);
           if (data.containsKey('userProfiles') && data['userProfiles'] is Map) {
             _userProfiles.addAll(Map<String, dynamic>.from(data['userProfiles']));
+            for (final k in _userProfiles.keys) {
+              if (k.isNotEmpty && !k.startsWith('local_')) {
+                _legacyUserUids.add(k);
+              }
+            }
           }
           if (data.containsKey('userName') && data['userName'] != null) {
             _userName = data['userName'];
@@ -245,7 +284,7 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // Restore session from Firebase Authentication
+      // Restore session from Firebase Authentication or local session
       final currentUser = AuthService.instance.currentUser;
       if (currentUser != null) {
         _isAuthenticated = true;
@@ -259,6 +298,16 @@ class AppState extends ChangeNotifier {
           _selectedMascot = _userProfiles[currentUser.uid]['selectedMascot'];
           _userGender = _selectedMascot;
         }
+      } else if (data['isAuthenticated'] == true &&
+          data['userUid'] is String &&
+          (data['userUid'] as String).isNotEmpty) {
+        _isAuthenticated = true;
+        _userUid = data['userUid'] as String;
+        if (_userProfiles.containsKey(_userUid) &&
+            _userProfiles[_userUid]['selectedMascot'] != null) {
+          _selectedMascot = _userProfiles[_userUid]['selectedMascot'];
+          _userGender = _selectedMascot;
+        }
       } else {
         _isAuthenticated = false;
         _userUid = '';
@@ -267,7 +316,9 @@ class AppState extends ChangeNotifier {
       await loadChatSessionsFromDisk();
       await loadTransactionsFromStorage();
       await loadBudgetsFromStorage();
+      await loadSavingsGoalsFromStorage();
       await loadCategoriesFromStorage();
+      refreshRoast();
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading user profile from storage: $e');
@@ -280,6 +331,7 @@ class AppState extends ChangeNotifier {
 
   void setLanguage(String lang) {
     _selectedLanguage = lang;
+    refreshRoast();
     notifyListeners();
     saveToStorage();
   }
@@ -340,305 +392,54 @@ class AppState extends ChangeNotifier {
     saveToStorage();
   }
 
-  // In-memory Transactions list
-  final List<Transaction> _transactions = [
-    Transaction(
-      id: 'tx_1',
-      title: 'Food & Drinks',
-      amount: 250.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime.now().subtract(const Duration(hours: 3)),
-      note: 'Coffee with friends ☕',
-    ),
-    Transaction(
-      id: 'tx_2',
-      title: 'Transport',
-      amount: 80.0,
-      type: TransactionType.expense,
-      category: 'Transport',
-      icon: Icons.directions_car_rounded,
-      categoryColor: AppTheme.accentCyan,
-      date: DateTime.now().subtract(const Duration(hours: 6)),
-      note: 'Cab to work',
-    ),
-    Transaction(
-      id: 'tx_3',
-      title: 'Shopping',
-      amount: 490.0,
-      type: TransactionType.expense,
-      category: 'Shopping',
-      icon: Icons.shopping_bag_rounded,
-      categoryColor: AppTheme.accentPurple,
-      date: DateTime.now().subtract(const Duration(hours: 8)),
-      note: 'Casual tee shirt',
-    ),
-    // October 2026 Historical records
-    Transaction(
-      id: 'tx_oct_sal',
-      title: 'Monthly Salary',
-      amount: 50000.0,
-      type: TransactionType.income,
-      category: 'Salary',
-      icon: Icons.account_balance_wallet_rounded,
-      categoryColor: AppTheme.primaryMint,
-      date: DateTime(2026, 10, 1, 9, 0),
-      note: 'Oct salary credited',
-    ),
-    Transaction(
-      id: 'tx_oct_food1',
-      title: 'Weekend Dining',
-      amount: 3200.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime(2026, 10, 10, 20, 30),
-      note: 'Dinner with family',
-    ),
-    Transaction(
-      id: 'tx_oct_food2',
-      title: 'Supermarket Groceries',
-      amount: 1292.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime(2026, 10, 5, 17, 15),
-      note: 'Weekly essentials',
-    ),
-    Transaction(
-      id: 'tx_oct_shop',
-      title: 'Autumn Apparel',
-      amount: 2630.0,
-      type: TransactionType.expense,
-      category: 'Shopping',
-      icon: Icons.shopping_bag_rounded,
-      categoryColor: AppTheme.accentPurple,
-      date: DateTime(2026, 10, 8, 14, 45),
-      note: 'Jacket & jeans',
-    ),
-    Transaction(
-      id: 'tx_oct_trans',
-      title: 'Fuel & Metro Pass',
-      amount: 1418.0,
-      type: TransactionType.expense,
-      category: 'Transport',
-      icon: Icons.directions_car_rounded,
-      categoryColor: AppTheme.accentCyan,
-      date: DateTime(2026, 10, 4, 11, 20),
-      note: 'Monthly commute recharge',
-    ),
-    Transaction(
-      id: 'tx_oct_bills',
-      title: 'High-Speed Wi-Fi & Electricity',
-      amount: 1248.0,
-      type: TransactionType.expense,
-      category: 'Bills & Utilities',
-      icon: Icons.receipt_long_rounded,
-      categoryColor: AppTheme.accentOrange,
-      date: DateTime(2026, 10, 3, 10, 0),
-      note: 'Broadband bill',
-    ),
-    Transaction(
-      id: 'tx_oct_ent',
-      title: 'Streaming & Games Pass',
-      amount: 998.0,
-      type: TransactionType.expense,
-      category: 'Entertainment',
-      icon: Icons.sports_esports_rounded,
-      categoryColor: AppTheme.accentBlue,
-      date: DateTime(2026, 10, 7, 19, 0),
-      note: 'Subscriptions renewal',
-    ),
-    Transaction(
-      id: 'tx_oct_oth',
-      title: 'Books & Stationery',
-      amount: 874.0,
-      type: TransactionType.expense,
-      category: 'Others',
-      icon: Icons.more_horiz_rounded,
-      categoryColor: Color(0xFF10B981),
-      date: DateTime(2026, 10, 6, 16, 30),
-      note: 'Notebooks and organizer',
-    ),
-    // September 2026 (Income: ₹50,000, Total Spent: ₹14,180 -> -12% trend in Oct)
-    Transaction(
-      id: 'tx_sep_sal',
-      title: 'Monthly Salary',
-      amount: 50000.0,
-      type: TransactionType.income,
-      category: 'Salary',
-      icon: Icons.account_balance_wallet_rounded,
-      categoryColor: AppTheme.primaryMint,
-      date: DateTime(2026, 9, 1, 9, 0),
-    ),
-    Transaction(
-      id: 'tx_sep_food',
-      title: 'Food & Dining',
-      amount: 5100.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime(2026, 9, 15, 13, 0),
-    ),
-    Transaction(
-      id: 'tx_sep_shop',
-      title: 'Shopping',
-      amount: 3600.0,
-      type: TransactionType.expense,
-      category: 'Shopping',
-      icon: Icons.shopping_bag_rounded,
-      categoryColor: AppTheme.accentPurple,
-      date: DateTime(2026, 9, 18, 15, 0),
-    ),
-    Transaction(
-      id: 'tx_sep_trans',
-      title: 'Transport',
-      amount: 1800.0,
-      type: TransactionType.expense,
-      category: 'Transport',
-      icon: Icons.directions_car_rounded,
-      categoryColor: AppTheme.accentCyan,
-      date: DateTime(2026, 9, 12, 10, 0),
-    ),
-    Transaction(
-      id: 'tx_sep_bills',
-      title: 'Bills & Utilities',
-      amount: 1500.0,
-      type: TransactionType.expense,
-      category: 'Bills & Utilities',
-      icon: Icons.receipt_long_rounded,
-      categoryColor: AppTheme.accentOrange,
-      date: DateTime(2026, 9, 5, 10, 0),
-    ),
-    Transaction(
-      id: 'tx_sep_ent',
-      title: 'Entertainment',
-      amount: 1200.0,
-      type: TransactionType.expense,
-      category: 'Entertainment',
-      icon: Icons.sports_esports_rounded,
-      categoryColor: AppTheme.accentBlue,
-      date: DateTime(2026, 9, 22, 18, 0),
-    ),
-    Transaction(
-      id: 'tx_sep_oth',
-      title: 'Others',
-      amount: 980.0,
-      type: TransactionType.expense,
-      category: 'Others',
-      icon: Icons.more_horiz_rounded,
-      categoryColor: Color(0xFF10B981),
-      date: DateTime(2026, 9, 25, 12, 0),
-    ),
-    // August 2026 (Income: ₹45,000, Spent: ₹22,000)
-    Transaction(
-      id: 'tx_aug_sal',
-      title: 'Monthly Salary',
-      amount: 45000.0,
-      type: TransactionType.income,
-      category: 'Salary',
-      icon: Icons.account_balance_wallet_rounded,
-      categoryColor: AppTheme.primaryMint,
-      date: DateTime(2026, 8, 1, 9, 0),
-    ),
-    Transaction(
-      id: 'tx_aug_exp',
-      title: 'Monthly Living Expenses',
-      amount: 22000.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime(2026, 8, 15, 12, 0),
-    ),
-    // July 2026 (Income: ₹42,000, Spent: ₹20,000)
-    Transaction(
-      id: 'tx_jul_sal',
-      title: 'Monthly Salary',
-      amount: 42000.0,
-      type: TransactionType.income,
-      category: 'Salary',
-      icon: Icons.account_balance_wallet_rounded,
-      categoryColor: AppTheme.primaryMint,
-      date: DateTime(2026, 7, 1, 9, 0),
-    ),
-    Transaction(
-      id: 'tx_jul_exp',
-      title: 'Monthly Living Expenses',
-      amount: 20000.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime(2026, 7, 15, 12, 0),
-    ),
-    // June 2026 (Income: ₹38,000, Spent: ₹18,000)
-    Transaction(
-      id: 'tx_jun_sal',
-      title: 'Monthly Salary',
-      amount: 38000.0,
-      type: TransactionType.income,
-      category: 'Salary',
-      icon: Icons.account_balance_wallet_rounded,
-      categoryColor: AppTheme.primaryMint,
-      date: DateTime(2026, 6, 1, 9, 0),
-    ),
-    Transaction(
-      id: 'tx_jun_exp',
-      title: 'Monthly Living Expenses',
-      amount: 18000.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime(2026, 6, 15, 12, 0),
-    ),
-    // May 2026 (Income: ₹40,000, Spent: ₹16,000)
-    Transaction(
-      id: 'tx_may_sal',
-      title: 'Monthly Salary',
-      amount: 40000.0,
-      type: TransactionType.income,
-      category: 'Salary',
-      icon: Icons.account_balance_wallet_rounded,
-      categoryColor: AppTheme.primaryMint,
-      date: DateTime(2026, 5, 1, 9, 0),
-    ),
-    Transaction(
-      id: 'tx_may_exp',
-      title: 'Monthly Living Expenses',
-      amount: 16000.0,
-      type: TransactionType.expense,
-      category: 'Food & Dining',
-      icon: Icons.restaurant_rounded,
-      categoryColor: AppTheme.accentPink,
-      date: DateTime(2026, 5, 15, 12, 0),
-    ),
-  ];
+  // In-memory Transactions list (starts empty for genuine zero-data state)
+  final List<Transaction> _transactions = [];
 
   List<Transaction> get transactions => List.unmodifiable(_transactions);
 
-  Future<File?> _getTransactionsFile() async {
+  Future<Directory?> _getAppStorageDirectory() async {
     try {
       final androidFiles = Directory('/data/user/0/com.spentee.spentee/files');
       if (await androidFiles.exists()) {
-        return File('${androidFiles.path}/spentee_transactions.json');
+        return androidFiles;
       }
       final androidAppFlutter =
           Directory('/data/user/0/com.spentee.spentee/app_flutter');
       if (await androidAppFlutter.exists()) {
-        return File('${androidAppFlutter.path}/spentee_transactions.json');
+        return androidAppFlutter;
       }
       final localDir = Directory('.spentee_storage');
       if (!await localDir.exists()) {
         await localDir.create(recursive: true);
       }
-      return File('${localDir.path}/spentee_transactions.json');
+      return localDir;
+    } catch (e) {
+      debugPrint('App storage directory lookup error: $e');
+      return null;
+    }
+  }
+
+  Future<File?> _getTransactionsFile() async {
+    try {
+      final dir = await _getAppStorageDirectory();
+      if (dir == null) return null;
+
+      if (_userUid.isNotEmpty) {
+        final userFile = File('${dir.path}/spentee_transactions_$_userUid.json');
+        if (await userFile.exists()) {
+          return userFile;
+        }
+        // Preserve legacy shared file for existing registered user
+        final legacyFile = File('${dir.path}/spentee_transactions.json');
+        if (await legacyFile.exists()) {
+          if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+        }
+        return userFile;
+      }
+
+      return File('${dir.path}/spentee_transactions_guest.json');
     } catch (e) {
       debugPrint('Transactions storage lookup error: $e');
       return null;
@@ -679,22 +480,23 @@ class AppState extends ChangeNotifier {
                   loaded.add(Transaction.fromJson(item));
                 }
               }
-              if (loaded.isNotEmpty) {
-                _transactions.clear();
-                _transactions.addAll(loaded);
-              }
+              _transactions.clear();
+              _transactions.addAll(loaded);
             }
           }
         }
       } else {
-        await saveTransactionsToStorage();
+        // Zero-state initialization: brand new account starts with zero data
+        _transactions.clear();
+        _balance = 0.0;
       }
+      refreshRoast();
     } catch (e) {
       debugPrint('Error loading transactions from storage: $e');
     }
   }
 
-  /// Add new transaction with proper financial rules.
+  /// Add new transaction with deterministic financial calculation.
   Future<void> addTransaction(Transaction tx) async {
     _transactions.insert(0, tx);
     if (tx.type == TransactionType.expense) {
@@ -702,12 +504,29 @@ class AppState extends ChangeNotifier {
     } else if (tx.type == TransactionType.income) {
       _balance += tx.amount;
     }
-    // Note: Transfers do not count as purchases/spending.
+    // Note: Transfers do not count as purchases or earnings.
+    refreshRoast();
     notifyListeners();
     await saveTransactionsToStorage();
   }
 
-  /// Calculate today's spending total.
+  /// Delete transaction and adjust balance deterministically.
+  Future<void> deleteTransaction(String id) async {
+    final idx = _transactions.indexWhere((t) => t.id == id);
+    if (idx >= 0) {
+      final tx = _transactions.removeAt(idx);
+      if (tx.type == TransactionType.expense) {
+        _balance += tx.amount;
+      } else if (tx.type == TransactionType.income) {
+        _balance -= tx.amount;
+      }
+      refreshRoast();
+      notifyListeners();
+      await saveTransactionsToStorage();
+    }
+  }
+
+  /// Calculate today's spending total (excluding internal transfers).
   double get todaySpending {
     final now = DateTime.now();
     double total = 0.0;
@@ -722,60 +541,56 @@ class AppState extends ChangeNotifier {
     return total;
   }
 
+  /// Calculate current month's earned income (strictly excluding internal transfers).
+  double get monthIncome {
+    final now = DateTime.now();
+    double total = 0.0;
+    for (final tx in _transactions) {
+      if (tx.type == TransactionType.income &&
+          tx.date.year == now.year &&
+          tx.date.month == now.month) {
+        total += tx.amount;
+      }
+    }
+    return total;
+  }
+
+  /// Calculate total earned income (strictly excluding internal transfers).
+  double get totalIncome {
+    double total = 0.0;
+    for (final tx in _transactions) {
+      if (tx.type == TransactionType.income) {
+        total += tx.amount;
+      }
+    }
+    return total;
+  }
+
   // ─── Budgets State & Persistence ───────────────────────────────────────────
-  final List<Budget> _budgets = [
-    Budget(
-      id: 'b_food',
-      category: 'Food & Drinks',
-      limitAmount: 6000.0,
-      period: 'Monthly',
-      year: 2026,
-      month: 10,
-    ),
-    Budget(
-      id: 'b_shop',
-      category: 'Shopping',
-      limitAmount: 4000.0,
-      period: 'Monthly',
-      year: 2026,
-      month: 10,
-    ),
-    Budget(
-      id: 'b_trans',
-      category: 'Transport',
-      limitAmount: 2000.0,
-      period: 'Monthly',
-      year: 2026,
-      month: 10,
-    ),
-    Budget(
-      id: 'b_bills',
-      category: 'Bills & Utilities',
-      limitAmount: 3000.0,
-      period: 'Monthly',
-      year: 2026,
-      month: 10,
-    ),
-  ];
+  final List<Budget> _budgets = [];
 
   List<Budget> get budgets => List.unmodifiable(_budgets);
 
   Future<File?> _getBudgetsFile() async {
     try {
-      final androidFiles = Directory('/data/user/0/com.spentee.spentee/files');
-      if (await androidFiles.exists()) {
-        return File('${androidFiles.path}/spentee_budgets.json');
+      final dir = await _getAppStorageDirectory();
+      if (dir == null) return null;
+
+      if (_userUid.isNotEmpty) {
+        final userFile = File('${dir.path}/spentee_budgets_$_userUid.json');
+        if (await userFile.exists()) {
+          return userFile;
+        }
+        final legacyFile = File('${dir.path}/spentee_budgets.json');
+        if (await legacyFile.exists()) {
+          if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+        }
+        return userFile;
       }
-      final androidAppFlutter =
-          Directory('/data/user/0/com.spentee.spentee/app_flutter');
-      if (await androidAppFlutter.exists()) {
-        return File('${androidAppFlutter.path}/spentee_budgets.json');
-      }
-      final localDir = Directory('.spentee_storage');
-      if (!await localDir.exists()) {
-        await localDir.create(recursive: true);
-      }
-      return File('${localDir.path}/spentee_budgets.json');
+
+      return File('${dir.path}/spentee_budgets_guest.json');
     } catch (e) {
       debugPrint('Budgets storage lookup error: $e');
       return null;
@@ -807,14 +622,12 @@ class AppState extends ChangeNotifier {
                 loaded.add(Budget.fromJson(item));
               }
             }
-            if (loaded.isNotEmpty) {
-              _budgets.clear();
-              _budgets.addAll(loaded);
-            }
+            _budgets.clear();
+            _budgets.addAll(loaded);
           }
         }
       } else {
-        await saveBudgetsToStorage();
+        _budgets.clear();
       }
     } catch (e) {
       debugPrint('Error loading budgets from storage: $e');
@@ -848,6 +661,100 @@ class AppState extends ChangeNotifier {
     _budgets.removeWhere((b) => b.id == id);
     notifyListeners();
     await saveBudgetsToStorage();
+  }
+
+  // ─── Savings Goals State & Persistence ─────────────────────────────────────
+  final List<SavingsGoal> _savingsGoals = [];
+
+  List<SavingsGoal> get savingsGoals => List.unmodifiable(_savingsGoals);
+
+  Future<File?> _getSavingsGoalsFile() async {
+    try {
+      final dir = await _getAppStorageDirectory();
+      if (dir == null) return null;
+
+      if (_userUid.isNotEmpty) {
+        final userFile = File('${dir.path}/spentee_savings_goals_$_userUid.json');
+        if (await userFile.exists()) {
+          return userFile;
+        }
+        final legacyFile = File('${dir.path}/spentee_savings_goals.json');
+        if (await legacyFile.exists()) {
+          if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+        }
+        return userFile;
+      }
+
+      return File('${dir.path}/spentee_savings_goals_guest.json');
+    } catch (e) {
+      debugPrint('Savings goals storage lookup error: $e');
+      return null;
+    }
+  }
+
+  Future<void> saveSavingsGoalsToStorage() async {
+    try {
+      final file = await _getSavingsGoalsFile();
+      if (file == null) return;
+      final data = _savingsGoals.map((g) => g.toJson()).toList();
+      await file.writeAsString(jsonEncode(data));
+    } catch (e) {
+      debugPrint('Error saving savings goals to storage: $e');
+    }
+  }
+
+  Future<void> loadSavingsGoalsFromStorage() async {
+    try {
+      final file = await _getSavingsGoalsFile();
+      if (file != null && await file.exists()) {
+        final content = await file.readAsString();
+        if (content.trim().isNotEmpty) {
+          final data = jsonDecode(content);
+          if (data is List) {
+            final loaded = <SavingsGoal>[];
+            for (final item in data) {
+              if (item is Map<String, dynamic>) {
+                loaded.add(SavingsGoal.fromJson(item));
+              }
+            }
+            _savingsGoals.clear();
+            _savingsGoals.addAll(loaded);
+          }
+        }
+      } else {
+        _savingsGoals.clear();
+      }
+    } catch (e) {
+      debugPrint('Error loading savings goals from storage: $e');
+    }
+  }
+
+  Future<void> addSavingsGoal(SavingsGoal goal) async {
+    final idx = _savingsGoals.indexWhere((g) => g.id == goal.id);
+    if (idx >= 0) {
+      _savingsGoals[idx] = goal;
+    } else {
+      _savingsGoals.insert(0, goal);
+    }
+    notifyListeners();
+    await saveSavingsGoalsToStorage();
+  }
+
+  Future<void> updateSavingsGoal(SavingsGoal goal) async {
+    final idx = _savingsGoals.indexWhere((g) => g.id == goal.id);
+    if (idx >= 0) {
+      _savingsGoals[idx] = goal;
+      notifyListeners();
+      await saveSavingsGoalsToStorage();
+    }
+  }
+
+  Future<void> deleteSavingsGoal(String id) async {
+    _savingsGoals.removeWhere((g) => g.id == id);
+    notifyListeners();
+    await saveSavingsGoalsToStorage();
   }
 
   // ─── Categories State & Persistence ────────────────────────────────────────
@@ -1089,40 +996,71 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // Roasts list
-  final List<RoastItem> _roasts = [
-    const RoastItem(
-      text: 'Your money has more exits than a shopping mall. 😎',
-      category: 'Impulse Spends',
-      mascotEmoji: '😎',
-    ),
-    const RoastItem(
-      text: 'Bro is saving money in his imagination. 💀',
-      category: 'Savings Reality',
-      mascotEmoji: '💀',
-    ),
-    const RoastItem(
-      text: 'Your wallet needs emotional support right now. 😅',
-      category: 'Weekend Budget',
-      mascotEmoji: '😅',
-    ),
-    const RoastItem(
-      text: 'Salary entered the chat and immediately left. 💨',
-      category: 'First Week',
-      mascotEmoji: '💨',
-    ),
-    const RoastItem(
-      text: 'Buying 4 coffees a day isn\'t self-care, it\'s high-interest caffeine debt! ☕💸',
-      category: 'Daily Habits',
-      mascotEmoji: '☕',
-    ),
-  ];
-  int _currentRoastIndex = 0;
+  // Dynamic Roasts State
+  RoastItem? _cachedRoast;
+  int _roastCycleIndex = 0;
+  final List<String> _recentRoastIds = [];
 
-  RoastItem get currentRoast => _roasts[_currentRoastIndex % _roasts.length];
+  RoastItem get currentRoast {
+    if (_cachedRoast == null ||
+        (_cachedRoast!.language.isNotEmpty &&
+            RoastLibrary.normalizeLanguage(_cachedRoast!.language) !=
+                RoastLibrary.normalizeLanguage(_selectedLanguage))) {
+      _cachedRoast = DynamicRoastEngine.generateRoast(
+        transactions: _transactions,
+        budgets: _budgets,
+        savingsGoals: _savingsGoals,
+        language: _selectedLanguage,
+        recentRoastIds: _recentRoastIds,
+      );
+      if (_cachedRoast != null && _cachedRoast!.id.isNotEmpty) {
+        _recentRoastIds.add(_cachedRoast!.id);
+        if (_recentRoastIds.length > 20) {
+          _recentRoastIds.removeAt(0);
+        }
+      }
+    }
+    return _cachedRoast!;
+  }
+
+  void refreshRoast() {
+    _cachedRoast = DynamicRoastEngine.generateRoast(
+      transactions: _transactions,
+      budgets: _budgets,
+      savingsGoals: _savingsGoals,
+      previousRoastText: _cachedRoast?.text,
+      previousRoastId: _cachedRoast?.id,
+      language: _selectedLanguage,
+      recentRoastIds: _recentRoastIds,
+    );
+    if (_cachedRoast != null && _cachedRoast!.id.isNotEmpty) {
+      _recentRoastIds.add(_cachedRoast!.id);
+      if (_recentRoastIds.length > 20) {
+        _recentRoastIds.removeAt(0);
+      }
+    }
+    notifyListeners();
+  }
 
   void nextRoast() {
-    _currentRoastIndex = (_currentRoastIndex + 1) % _roasts.length;
+    final matching = DynamicRoastEngine.getMatchingRoasts(
+      transactions: _transactions,
+      budgets: _budgets,
+      savingsGoals: _savingsGoals,
+      language: _selectedLanguage,
+    );
+    if (matching.isNotEmpty) {
+      _roastCycleIndex = (_roastCycleIndex + 1) % matching.length;
+      _cachedRoast = matching[_roastCycleIndex];
+      if (_cachedRoast != null && _cachedRoast!.id.isNotEmpty) {
+        _recentRoastIds.add(_cachedRoast!.id);
+        if (_recentRoastIds.length > 20) {
+          _recentRoastIds.removeAt(0);
+        }
+      }
+    } else {
+      _cachedRoast = RoastLibrary.getOnboardingRoast(_selectedLanguage);
+    }
     notifyListeners();
   }
 
@@ -1206,8 +1144,11 @@ class AppState extends ChangeNotifier {
       final aiMsg = await AiChatService.instance.generateResponse(
         query: trimmed,
         transactions: _transactions,
+        budgets: _budgets,
+        savingsGoals: _savingsGoals,
         userConsentedToDataAnalysis: _userConsentedToDataAnalysis,
         userMascot: _selectedMascot,
+        conversationHistory: _chatMessages,
       );
       _chatMessages.add(aiMsg);
     } catch (e) {
@@ -1279,8 +1220,11 @@ class AppState extends ChangeNotifier {
       final aiMsg = await AiChatService.instance.generateResponse(
         query: lastUserQuery,
         transactions: _transactions,
+        budgets: _budgets,
+        savingsGoals: _savingsGoals,
         userConsentedToDataAnalysis: _userConsentedToDataAnalysis,
         userMascot: _selectedMascot,
+        conversationHistory: _chatMessages,
       );
       _chatMessages.add(aiMsg);
     } catch (e) {

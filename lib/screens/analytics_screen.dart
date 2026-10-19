@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import '../state/app_state.dart';
+import '../models/transaction.dart';
 
 class _CategoryStat {
   final String title;
@@ -39,59 +41,90 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     'September 2026', 'October 2026', 'November 2026', 'December 2026'
   ];
 
-  final List<_CategoryStat> _categoryStats = const [
-    _CategoryStat(
-      title: 'Food & Drinks',
-      amount: '₹5,420',
-      percentStr: '29%',
-      ratio: 0.29,
-      color: AppTheme.accentPink,
-      icon: Icons.restaurant_rounded,
-    ),
-    _CategoryStat(
-      title: 'Shopping',
-      amount: '₹4,680',
-      percentStr: '25%',
-      ratio: 0.25,
-      color: AppTheme.accentPurple,
-      icon: Icons.shopping_bag_rounded,
-    ),
-    _CategoryStat(
-      title: 'Transport',
-      amount: '₹2,800',
-      percentStr: '15%',
-      ratio: 0.15,
-      color: AppTheme.accentCyan,
-      icon: Icons.directions_car_rounded,
-    ),
-    _CategoryStat(
-      title: 'Bills & Utilities',
-      amount: '₹2,100',
-      percentStr: '11%',
-      ratio: 0.11,
-      color: AppTheme.accentOrange,
-      icon: Icons.receipt_long_rounded,
-    ),
-    _CategoryStat(
-      title: 'Entertainment',
-      amount: '₹1,420',
-      percentStr: '8%',
-      ratio: 0.08,
-      color: AppTheme.accentBlue,
-      icon: Icons.sports_esports_rounded,
-    ),
-    _CategoryStat(
-      title: 'Others',
-      amount: '₹1,000',
-      percentStr: '5%',
-      ratio: 0.05,
-      color: Color(0xFF10B981),
-      icon: Icons.more_horiz_rounded,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final appState = AppStateScope.of(context);
+    final targetMonth = _monthIndex + 1;
+    const targetYear = 2026;
+
+    // Filter genuine expense transactions for the selected month
+    final monthExpenses = appState.transactions.where((t) {
+      if (t.type != TransactionType.expense) return false;
+      return t.date.year == targetYear && t.date.month == targetMonth;
+    }).toList();
+
+    // Previous month for trend comparison
+    final prevMonth = targetMonth == 1 ? 12 : targetMonth - 1;
+    final prevYear = targetMonth == 1 ? targetYear - 1 : targetYear;
+    final prevExpenses = appState.transactions.where((t) {
+      if (t.type != TransactionType.expense) return false;
+      return t.date.year == prevYear && t.date.month == prevMonth;
+    }).toList();
+
+    double totalSpending = 0.0;
+    for (final t in monthExpenses) {
+      totalSpending += t.amount;
+    }
+
+    double prevSpending = 0.0;
+    for (final t in prevExpenses) {
+      prevSpending += t.amount;
+    }
+
+    int trendPercent = 0;
+    bool isSpendingDown = true;
+    if (prevSpending > 0) {
+      final delta = totalSpending - prevSpending;
+      trendPercent = ((delta / prevSpending) * 100).abs().round();
+      isSpendingDown = delta <= 0;
+    }
+
+    // Weekly breakdown for bar chart
+    final List<double> weeklyValues = [0.0, 0.0, 0.0, 0.0];
+    for (final t in monthExpenses) {
+      final day = t.date.day;
+      if (day <= 7) {
+        weeklyValues[0] += t.amount;
+      } else if (day <= 14) {
+        weeklyValues[1] += t.amount;
+      } else if (day <= 21) {
+        weeklyValues[2] += t.amount;
+      } else {
+        weeklyValues[3] += t.amount;
+      }
+    }
+
+    // Category breakdown
+    final Map<String, double> categoryTotals = {};
+    for (final t in monthExpenses) {
+      final cat = t.category.trim().isEmpty ? 'General' : t.category.trim();
+      categoryTotals[cat] = (categoryTotals[cat] ?? 0.0) + t.amount;
+    }
+
+    final List<_CategoryStat> categoryStats = [];
+    categoryTotals.forEach((cat, amt) {
+      final ratio = totalSpending > 0 ? (amt / totalSpending) : 0.0;
+      final percentStr = '${(ratio * 100).round()}%';
+      final formattedAmt =
+          '₹${amt.toStringAsFixed(amt.truncateToDouble() == amt ? 0 : 2)}';
+      categoryStats.add(
+        _CategoryStat(
+          title: cat,
+          amount: formattedAmt,
+          percentStr: percentStr,
+          ratio: ratio,
+          color: Transaction.colorForCategory(cat),
+          icon: Transaction.iconForCategory(cat),
+        ),
+      );
+    });
+
+    // Sort categories by highest amount
+    categoryStats.sort((a, b) => b.ratio.compareTo(a.ratio));
+
+    final totalSpendingStr =
+        '₹${totalSpending.toStringAsFixed(totalSpending.truncateToDouble() == totalSpending ? 0 : 2)}';
+
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       body: SafeArea(
@@ -205,33 +238,38 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryMint.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.arrow_downward_rounded, color: AppTheme.primaryMint, size: 14),
-                                SizedBox(width: 4),
-                                Text(
-                                  '12% vs last month',
-                                  style: TextStyle(
-                                    color: AppTheme.primaryMint,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                          if (prevSpending > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (isSpendingDown ? AppTheme.primaryMint : AppTheme.accentPink).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isSpendingDown ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                                    color: isSpendingDown ? AppTheme.primaryMint : AppTheme.accentPink,
+                                    size: 14,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$trendPercent% vs last month',
+                                    style: TextStyle(
+                                      color: isSpendingDown ? AppTheme.primaryMint : AppTheme.accentPink,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '₹18,420',
-                        style: TextStyle(
+                      Text(
+                        totalSpendingStr,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
                           fontWeight: FontWeight.w900,
@@ -241,7 +279,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       const SizedBox(height: 24),
 
                       // Bar Chart Representation
-                      _SimpleBarChart(),
+                      _SimpleBarChart(weeklyValues: weeklyValues),
                     ],
                   ),
                 ),
@@ -259,95 +297,98 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Category Breakdown List
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _categoryStats.length,
-                  separatorBuilder: (_, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final item = _categoryStats[index];
-                    return SpenteeCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      borderRadius: 16,
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              CategoryBadge(icon: item.icon, color: item.color, size: 36),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  item.title,
+                // Category Breakdown List or Empty State
+                if (categoryStats.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 36),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgSurface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppTheme.borderSubtle, width: 1),
+                    ),
+                    alignment: Alignment.center,
+                    child: Column(
+                      children: const [
+                        Icon(Icons.pie_chart_outline_rounded,
+                            color: AppTheme.textDim, size: 40),
+                        SizedBox(height: 10),
+                        Text(
+                          'No spending recorded for this period.',
+                          style: TextStyle(
+                            color: AppTheme.textGrey,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: categoryStats.length,
+                    separatorBuilder: (_, index) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final item = categoryStats[index];
+                      return SpenteeCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        borderRadius: 16,
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                CategoryBadge(icon: item.icon, color: item.color, size: 36),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    item.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  item.amount,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                              ),
-                              Text(
-                                item.amount,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 34,
-                                child: Text(
-                                  item.percentStr,
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(
-                                    color: AppTheme.textGrey,
-                                    fontSize: 12,
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 34,
+                                  child: Text(
+                                    item.percentStr,
+                                    textAlign: TextAlign.end,
+                                    style: const TextStyle(
+                                      color: AppTheme.textGrey,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          // Progress Bar
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: item.ratio,
-                              backgroundColor: AppTheme.bgSurface,
-                              valueColor: AlwaysStoppedAnimation<Color>(item.color),
-                              minHeight: 6,
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 20),
-
-                // Sample Data Disclaimer
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgSurface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline_rounded, size: 16, color: AppTheme.textDim),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Initial figures represent sample demo data based on your spending patterns.',
-                          style: TextStyle(color: AppTheme.textDim, fontSize: 11),
+                            const SizedBox(height: 10),
+                            // Progress Bar
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: item.ratio,
+                                backgroundColor: AppTheme.bgSurface,
+                                valueColor: AlwaysStoppedAnimation<Color>(item.color),
+                                minHeight: 6,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                ),
 
                 const SizedBox(height: 30),
               ],
@@ -359,9 +400,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 }
 
-/// A custom sleek bar chart widget matching the visual reference.
+/// Sleek dynamic bar chart reflecting real weekly totals.
 class _SimpleBarChart extends StatelessWidget {
-  final List<double> weeklyValues = const [2400, 1800, 3100, 2200];
+  final List<double> weeklyValues;
+  const _SimpleBarChart({required this.weeklyValues});
+
   final List<String> weekLabels = const ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
   final List<LinearGradient> barGradients = const [
     LinearGradient(colors: [Color(0xFF00E5FF), Color(0xFF0284C7)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
@@ -372,7 +415,12 @@ class _SimpleBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double maxVal = 3500;
+    double maxVal = 0.0;
+    for (final v in weeklyValues) {
+      if (v > maxVal) maxVal = v;
+    }
+    if (maxVal <= 0) maxVal = 1000.0;
+
     const double chartHeight = 150;
 
     return Column(
@@ -383,14 +431,14 @@ class _SimpleBarChart extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // Y-Axis markers
-              const Column(
+              Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('3K', style: TextStyle(color: AppTheme.textDim, fontSize: 10)),
-                  Text('2K', style: TextStyle(color: AppTheme.textDim, fontSize: 10)),
-                  Text('1K', style: TextStyle(color: AppTheme.textDim, fontSize: 10)),
-                  Text('0', style: TextStyle(color: AppTheme.textDim, fontSize: 10)),
+                  Text('${(maxVal / 1000).toStringAsFixed(1)}K', style: const TextStyle(color: AppTheme.textDim, fontSize: 10)),
+                  Text('${(maxVal * 0.66 / 1000).toStringAsFixed(1)}K', style: const TextStyle(color: AppTheme.textDim, fontSize: 10)),
+                  Text('${(maxVal * 0.33 / 1000).toStringAsFixed(1)}K', style: const TextStyle(color: AppTheme.textDim, fontSize: 10)),
+                  const Text('0', style: TextStyle(color: AppTheme.textDim, fontSize: 10)),
                 ],
               ),
               const SizedBox(width: 12),
@@ -414,7 +462,8 @@ class _SimpleBarChart extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: List.generate(weeklyValues.length, (index) {
                         final val = weeklyValues[index];
-                        final barHeight = (val / maxVal) * chartHeight;
+                        final ratio = (val / maxVal).clamp(0.0, 1.0);
+                        final barHeight = val > 0 ? (ratio * chartHeight).clamp(6.0, chartHeight) : 4.0;
 
                         return Column(
                           mainAxisAlignment: MainAxisAlignment.end,
@@ -423,15 +472,18 @@ class _SimpleBarChart extends StatelessWidget {
                               width: 32,
                               height: barHeight,
                               decoration: BoxDecoration(
-                                gradient: barGradients[index],
+                                gradient: val > 0 ? barGradients[index] : null,
+                                color: val == 0 ? AppTheme.bgSurface : null,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: barGradients[index].colors.first.withValues(alpha: 0.35),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, -2),
-                                  ),
-                                ],
+                                boxShadow: val > 0
+                                    ? [
+                                        BoxShadow(
+                                          color: barGradients[index].colors.first.withValues(alpha: 0.35),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, -2),
+                                        ),
+                                      ]
+                                    : null,
                               ),
                             ),
                           ],

@@ -32,10 +32,10 @@ class AddTransactionScreen extends StatefulWidget {
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   late TransactionType _selectedType;
-  String _amountStr = '250';
+  String _amountStr = '0';
   DateTime _selectedDate = DateTime.now();
   late _CategoryItem _selectedCategory;
-  String _note = 'Coffee with friends ☕';
+  String _note = '';
   bool _isSaving = false;
 
   final List<_CategoryItem> _expenseCategories = const [
@@ -621,6 +621,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = MascotThemeData.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF040A0F),
       body: Stack(
@@ -637,7 +638,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      AppTheme.primaryMint.withValues(alpha: 0.08),
+                      theme.primaryAccent.withValues(alpha: 0.08),
                       Colors.transparent,
                     ],
                   ),
@@ -706,9 +707,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             RichText(
-                              text: const TextSpan(
+                              text: TextSpan(
                                 children: [
-                                  TextSpan(
+                                  const TextSpan(
                                     text: 'Add ',
                                     style: TextStyle(
                                       color: Colors.white,
@@ -720,7 +721,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   TextSpan(
                                     text: 'Transaction',
                                     style: TextStyle(
-                                      color: AppTheme.primaryMint,
+                                      color: theme.primaryAccent,
                                       fontSize: 22,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: -0.3,
@@ -849,18 +850,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                         letterSpacing: -1,
                                       ),
                                     ),
-                                    // Neon mint cursor
+                                    // Mascot accent cursor
                                     Container(
                                       width: 3,
                                       height: 44,
                                       margin: const EdgeInsets.only(left: 4),
                                       decoration: BoxDecoration(
-                                        color: AppTheme.primaryMint,
+                                        color: theme.primaryAccent,
                                         borderRadius:
                                             BorderRadius.circular(2),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: AppTheme.primaryMint
+                                            color: theme.primaryAccent
                                                 .withValues(alpha: 0.8),
                                             blurRadius: 6,
                                             spreadRadius: 1,
@@ -941,11 +942,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         width: double.infinity,
                         height: 58,
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryMint,
+                          color: theme.primaryAccent,
                           borderRadius: BorderRadius.circular(30),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.primaryMint
+                              color: theme.primaryAccent
                                   .withValues(alpha: 0.45),
                               blurRadius: 18,
                               spreadRadius: 1,
@@ -1028,6 +1029,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     required IconData icon,
     required TransactionType type,
   }) {
+    final theme = MascotThemeData.of(context);
     final isSelected = _selectedType == type;
 
     return Expanded(
@@ -1037,12 +1039,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppTheme.primaryMint : Colors.transparent,
+            color: isSelected ? theme.primaryAccent : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: AppTheme.primaryMint.withValues(alpha: 0.35),
+                      color: theme.primaryAccent.withValues(alpha: 0.35),
                       blurRadius: 10,
                       spreadRadius: 0,
                     ),

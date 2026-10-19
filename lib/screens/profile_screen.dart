@@ -15,13 +15,9 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
-    final mascotImage = appState.selectedMascot == 'female'
-        ? 'Assets/extracted/female_main.png'
-        : 'Assets/extracted/mascot_main.png';
-
-    final mascotLabel =
-        appState.selectedMascot == 'female' ? 'Female' : 'Male';
-
+    final theme = MascotThemeData.of(context);
+    final mascotImage = theme.getAvatarAsset(MascotExpression.main);
+    final mascotLabel = theme.type.displayName;
     final displayThemeLabel = _getThemeLabel(appState.displayTheme);
 
     return Scaffold(
@@ -69,30 +65,32 @@ class ProfileScreen extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF041E1C),
+                        color: theme.isFemale
+                            ? const Color(0xFF260D1E)
+                            : const Color(0xFF041E1C),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: AppTheme.primaryMint,
+                          color: theme.primaryAccent,
                           width: 1.2,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryMint.withValues(alpha: 0.15),
+                            color: theme.primaryAccent.withValues(alpha: 0.15),
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),
                         ],
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.edit_rounded,
-                            color: AppTheme.primaryMint,
+                            color: theme.primaryAccent,
                             size: 15,
                           ),
-                          SizedBox(width: 6),
-                          Text(
+                          const SizedBox(width: 6),
+                          const Text(
                             'Edit Profile',
                             style: TextStyle(
                               color: Colors.white,
@@ -116,19 +114,15 @@ class ProfileScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF072F29), Color(0xFF061820)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: theme.cardGradient,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: AppTheme.primaryMint.withValues(alpha: 0.35),
+                      color: theme.subtleBorder,
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primaryMint.withValues(alpha: 0.1),
+                        color: theme.primaryAccent.withValues(alpha: 0.1),
                         blurRadius: 14,
                         offset: const Offset(0, 4),
                       ),
@@ -136,20 +130,20 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      // Mascot Avatar with glowing neon green ring
+                      // Mascot Avatar with glowing ring
                       Container(
                         width: 66,
                         height: 66,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: AppTheme.primaryMint,
+                            color: theme.primaryAccent,
                             width: 2.2,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color:
-                                  AppTheme.primaryMint.withValues(alpha: 0.35),
+                                  theme.primaryAccent.withValues(alpha: 0.35),
                               blurRadius: 14,
                               spreadRadius: 2,
                             ),
@@ -160,10 +154,12 @@ class ProfileScreen extends StatelessWidget {
                             mascotImage,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Container(
-                              color: const Color(0xFF092520),
-                              child: const Icon(
+                              color: theme.isFemale
+                                  ? const Color(0xFF240D1B)
+                                  : const Color(0xFF092520),
+                              child: Icon(
                                 Icons.person_rounded,
-                                color: AppTheme.primaryMint,
+                                color: theme.primaryAccent,
                                 size: 34,
                               ),
                             ),
@@ -203,9 +199,9 @@ class ProfileScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right_rounded,
-                        color: AppTheme.primaryMint,
+                        color: theme.primaryAccent,
                         size: 24,
                       ),
                     ],
@@ -269,12 +265,14 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   _ProfileOptionTile(
                     icon: Icons.face_rounded,
-                    iconBg: const Color(0xFF08332A),
-                    iconColor: AppTheme.primaryMint,
+                    iconBg: theme.isFemale
+                        ? const Color(0xFF2D1022)
+                        : const Color(0xFF08332A),
+                    iconColor: theme.primaryAccent,
                     title: 'Mascot Theme',
                     subtitle: 'Choose your favourite mascot',
                     trailingText: mascotLabel,
-                    trailingTextColor: AppTheme.primaryMint,
+                    trailingTextColor: theme.primaryAccent,
                     onTap: () => _showMascotSwitchSheet(context, appState),
                   ),
                   const _CardDivider(),

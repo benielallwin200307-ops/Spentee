@@ -1,16 +1,74 @@
 import 'package:flutter/material.dart';
 
+/// Categories representing financial situations for personalized roasts.
+enum RoastCategory {
+  foodDining,
+  shoppingDiscretionary,
+  spendingSpike,
+  deficitSpending,
+  difficultySaving,
+  microPurchases,
+  impulsePurchases,
+  budgetOverrun,
+  recurringSubs,
+  disciplinedFrugal,
+  improvingSavings,
+  goalReached,
+  consistentTracking,
+  newUserEmpty,
+  insufficientHistory,
+  playfulWallet,
+  spendingImproved,
+  categoryHeavy,
+  withinBudget,
+  unexpectedExpenses,
+  transitFuel,
+  weekendSplurge,
+  nightOwl,
+  paydayIllusion,
+  balancedSteady,
+}
+
 /// A humorous spending roast model.
 class RoastItem {
+  final String id;
+  final String language;
   final String text;
   final String category;
   final String mascotEmoji;
+  final RoastCategory? situation;
 
   const RoastItem({
+    this.id = '',
+    this.language = 'English',
     required this.text,
     required this.category,
     this.mascotEmoji = '😎',
+    this.situation,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'language': language,
+        'text': text,
+        'category': category,
+        'mascotEmoji': mascotEmoji,
+        'situation': situation?.name,
+      };
+
+  factory RoastItem.fromJson(Map<String, dynamic> json) => RoastItem(
+        id: json['id'] as String? ?? '',
+        language: json['language'] as String? ?? 'English',
+        text: json['text'] as String? ?? '',
+        category: json['category'] as String? ?? 'General',
+        mascotEmoji: json['mascotEmoji'] as String? ?? '😎',
+        situation: json['situation'] != null
+            ? RoastCategory.values.firstWhere(
+                (c) => c.name == json['situation'],
+                orElse: () => RoastCategory.playfulWallet,
+              )
+            : null,
+      );
 }
 
 /// Chat message model for Spentee AI conversation.

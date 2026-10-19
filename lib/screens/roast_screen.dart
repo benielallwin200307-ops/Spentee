@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../state/app_state.dart';
+import '../models/transaction.dart';
 
 /// Screen 11 — Today's Roast & Insights Screen
 class RoastScreen extends StatefulWidget {
@@ -39,10 +40,85 @@ class _RoastScreenState extends State<RoastScreen> {
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
     final roast = appState.currentRoast;
-    final isFemale = appState.selectedMascot == 'female';
-    final roastAvatar = isFemale
-        ? 'Assets/extracted/female_roast.png'
-        : 'Assets/extracted/avatar_roast.png';
+    final theme = MascotThemeData.of(context);
+    final roastAvatar = theme.getAvatarAsset(MascotExpression.roast);
+
+    final expenseTxs = appState.transactions
+        .where((t) => t.type == TransactionType.expense)
+        .toList();
+    final bool hasData = expenseTxs.length >= 3;
+
+    String insightText;
+    String weekendLabel = 'Fri - Sun Average';
+    String weekendVal = '₹0 / day';
+    String weekdayLabel = 'Mon - Thu Average';
+    String weekdayVal = '₹0 / day';
+    String suggestionText;
+
+    if (!hasData) {
+      insightText =
+          'Add at least 3 transactions to reveal your personalized spending patterns.';
+      weekendLabel = 'Transactions Logged';
+      weekendVal = '${expenseTxs.length}';
+      weekdayLabel = 'Data Needed';
+      weekdayVal = '3 minimum';
+      suggestionText =
+          'Log your daily expenses to unlock tailored insights and savings opportunities.';
+    } else {
+      double weekendSpend = 0.0;
+      double weekdaySpend = 0.0;
+      final weekendDays = <String>{};
+      final weekdayDays = <String>{};
+      final catSpend = <String, double>{};
+
+      for (final tx in expenseTxs) {
+        catSpend[tx.category] = (catSpend[tx.category] ?? 0.0) + tx.amount;
+        final dStr = '${tx.date.year}-${tx.date.month}-${tx.date.day}';
+        if (tx.date.weekday == DateTime.saturday ||
+            tx.date.weekday == DateTime.sunday) {
+          weekendSpend += tx.amount;
+          weekendDays.add(dStr);
+        } else {
+          weekdaySpend += tx.amount;
+          weekdayDays.add(dStr);
+        }
+      }
+
+      final weekendAvg =
+          weekendDays.isNotEmpty ? weekendSpend / weekendDays.length : 0.0;
+      final weekdayAvg =
+          weekdayDays.isNotEmpty ? weekdaySpend / weekdayDays.length : 0.0;
+
+      weekendLabel = 'Fri - Sun Average';
+      weekendVal = '₹${weekendAvg.toStringAsFixed(0)} / day';
+      weekdayLabel = 'Mon - Thu Average';
+      weekdayVal = '₹${weekdayAvg.toStringAsFixed(0)} / day';
+
+      if (weekendAvg > weekdayAvg && weekdayAvg > 0) {
+        final pct = (((weekendAvg - weekdayAvg) / weekdayAvg) * 100).round();
+        insightText = 'Your weekend spending is $pct% higher than weekdays.';
+      } else if (weekdayAvg > weekendAvg && weekendAvg > 0) {
+        final pct = (((weekdayAvg - weekendAvg) / weekendAvg) * 100).round();
+        insightText = 'Your weekday spending is $pct% higher than weekends.';
+      } else {
+        insightText =
+            'Your daily spending is balanced between weekdays and weekends.';
+      }
+
+      final topCat = catSpend.entries.fold<MapEntry<String, double>?>(
+        null,
+        (prev, curr) => (prev == null || curr.value > prev.value) ? curr : prev,
+      );
+
+      if (topCat != null && topCat.value > 0) {
+        final potentialSavings = (topCat.value * 0.15).round();
+        suggestionText =
+            'Trimming 15% off your ${topCat.key} spend can save ₹$potentialSavings this month.';
+      } else {
+        suggestionText =
+            'Keep tracking daily expenses to build an emergency fund!';
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
@@ -215,9 +291,9 @@ class _RoastScreenState extends State<RoastScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                const Text(
-                                  'Your weekend spending is 35% higher than weekdays.',
-                                  style: TextStyle(
+                                Text(
+                                  insightText,
+                                  style: const TextStyle(
                                     color: AppTheme.textGrey,
                                     fontSize: 13,
                                     height: 1.35,
@@ -286,19 +362,19 @@ class _RoastScreenState extends State<RoastScreen> {
                         const SizedBox(height: 16),
                         const Divider(color: AppTheme.borderSubtle, height: 1),
                         const SizedBox(height: 14),
-                        const Row(
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Fri - Sun Average', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
-                            Text('₹1,450 / day', style: TextStyle(color: AppTheme.accentPink, fontWeight: FontWeight.bold)),
+                            Text(weekendLabel, style: const TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+                            Text(weekendVal, style: const TextStyle(color: AppTheme.accentPink, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        const Row(
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Mon - Thu Average', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
-                            Text('₹940 / day', style: TextStyle(color: AppTheme.primaryMint, fontWeight: FontWeight.bold)),
+                            Text(weekdayLabel, style: const TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+                            Text(weekdayVal, style: const TextStyle(color: AppTheme.primaryMint, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ],
@@ -327,11 +403,11 @@ class _RoastScreenState extends State<RoastScreen> {
                         ),
                       ),
                       const SizedBox(width: 14),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Spending Suggestion',
                               style: TextStyle(
                                 color: Colors.white,
@@ -339,10 +415,10 @@ class _RoastScreenState extends State<RoastScreen> {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
-                              'If you cut 3 food deliveries a week, you can save ₹1,200 this month.',
-                              style: TextStyle(
+                              suggestionText,
+                              style: const TextStyle(
                                 color: AppTheme.textGrey,
                                 fontSize: 12,
                                 height: 1.35,

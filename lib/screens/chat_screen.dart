@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../state/app_state.dart';
 import '../models/roast.dart';
+import '../models/budget.dart';
+import '../models/savings_goal.dart';
 import 'chat_history_screen.dart';
 
 /// Screen 10 — Spentee AI Chatbot Screen
@@ -259,8 +261,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showCreateSavingsPlanDialog(AppState state) {
-    final titleController = TextEditingController(text: 'Emergency Buffer');
-    final amountController = TextEditingController(text: '15000');
+    final titleController = TextEditingController(text: 'Monthly Emergency Buffer');
+    final amountController = TextEditingController(text: '800');
 
     showDialog(
       context: context,
@@ -274,7 +276,7 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Icon(Icons.savings_rounded, color: AppTheme.primaryMint, size: 22),
             SizedBox(width: 8),
-            Text('Create Savings Plan',
+            Text('Create Savings Goal',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -326,12 +328,24 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final title = titleController.text.trim();
-              final amt = double.tryParse(amountController.text) ?? 5000;
+              final title = titleController.text.trim().isNotEmpty
+                  ? titleController.text.trim()
+                  : 'Savings Goal';
+              final amt = double.tryParse(amountController.text) ?? 800.0;
               Navigator.of(ctx).pop();
+
+              final newGoal = SavingsGoal(
+                id: 'sg_${DateTime.now().millisecondsSinceEpoch}',
+                title: title,
+                targetAmount: amt,
+                createdAt: DateTime.now(),
+                category: 'Savings',
+              );
+              state.addSavingsGoal(newGoal);
+
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Savings Plan "$title" for ₹${amt.toStringAsFixed(0)} created!'),
+                  content: Text('Savings Goal "$title" for ₹${amt.toStringAsFixed(0)} saved and actively tracked!'),
                   backgroundColor: AppTheme.bgSurface,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -343,9 +357,129 @@ class _ChatScreenState extends State<ChatScreen> {
               backgroundColor: AppTheme.primaryMint,
               foregroundColor: AppTheme.bgDark,
             ),
-            child: const Text('Confirm Goal'),
+            child: const Text('Confirm & Save Goal'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSetBudgetDialog(AppState state) {
+    String selectedCat = 'Food & Drinks';
+    final amountController = TextEditingController(text: '5000');
+    final categories = [
+      'Food & Drinks',
+      'Shopping',
+      'Transport',
+      'Bills & Utilities',
+      'Entertainment',
+      'Groceries',
+      'Health & Care',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.bgCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppTheme.borderColor),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.pie_chart_rounded, color: AppTheme.accentCyan, size: 22),
+              SizedBox(width: 8),
+              Text('Set Category Budget',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Define a monthly limit for a spending category.',
+                style: TextStyle(color: AppTheme.textGrey, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: selectedCat,
+                dropdownColor: AppTheme.bgCard,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  labelStyle: TextStyle(color: AppTheme.accentCyan),
+                  filled: true,
+                  fillColor: AppTheme.bgSurface,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12))),
+                ),
+                items: categories
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setDialogState(() => selectedCat = val);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: const InputDecoration(
+                  labelText: 'Monthly Limit (₹)',
+                  labelStyle: TextStyle(color: AppTheme.accentCyan),
+                  filled: true,
+                  fillColor: AppTheme.bgSurface,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12))),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AppTheme.textGrey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final amt = double.tryParse(amountController.text) ?? 5000.0;
+                final now = DateTime.now();
+                Navigator.of(ctx).pop();
+
+                final budget = Budget(
+                  id: 'b_${selectedCat.toLowerCase().replaceAll(' ', '_')}',
+                  category: selectedCat,
+                  limitAmount: amt,
+                  period: 'Monthly',
+                  year: now.year,
+                  month: now.month,
+                );
+                state.addBudget(budget);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Budget for $selectedCat set to ₹${amt.toStringAsFixed(0)}!'),
+                    backgroundColor: AppTheme.bgSurface,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                state.sendUserChatMessage('How much budget do I have left?');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.accentCyan,
+                foregroundColor: AppTheme.bgDark,
+              ),
+              child: const Text('Save Budget'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -524,10 +658,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 Row(
                   children: [
                     RichText(
-                      text: const TextSpan(
-                        style: TextStyle(fontFamily: 'Roboto'),
+                      text: TextSpan(
+                        style: const TextStyle(fontFamily: 'Roboto'),
                         children: [
-                          TextSpan(
+                          const TextSpan(
                             text: 'Spentee ',
                             style: TextStyle(
                               color: Colors.white,
@@ -539,7 +673,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           TextSpan(
                             text: 'AI',
                             style: TextStyle(
-                              color: Color(0xFF00E676),
+                              color: appState.mascotTheme.primaryAccent,
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
                               fontStyle: FontStyle.italic,
@@ -583,20 +717,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: const Color(0xFF071926),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0x3300E676),
+                  color: appState.mascotTheme.subtleBorder,
                   width: 1,
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.history_rounded,
-                    color: AppTheme.primaryMint,
+                    color: appState.mascotTheme.primaryAccent,
                     size: 16,
                   ),
-                  SizedBox(width: 6),
-                  Text(
+                  const SizedBox(width: 6),
+                  const Text(
                     'Chat History',
                     style: TextStyle(
                       color: Colors.white,
@@ -653,14 +787,14 @@ class _ChatScreenState extends State<ChatScreen> {
               }
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'new',
                 child: Row(
                   children: [
                     Icon(Icons.add_comment_rounded,
-                        color: AppTheme.primaryMint, size: 18),
-                    SizedBox(width: 10),
-                    Text('New Conversation',
+                        color: appState.mascotTheme.primaryAccent, size: 18),
+                    const SizedBox(width: 10),
+                    const Text('New Conversation',
                         style: TextStyle(color: Colors.white, fontSize: 13)),
                   ],
                 ),
@@ -710,30 +844,23 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Welcome Banner matching Section 4:
-  /// Large rounded card with dark teal gradient, neon green border glow,
-  /// exact Spentee mascot on the right, and welcoming copy on the left.
+  /// Large rounded card with theme-adaptive gradient and border glow,
+  /// selected male/female mascot on the right, and welcoming copy on the left.
   Widget _buildWelcomeBanner(AppState appState) {
+    final theme = appState.mascotTheme;
     return Container(
       width: double.infinity,
       height: 156,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF04241C),
-            Color(0xFF063327),
-            Color(0xFF03221B),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: theme.bannerGradient,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: const Color(0x3800E676),
+          color: theme.subtleBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E676).withValues(alpha: 0.15),
+            color: theme.primaryAccent.withValues(alpha: 0.15),
             blurRadius: 20,
             spreadRadius: 0,
             offset: const Offset(0, 4),
@@ -755,9 +882,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   RichText(
-                    text: const TextSpan(
+                    text: TextSpan(
                       children: [
-                        TextSpan(
+                        const TextSpan(
                           text: "Hey! I'm ",
                           style: TextStyle(
                             color: Colors.white,
@@ -768,12 +895,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         TextSpan(
                           text: "Spentee AI",
                           style: TextStyle(
-                            color: Color(0xFF00E676),
+                            color: theme.primaryAccent,
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        TextSpan(
+                        const TextSpan(
                           text: " 👋",
                           style: TextStyle(fontSize: 16),
                         ),
@@ -810,11 +937,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
                 blendMode: BlendMode.dstIn,
                 child: Image.asset(
-                  'Assets/extracted/chat_banner_mascot.png',
+                  theme.chatBannerAsset,
                   fit: BoxFit.cover,
                   alignment: Alignment.centerRight,
                   errorBuilder: (context, error, stackTrace) => Image.asset(
-                    'Assets/extracted/ai_insight_mascot.png',
+                    theme.insightsMascotAsset,
                     fit: BoxFit.cover,
                     alignment: Alignment.centerRight,
                   ),
@@ -992,11 +1119,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF0A4D3B),
-                          Color(0xFF083C2E),
-                        ],
+                      gradient: LinearGradient(
+                        colors: appState.mascotTheme.isFemale
+                            ? const [Color(0xFF4A102E), Color(0xFF350A20)]
+                            : const [Color(0xFF0A4D3B), Color(0xFF083C2E)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -1007,7 +1133,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         bottomRight: Radius.circular(4),
                       ),
                       border: Border.all(
-                        color: const Color(0x4D00E676),
+                        color: appState.mascotTheme.subtleBorder,
                         width: 1,
                       ),
                     ),
@@ -1018,13 +1144,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.attach_file_rounded,
-                                  color: AppTheme.primaryMint, size: 14),
+                              Icon(Icons.attach_file_rounded,
+                                  color: appState.mascotTheme.primaryAccent,
+                                  size: 14),
                               const SizedBox(width: 4),
                               Text(
                                 message.attachmentName!,
-                                style: const TextStyle(
-                                  color: AppTheme.primaryMint,
+                                style: TextStyle(
+                                  color: appState.mascotTheme.primaryAccent,
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1054,9 +1181,9 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(
+                            Icon(
                               Icons.done_all_rounded,
-                              color: Color(0xFF00E676),
+                              color: appState.mascotTheme.primaryAccent,
                               size: 14,
                             ),
                           ],
@@ -1073,9 +1200,14 @@ class _ChatScreenState extends State<ChatScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: const Color(0xFF0F2636),
+                color: appState.mascotTheme.isFemale
+                    ? const Color(0xFF2E1022)
+                    : const Color(0xFF0F2636),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0x2E38BDF8), width: 1),
+                border: Border.all(
+                  color: appState.mascotTheme.subtleBorder,
+                  width: 1,
+                ),
               ),
               child: const Icon(
                 Icons.person_rounded,
@@ -1094,33 +1226,46 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Spentee Mascot Avatar
+          // AI / System Avatar
           Container(
-            width: 36,
-            height: 36,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: const Color(0xFF00E676),
-                width: 1.8,
+                color: message.isError
+                    ? const Color(0xFFFF5252).withValues(alpha: 0.6)
+                    : appState.mascotTheme.primaryAccent,
+                width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF00E676).withValues(alpha: 0.35),
+                  color: message.isError
+                      ? const Color(0xFFFF5252).withValues(alpha: 0.25)
+                      : appState.mascotTheme.primaryAccent.withValues(alpha: 0.35),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),
               ],
             ),
             child: ClipOval(
-              child: Image.asset(
-                'Assets/extracted/chat_ai_avatar_hd.png',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Image.asset(
-                  'Assets/extracted/chat_ai_avatar.png',
-                  fit: BoxFit.cover,
-                ),
-              ),
+              child: message.isError
+                  ? Container(
+                      color: const Color(0xFF1E1018),
+                      child: const Icon(
+                        Icons.dns_outlined,
+                        size: 16,
+                        color: Color(0xFFFF7A85),
+                      ),
+                    )
+                  : Image.asset(
+                      appState.mascotTheme.chatAiBubbleAsset,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        appState.mascotTheme.chatAiBubbleFallbackAsset,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 10),
@@ -1134,7 +1279,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0D1D27),
+                    color: message.isError
+                        ? const Color(0xFF151017)
+                        : const Color(0xFF0D1D27),
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(4),
                       topRight: Radius.circular(20),
@@ -1151,6 +1298,30 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Clean header tag for system notices / errors
+                      if (message.isError) ...[
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              size: 13,
+                              color: Color(0xFFFF7A85),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'SYSTEM NOTICE',
+                              style: TextStyle(
+                                color: const Color(0xFFFF7A85).withValues(alpha: 0.9),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+
                       // Text content formatted
                       _buildFormattedAiText(message.text),
 
@@ -1197,42 +1368,47 @@ class _ChatScreenState extends State<ChatScreen> {
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: message.text));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Copied response to clipboard'),
+                          SnackBar(
+                            content: Text(message.isError
+                                ? 'Copied system notice to clipboard'
+                                : 'Copied response to clipboard'),
                             backgroundColor: AppTheme.bgSurface,
                             behavior: SnackBarBehavior.floating,
-                            duration: Duration(seconds: 2),
+                            duration: const Duration(seconds: 2),
                           ),
                         );
                       },
                     ),
-                    const SizedBox(width: 8),
-                    _buildActionButton(
-                      icon: message.isHelpful == true
-                          ? Icons.thumb_up_rounded
-                          : Icons.thumb_up_alt_outlined,
-                      isActive: message.isHelpful == true,
-                      activeColor: AppTheme.primaryMint,
-                      tooltip: 'Helpful',
-                      onTap: () =>
-                          appState.toggleMessageHelpful(message.id),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildActionButton(
-                      icon: message.isUnhelpful == true
-                          ? Icons.thumb_down_rounded
-                          : Icons.thumb_down_alt_outlined,
-                      isActive: message.isUnhelpful == true,
-                      activeColor: AppTheme.accentPink,
-                      tooltip: 'Not helpful',
-                      onTap: () =>
-                          appState.toggleMessageUnhelpful(message.id),
-                    ),
+                    // Rating buttons only shown for genuine AI responses, not system error notices
+                    if (!message.isError) ...[
+                      const SizedBox(width: 8),
+                      _buildActionButton(
+                        icon: message.isHelpful == true
+                            ? Icons.thumb_up_rounded
+                            : Icons.thumb_up_alt_outlined,
+                        isActive: message.isHelpful == true,
+                        activeColor: AppTheme.primaryMint,
+                        tooltip: 'Helpful',
+                        onTap: () =>
+                            appState.toggleMessageHelpful(message.id),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildActionButton(
+                        icon: message.isUnhelpful == true
+                            ? Icons.thumb_down_rounded
+                            : Icons.thumb_down_alt_outlined,
+                        isActive: message.isUnhelpful == true,
+                        activeColor: AppTheme.accentPink,
+                        tooltip: 'Not helpful',
+                        onTap: () =>
+                            appState.toggleMessageUnhelpful(message.id),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     _buildActionButton(
                       icon: Icons.refresh_rounded,
                       isActive: false,
-                      tooltip: 'Regenerate',
+                      tooltip: message.isError ? 'Retry' : 'Regenerate',
                       onTap: () => appState.regenerateLastResponse(),
                     ),
                   ],
@@ -1281,8 +1457,10 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       onPressed: () {
-        if (label == 'Create Savings Plan') {
+        if (label == 'Create Savings Plan' || label == 'Create Savings Goal') {
           _showCreateSavingsPlanDialog(appState);
+        } else if (label == 'Set Category Budget' || label == 'Monthly Budget Suggestion') {
+          _showSetBudgetDialog(appState);
         } else if (label == 'Grant Permission & Analyze') {
           appState.setConsentForAnalysis(true);
           _sendMessage('Review my spending this month', appState);
@@ -1325,23 +1503,179 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// AI message formatted text renderer (paragraphs, numbered items, bold)
+  /// AI message formatted text renderer (paragraphs, numbered items, bold, code snippets)
   Widget _buildFormattedAiText(String rawText) {
     final lines = rawText.split('\n');
+    final widgets = <Widget>[];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: lines.map((line) {
-        if (line.trim().isEmpty) {
-          return const SizedBox(height: 6);
+    int i = 0;
+    while (i < lines.length) {
+      final line = lines[i];
+
+      // Clean developer setup snippet box for code blocks (e.g. cd backend / npm start)
+      if (line.trim().startsWith('```')) {
+        final codeLines = <String>[];
+        i++;
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+          codeLines.add(lines[i]);
+          i++;
         }
+        if (i < lines.length) i++; // consume closing fence
 
-        // Numbered list item e.g. "1. Track your expenses..."
-        final numberMatch = RegExp(r'^(\d+)\.\s+(.*)').firstMatch(line.trim());
-        if (numberMatch != null) {
-          final numStr = numberMatch.group(1);
-          final content = numberMatch.group(2);
-          return Padding(
+        final fullSnippet = codeLines.join('\n');
+        widgets.add(
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF07121A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0x3300E5FF),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.terminal_rounded,
+                          size: 14,
+                          color: Color(0xFF00E5FF),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'TERMINAL SETUP',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color(0xFF00E5FF),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10.5,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: fullSnippet));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Copied commands to clipboard'),
+                            backgroundColor: AppTheme.bgSurface,
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.copy_rounded,
+                              size: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Copy',
+                              style: TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ...codeLines.map((codeLine) {
+                  final isCmd = codeLine.trim().isNotEmpty &&
+                      !codeLine.trim().startsWith('#');
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isCmd)
+                          const Text(
+                            r'$ ',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: Color(0xFF00E676),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        Expanded(
+                          child: Text(
+                            codeLine,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              color: Color(0xFFE2E8F0),
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+
+      if (line.trim().isEmpty) {
+        widgets.add(const SizedBox(height: 6));
+        i++;
+        continue;
+      }
+
+      // Horizontal dividers like "---"
+      if (line.trim() == '---' || line.trim() == '***') {
+        widgets.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: Divider(color: Color(0x1F38BDF8), height: 1),
+          ),
+        );
+        i++;
+        continue;
+      }
+
+      // Markdown headings like "### Title"
+      final headingMatch = RegExp(r'^(#{1,4})\s+(.*)').firstMatch(line.trim());
+      if (headingMatch != null) {
+        final headingText = headingMatch.group(2) ?? '';
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: _buildRichInlineText('**$headingText**'),
+          ),
+        );
+        i++;
+        continue;
+      }
+
+      // Numbered list item e.g. "1. Track your expenses..."
+      final numberMatch = RegExp(r'^(\d+)\.\s+(.*)').firstMatch(line.trim());
+      if (numberMatch != null) {
+        final numStr = numberMatch.group(1);
+        final content = numberMatch.group(2);
+        widgets.add(
+          Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1355,23 +1689,20 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Text(
-                    content ?? '',
-                    style: const TextStyle(
-                      color: Color(0xFFE2E8F0),
-                      fontSize: 13.5,
-                      height: 1.35,
-                    ),
-                  ),
+                  child: _buildRichInlineText(content ?? ''),
                 ),
               ],
             ),
-          );
-        }
+          ),
+        );
+        i++;
+        continue;
+      }
 
-        // Bullet point item
-        if (line.trim().startsWith('• ')) {
-          return Padding(
+      // Bullet point item
+      if (line.trim().startsWith('• ')) {
+        widgets.add(
+          Padding(
             padding: const EdgeInsets.only(bottom: 5),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1385,38 +1716,106 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Text(
-                    line.trim().substring(2),
-                    style: const TextStyle(
-                      color: Color(0xFFE2E8F0),
-                      fontSize: 13.5,
-                      height: 1.35,
-                    ),
-                  ),
+                  child: _buildRichInlineText(line.trim().substring(2)),
                 ),
               ],
             ),
-          );
-        }
-
-        // Standard text line
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            line,
-            style: const TextStyle(
-              color: Color(0xFFE2E8F0),
-              fontSize: 13.5,
-              fontWeight: FontWeight.w400,
-              height: 1.35,
-            ),
           ),
         );
-      }).toList(),
+        i++;
+        continue;
+      }
+
+      // Standard text line
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: _buildRichInlineText(line),
+        ),
+      );
+      i++;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
+  /// Parses inline bold (**text**) and code (`text`) for crisp, readable styling
+  Widget _buildRichInlineText(String text) {
+    if (!text.contains('**') && !text.contains('`')) {
+      return Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFFE2E8F0),
+          fontSize: 13.5,
+          fontWeight: FontWeight.w400,
+          height: 1.35,
+        ),
+      );
+    }
+
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'(\*\*[^*]+\*\*|`[^`]+`)');
+    int lastEnd = 0;
+
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, match.start),
+          style: const TextStyle(
+            color: Color(0xFFE2E8F0),
+            fontSize: 13.5,
+            fontWeight: FontWeight.w400,
+            height: 1.35,
+          ),
+        ));
+      }
+      final rawMatch = match.group(0)!;
+      if (rawMatch.startsWith('**') && rawMatch.endsWith('**')) {
+        spans.add(TextSpan(
+          text: rawMatch.substring(2, rawMatch.length - 2),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+            height: 1.35,
+          ),
+        ));
+      } else if (rawMatch.startsWith('`') && rawMatch.endsWith('`')) {
+        spans.add(TextSpan(
+          text: rawMatch.substring(1, rawMatch.length - 1),
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            color: Color(0xFF38BDF8),
+            backgroundColor: Color(0x330F2938),
+            fontSize: 12.5,
+          ),
+        ));
+      }
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd),
+        style: const TextStyle(
+          color: Color(0xFFE2E8F0),
+          fontSize: 13.5,
+          fontWeight: FontWeight.w400,
+          height: 1.35,
+        ),
+      ));
+    }
+
+    return Text.rich(
+      TextSpan(children: spans),
     );
   }
 
   Widget _buildTypingIndicator() {
+    final theme = MascotThemeData.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -1426,12 +1825,16 @@ class _ChatScreenState extends State<ChatScreen> {
             height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppTheme.primaryMint, width: 1.5),
+              border: Border.all(color: theme.primaryAccent, width: 1.5),
             ),
             child: ClipOval(
               child: Image.asset(
-                'Assets/extracted/chat_ai_avatar.png',
+                theme.chatAiBubbleAsset,
                 fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Image.asset(
+                  theme.chatAiBubbleFallbackAsset,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),
@@ -1526,7 +1929,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
             const SizedBox(width: 8),
 
-            // Glowing neon-green send button
+            // Glowing theme-adaptive send button
             GestureDetector(
               onTap: appState.isAiResponding
                   ? null
@@ -1536,14 +1939,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 height: 38,
                 decoration: BoxDecoration(
                   color: appState.isAiResponding
-                      ? const Color(0xFF0A3326)
-                      : const Color(0xFF00E676),
+                      ? (appState.mascotTheme.isFemale
+                          ? const Color(0xFF330D20)
+                          : const Color(0xFF0A3326))
+                      : appState.mascotTheme.primaryAccent,
                   shape: BoxShape.circle,
                   boxShadow: appState.isAiResponding
                       ? null
                       : [
                           BoxShadow(
-                            color: const Color(0xFF00E676)
+                            color: appState.mascotTheme.primaryAccent
                                 .withValues(alpha: 0.6),
                             blurRadius: 14,
                             spreadRadius: 1,
@@ -1555,7 +1960,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   Icons.send_rounded,
                   color: appState.isAiResponding
                       ? const Color(0xFF556980)
-                      : const Color(0xFF001422),
+                      : (appState.mascotTheme.isFemale
+                          ? const Color(0xFF1E0613)
+                          : const Color(0xFF001422)),
                   size: 18,
                 ),
               ),
@@ -1574,17 +1981,42 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-/// The 50/30/20 Suggested Plan breakdown card.
-class _SuggestedPlanCard extends StatelessWidget {
+/// The Suggested Plan breakdown card.
+class SuggestedPlanCard extends StatelessWidget {
   final Map<String, dynamic> planData;
 
-  const _SuggestedPlanCard({required this.planData});
+  const SuggestedPlanCard({super.key, required this.planData});
+
+  static Map<String, dynamic> _safeSection(dynamic raw, String defaultLabel) {
+    if (raw is Map) {
+      final label = raw['label']?.toString() ?? defaultLabel;
+      final amount = raw['amount']?.toString() ?? '₹0';
+      final percentVal = raw['percent'];
+      final double ratio;
+      if (percentVal is num) {
+        ratio = percentVal.toDouble().clamp(0.0, 1.0);
+      } else {
+        ratio = 0.0;
+      }
+      return {
+        'label': label,
+        'amount': amount,
+        'percent': ratio,
+      };
+    }
+    return {
+      'label': defaultLabel,
+      'amount': '₹0',
+      'percent': 0.0,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final needs = planData['needs'] as Map<String, dynamic>;
-    final wants = planData['wants'] as Map<String, dynamic>;
-    final savings = planData['savings'] as Map<String, dynamic>;
+    final total = planData['total']?.toString() ?? 'Plan';
+    final needs = _safeSection(planData['needs'], 'Needs (50%)');
+    final wants = _safeSection(planData['wants'], 'Wants (30%)');
+    final savings = _safeSection(planData['savings'], 'Savings (20%)');
 
     return Container(
       width: double.infinity,
@@ -1601,7 +2033,7 @@ class _SuggestedPlanCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Suggested Plan for ${planData['total']}',
+                'Suggested Plan for $total',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 13,
@@ -1618,8 +2050,8 @@ class _SuggestedPlanCard extends StatelessWidget {
           _PlanRow(
             icon: Icons.home_rounded,
             color: const Color(0xFF00E676),
-            label: needs['label'],
-            amount: needs['amount'],
+            label: needs['label'] as String,
+            amount: needs['amount'] as String,
             ratio: (needs['percent'] as num).toDouble(),
           ),
           const SizedBox(height: 10),
@@ -1628,8 +2060,8 @@ class _SuggestedPlanCard extends StatelessWidget {
           _PlanRow(
             icon: Icons.coffee_rounded,
             color: const Color(0xFFFF9100),
-            label: wants['label'],
-            amount: wants['amount'],
+            label: wants['label'] as String,
+            amount: wants['amount'] as String,
             ratio: (wants['percent'] as num).toDouble(),
           ),
           const SizedBox(height: 10),
@@ -1638,8 +2070,8 @@ class _SuggestedPlanCard extends StatelessWidget {
           _PlanRow(
             icon: Icons.savings_rounded,
             color: const Color(0xFF00E5FF),
-            label: savings['label'],
-            amount: savings['amount'],
+            label: savings['label'] as String,
+            amount: savings['amount'] as String,
             ratio: (savings['percent'] as num).toDouble(),
           ),
         ],
@@ -1647,6 +2079,8 @@ class _SuggestedPlanCard extends StatelessWidget {
     );
   }
 }
+
+typedef _SuggestedPlanCard = SuggestedPlanCard;
 
 class _PlanRow extends StatelessWidget {
   final IconData icon;
@@ -1703,7 +2137,7 @@ class _PlanRow extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(3),
           child: LinearProgressIndicator(
-            value: ratio,
+            value: ratio.clamp(0.0, 1.0),
             backgroundColor: const Color(0xFF0F2636),
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 4,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+export 'mascot_theme.dart';
 
 /// Design tokens and styling for Spentee matching the visual design reference.
 class AppTheme {

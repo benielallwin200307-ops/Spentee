@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
-/// Primary neon mint green action button with bold styling.
+/// Primary action button with bold styling adapting to the active mascot theme.
 class NeonButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final IconData? icon;
   final bool isFullWidth;
   final double height;
-  final Color backgroundColor;
+  final Color? backgroundColor;
   final Color foregroundColor;
 
   const NeonButton({
@@ -19,12 +18,15 @@ class NeonButton extends StatelessWidget {
     this.icon,
     this.isFullWidth = true,
     this.height = 54,
-    this.backgroundColor = AppTheme.primaryMint,
+    this.backgroundColor,
     this.foregroundColor = const Color(0xFF030B15),
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = MascotThemeData.of(context);
+    final effectiveBg = backgroundColor ?? theme.primaryAccent;
+
     Widget buttonContent = Row(
       mainAxisSize: isFullWidth ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -51,9 +53,9 @@ class NeonButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
+          backgroundColor: effectiveBg,
           elevation: 0,
-          shadowColor: AppTheme.primaryMint.withValues(alpha: 0.4),
+          shadowColor: effectiveBg.withValues(alpha: 0.4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -124,10 +126,11 @@ class SpenteeCard extends StatelessWidget {
   }
 }
 
-/// Circular avatar for character illustration.
+/// Circular avatar for character illustration adapting to the active mascot theme.
 class MascotAvatar extends StatelessWidget {
   final double size;
   final String? imagePath;
+  final MascotExpression? expression;
   final VoidCallback? onTap;
   final bool hasGlow;
 
@@ -135,19 +138,17 @@ class MascotAvatar extends StatelessWidget {
     super.key,
     this.size = 40,
     this.imagePath,
+    this.expression,
     this.onTap,
     this.hasGlow = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    String resolvedPath = imagePath ??
-        (AppStateScope.of(context).selectedMascot == 'female'
-            ? 'Assets/extracted/female_main.png'
-            : 'Assets/extracted/mascot_main.png');
-
-    final isFemale = AppStateScope.of(context).selectedMascot == 'female';
-    final accentColor = isFemale ? const Color(0xFFFF528E) : AppTheme.primaryMint;
+    final theme = MascotThemeData.of(context);
+    final resolvedPath = imagePath ??
+        theme.getAvatarAsset(expression ?? MascotExpression.main);
+    final accentColor = theme.primaryAccent;
 
     Widget avatar = Container(
       width: size,
@@ -174,10 +175,10 @@ class MascotAvatar extends StatelessWidget {
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) => Container(
             color: AppTheme.bgElevated,
-            child: const Icon(
+            child: Icon(
               Icons.face_rounded,
-              color: AppTheme.primaryMint,
-              size: 20,
+              color: accentColor,
+              size: size * 0.5,
             ),
           ),
         ),

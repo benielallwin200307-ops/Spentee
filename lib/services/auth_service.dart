@@ -13,8 +13,21 @@ class AuthService {
   );
 
   FirebaseAuth get auth => _auth;
-  User? get currentUser => _auth.currentUser;
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  User? get currentUser {
+    try {
+      return _auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Stream<User?> get authStateChanges {
+    try {
+      return _auth.authStateChanges().handleError((_) {});
+    } catch (_) {
+      return const Stream.empty();
+    }
+  }
 
   /// Create a new user with email and password, setting the display name.
   Future<UserCredential> signUpWithEmail({

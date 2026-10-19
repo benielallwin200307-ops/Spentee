@@ -984,21 +984,19 @@ class _InsightsScreenState extends State<InsightsScreen> {
       }
     }
 
+    final theme = MascotThemeData.of(context);
+
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF042620), Color(0xFF031614)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: theme.bannerGradient,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFF00E676).withValues(alpha: 0.35),
+          color: theme.subtleBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E676).withValues(alpha: 0.08),
+            color: theme.primaryAccent.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -1010,18 +1008,20 @@ class _InsightsScreenState extends State<InsightsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Original Mascot Artwork with chart thought bubble
+              // Mascot Artwork
               SizedBox(
                 width: 122,
                 child: Image.asset(
-                  'Assets/extracted/ai_insight_mascot.png',
+                  theme.insightsMascotAsset,
                   fit: BoxFit.cover,
                   alignment: Alignment.center,
                   errorBuilder: (context, error, stackTrace) => Container(
-                    color: const Color(0xFF031E18),
-                    child: const Icon(
+                    color: theme.isFemale
+                        ? const Color(0xFF1E0817)
+                        : const Color(0xFF031E18),
+                    child: Icon(
                       Icons.smart_toy_rounded,
-                      color: AppTheme.primaryMint,
+                      color: theme.primaryAccent,
                       size: 40,
                     ),
                   ),
@@ -1038,17 +1038,17 @@ class _InsightsScreenState extends State<InsightsScreen> {
                     children: [
                       // AI Insight Label with Sparkle
                       Row(
-                        children: const [
+                        children: [
                           Icon(
                             Icons.auto_awesome,
-                            color: AppTheme.primaryMint,
+                            color: theme.primaryAccent,
                             size: 13,
                           ),
-                          SizedBox(width: 5),
+                          const SizedBox(width: 5),
                           Text(
                             'AI Insight',
                             style: TextStyle(
-                              color: AppTheme.primaryMint,
+                              color: theme.primaryAccent,
                               fontSize: 11.5,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.2,
@@ -1081,8 +1081,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
                             if (savingsHighlight.isNotEmpty)
                               TextSpan(
                                 text: savingsHighlight,
-                                style: const TextStyle(
-                                  color: AppTheme.primaryMint,
+                                style: TextStyle(
+                                  color: theme.primaryAccent,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),

@@ -58,6 +58,8 @@ class _MainShellState extends State<MainShell> {
       const ProfileScreen(),
     ];
 
+    final theme = MascotThemeData.of(context);
+
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       body: IndexedStack(
@@ -103,11 +105,11 @@ class _MainShellState extends State<MainShell> {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryMint,
+                      color: theme.primaryAccent,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.primaryMint.withValues(alpha: 0.5),
+                          color: theme.primaryAccent.withValues(alpha: 0.5),
                           blurRadius: 16,
                           spreadRadius: 2,
                           offset: const Offset(0, 2),
@@ -157,7 +159,8 @@ class _NavBarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isSelected ? AppTheme.primaryMint : AppTheme.textGrey;
+    final theme = MascotThemeData.of(context);
+    final color = isSelected ? theme.primaryAccent : AppTheme.textGrey;
 
     return InkWell(
       onTap: onTap,

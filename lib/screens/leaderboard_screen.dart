@@ -120,22 +120,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   itemBuilder: (context, index) {
                     final item = restList[index];
                     final isUser = item.isCurrentUser;
+                    final theme = MascotThemeData.of(context);
 
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
                         color: isUser
-                            ? AppTheme.primaryMint.withValues(alpha: 0.16)
+                            ? theme.primaryAccent.withValues(alpha: 0.16)
                             : AppTheme.bgCard,
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: isUser ? AppTheme.primaryMint : AppTheme.borderSubtle,
+                          color: isUser ? theme.primaryAccent : AppTheme.borderSubtle,
                           width: isUser ? 2 : 1,
                         ),
                         boxShadow: isUser
                             ? [
                                 BoxShadow(
-                                  color: AppTheme.primaryMint.withValues(alpha: 0.2),
+                                  color: theme.primaryAccent.withValues(alpha: 0.2),
                                   blurRadius: 14,
                                   offset: const Offset(0, 4),
                                 )
@@ -150,7 +151,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             child: Text(
                               '${item.rank}',
                               style: TextStyle(
-                                color: isUser ? AppTheme.primaryMint : AppTheme.textGrey,
+                                color: isUser ? theme.primaryAccent : AppTheme.textGrey,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -160,8 +161,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                           // Avatar
                           MascotAvatar(
                             size: 38,
-                            imagePath: isUser && appState.selectedMascot == 'female'
-                                ? 'Assets/extracted/female_main.png'
+                            imagePath: isUser
+                                ? theme.getAvatarAsset(MascotExpression.main)
                                 : item.avatarPath,
                             hasGlow: isUser,
                           ),
@@ -171,7 +172,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                             child: Text(
                               item.username,
                               style: TextStyle(
-                                color: isUser ? AppTheme.primaryMint : Colors.white,
+                                color: isUser ? theme.primaryAccent : Colors.white,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                               ),

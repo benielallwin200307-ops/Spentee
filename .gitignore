@@ -57,3 +57,10 @@ app.*.map.json
 **/*.jks
 *.env
 *.env.*
+!*.env.example
+**/node_modules/
+.spentee_storage/
+*GEMINI*
+*API Key*
+*.txt
+/*.png

@@ -67,7 +67,7 @@ class HomeScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 GestureMapOption(
-                  name: 'Alex (Default)',
+                  name: 'Male Mascot',
                   imagePath: 'Assets/extracted/mascot_main.png',
                   isSelected: state.selectedMascot == 'male',
                   onTap: () {
@@ -76,7 +76,7 @@ class HomeScreen extends StatelessWidget {
                   },
                 ),
                 GestureMapOption(
-                  name: 'Sam',
+                  name: 'Female Mascot',
                   imagePath: 'Assets/extracted/female_main.png',
                   isSelected: state.selectedMascot == 'female',
                   onTap: () {
@@ -96,15 +96,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
-    final isFemale = appState.selectedMascot == 'female';
-    final avatarImg = isFemale
-        ? 'Assets/extracted/female_main.png'
-        : 'Assets/extracted/mascot_main.png';
+    final theme = appState.mascotTheme;
 
     final balanceStr =
         '₹ ${appState.balance.toStringAsFixed(appState.balance.truncateToDouble() == appState.balance ? 0 : 2)}';
     final todaySpentStr =
         '₹${appState.todaySpending.toStringAsFixed(appState.todaySpending.truncateToDouble() == appState.todaySpending ? 0 : 2)}';
+    final incomeStr =
+        '₹${appState.monthIncome.toStringAsFixed(appState.monthIncome.truncateToDouble() == appState.monthIncome ? 0 : 2)}';
 
     // Show only the 3 most recent transactions on home
     final recentTxs = appState.transactions.take(3).toList();
@@ -151,7 +150,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     MascotAvatar(
                       size: 46,
-                      imagePath: avatarImg,
+                      expression: MascotExpression.main,
                       hasGlow: true,
                       onTap: () =>
                           _showCharacterSelectionSheet(context, appState),
@@ -164,17 +163,9 @@ class HomeScreen extends StatelessWidget {
                 SpenteeCard(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                  gradient: LinearGradient(
-                    colors: isFemale
-                        ? const [Color(0xFF28112A), Color(0xFF160918)]
-                        : const [Color(0xFF0F2C4A), Color(0xFF091C30)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  gradient: theme.cardGradient,
                   border: Border.all(
-                    color: isFemale
-                        ? const Color(0xFFFF528E).withValues(alpha: 0.35)
-                        : AppTheme.primaryMint.withValues(alpha: 0.35),
+                    color: theme.subtleBorder,
                     width: 1.5,
                   ),
                   child: Row(
@@ -201,7 +192,43 @@ class HomeScreen extends StatelessWidget {
                                 letterSpacing: -0.5,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.arrow_upward_rounded,
+                                        size: 13, color: AppTheme.primaryMint),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      'Income: $incomeStr',
+                                      style: const TextStyle(
+                                        color: AppTheme.primaryMint,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 10),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.arrow_downward_rounded,
+                                        size: 13, color: AppTheme.accentPink),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      'Spent: $todaySpentStr',
+                                      style: const TextStyle(
+                                        color: AppTheme.accentPink,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
                                 const Icon(Icons.visibility_outlined,
@@ -210,9 +237,7 @@ class HomeScreen extends StatelessWidget {
                                 Text(
                                   'Local Mode • Secure',
                                   style: TextStyle(
-                                    color: isFemale
-                                        ? const Color(0xFFFF528E)
-                                        : AppTheme.primaryMint,
+                                    color: theme.primaryAccent,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -228,21 +253,15 @@ class HomeScreen extends StatelessWidget {
                         height: 80,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isFemale
-                              ? const Color(0xFFFF528E).withValues(alpha: 0.15)
-                              : AppTheme.primaryMint.withValues(alpha: 0.12),
+                          color: theme.backgroundBadge,
                         ),
                         child: ClipOval(
                           child: Image.asset(
-                            isFemale
-                                ? 'Assets/extracted/female_happy.png'
-                                : 'Assets/extracted/avatar_happy.png',
+                            theme.getAvatarAsset(MascotExpression.happy),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 Icon(Icons.face_rounded,
-                                    color: isFemale
-                                        ? const Color(0xFFFF528E)
-                                        : AppTheme.primaryMint,
+                                    color: theme.primaryAccent,
                                     size: 36),
                           ),
                         ),
@@ -323,9 +342,7 @@ class HomeScreen extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.asset(
-                            isFemale
-                                ? 'Assets/extracted/female_ai.png'
-                                : 'Assets/extracted/avatar_ai.png',
+                            theme.getAvatarAsset(MascotExpression.ai),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 const Icon(Icons.smart_toy_rounded,
@@ -405,12 +422,71 @@ class HomeScreen extends StatelessWidget {
                 if (appState.transactions.isEmpty)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(28),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 28),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgSurface,
+                      borderRadius: BorderRadius.circular(18),
+                      border:
+                          Border.all(color: AppTheme.borderSubtle, width: 1),
+                    ),
                     alignment: Alignment.center,
-                    child: const Text(
-                      'No transactions yet.\nAdd your first spending!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textGrey),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: theme.primaryAccent.withValues(alpha: 0.15),
+                          ),
+                          child: Icon(
+                            Icons.receipt_long_rounded,
+                            color: theme.primaryAccent,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No transactions yet.\nAdd your first transaction.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: () => _openAddTransaction(
+                              context, TransactionType.expense),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: theme.primaryAccent,
+                              width: 1.2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                          ),
+                          icon: Icon(
+                            Icons.add_rounded,
+                            size: 16,
+                            color: theme.primaryAccent,
+                          ),
+                          label: Text(
+                            'Add Transaction',
+                            style: TextStyle(
+                              color: theme.primaryAccent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 else

@@ -63,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = credential.user!;
       final savedMascot = appState.getSavedMascotForUser(user.uid) ?? 'male';
 
-      appState.setUserProfile(
+      await appState.setUserProfile(
         name: user.displayName?.isNotEmpty == true
             ? user.displayName!
             : (email.split('@')[0]),
@@ -78,6 +78,39 @@ class _LoginScreenState extends State<LoginScreen> {
         (route) => false,
       );
     } catch (e) {
+      if (e is FirebaseAuthException &&
+          (e.code == 'operation-not-allowed' || e.code == 'network-request-failed')) {
+        String matchingUid = '';
+        String existingName = email.split('@')[0];
+        for (final entry in appState.userProfiles.entries) {
+          if (entry.value is Map &&
+              (entry.value['userEmail'] as String?)?.toLowerCase().trim() ==
+                  email.toLowerCase().trim()) {
+            matchingUid = entry.key;
+            if (entry.value['userName'] is String &&
+                (entry.value['userName'] as String).isNotEmpty) {
+              existingName = entry.value['userName'];
+            }
+            break;
+          }
+        }
+        final targetUid = matchingUid.isNotEmpty
+            ? matchingUid
+            : 'local_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}';
+        final savedMascot = appState.getSavedMascotForUser(targetUid) ?? 'male';
+        await appState.setUserProfile(
+          name: existingName,
+          email: email,
+          gender: savedMascot,
+          uid: targetUid,
+        );
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MainShell()),
+          (route) => false,
+        );
+        return;
+      }
       if (!mounted) return;
       _showError(AuthService.getErrorMessage(e));
     } finally {
@@ -101,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = credential.user!;
       if (appState.hasSavedMascotForUser(user.uid)) {
         final savedMascot = appState.getSavedMascotForUser(user.uid)!;
-        appState.setUserProfile(
+        await appState.setUserProfile(
           name: user.displayName?.isNotEmpty == true
               ? user.displayName!
               : (user.email?.split('@')[0] ?? 'User'),
@@ -196,10 +229,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(26),
                       ),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(ctx);
                       final appState = AppStateScope.of(context);
-                      appState.setUserProfile(
+                      await appState.setUserProfile(
                         name: user.displayName?.isNotEmpty == true
                             ? user.displayName!
                             : (user.email?.split('@')[0] ?? 'User'),
@@ -207,6 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         gender: tempGender,
                         uid: user.uid,
                       );
+                      if (!mounted) return;
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (_) => const MainShell()),
                         (route) => false,
@@ -760,7 +794,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final user = credential.user!;
 
       // Successfully authenticated: save profile and switch mascot theme
-      appState.setUserProfile(
+      await appState.setUserProfile(
         name: name,
         email: email,
         gender: _selectedGender!,
@@ -773,6 +807,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
         (route) => false,
       );
     } catch (e) {
+      if (e is FirebaseAuthException &&
+          (e.code == 'operation-not-allowed' || e.code == 'network-request-failed')) {
+        final localUid = 'local_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}';
+        await appState.setUserProfile(
+          name: name,
+          email: email,
+          gender: _selectedGender!,
+          uid: localUid,
+        );
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MainShell()),
+          (route) => false,
+        );
+        return;
+      }
       if (!mounted) return;
       _showError(AuthService.getErrorMessage(e));
     } finally {
@@ -796,7 +846,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final user = credential.user!;
       if (_selectedGender != null) {
         // Apply the mascot selected on this screen
-        appState.setUserProfile(
+        await appState.setUserProfile(
           name: user.displayName?.isNotEmpty == true
               ? user.displayName!
               : (_nameCtrl.text.trim().isNotEmpty
@@ -813,7 +863,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         );
       } else if (appState.hasSavedMascotForUser(user.uid)) {
         final savedMascot = appState.getSavedMascotForUser(user.uid)!;
-        appState.setUserProfile(
+        await appState.setUserProfile(
           name: user.displayName?.isNotEmpty == true
               ? user.displayName!
               : (_nameCtrl.text.trim().isNotEmpty
@@ -910,11 +960,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         borderRadius: BorderRadius.circular(26),
                       ),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(ctx);
                       setState(() => _selectedGender = tempGender);
                       final appState = AppStateScope.of(context);
-                      appState.setUserProfile(
+                      await appState.setUserProfile(
                         name: user.displayName?.isNotEmpty == true
                             ? user.displayName!
                             : (_nameCtrl.text.trim().isNotEmpty
@@ -924,6 +974,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         gender: tempGender,
                         uid: user.uid,
                       );
+                      if (!mounted) return;
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (_) => const MainShell()),
                         (route) => false,

@@ -1,16 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import '../models/budget.dart';
 import '../models/roast.dart';
+import '../models/savings_goal.dart';
 import '../models/transaction.dart';
+import 'financial_intelligence_engine.dart';
 
 /// Service managing Spentee AI responses, local storage of chat sessions,
-/// financial intelligence, and optional secure backend configuration.
+/// deterministic financial intelligence, and connection to the secure backend proxy.
 class AiChatService {
   AiChatService._();
   static final AiChatService instance = AiChatService._();
 
-  // Storage file helper
+  // Storage file helper for local chat history
   Future<File?> _getHistoryFile() async {
     try {
       final androidFiles = Directory('/data/user/0/com.spentee.spentee/files');
@@ -64,205 +67,262 @@ class AiChatService {
     }
   }
 
+  /// Determines the active backend proxy URL.
+  /// Precedence:
+  /// 1. SPENTEE_AI_BACKEND_URL compile-time define
+  /// 2. Android emulator host (10.0.2.2:3000) when running on Android
+  /// 3. localhost:3000 for local desktop/web development
+  String getBackendUrl() {
+    const envUrl = String.fromEnvironment('SPENTEE_AI_BACKEND_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+
+    if (!kIsWeb && Platform.isAndroid) {
+      return 'http://10.0.2.2:3000';
+    }
+    return 'http://localhost:3000';
+  }
+
+  /// Check backend health status.
+  Future<Map<String, dynamic>> checkBackendHealth([String? urlOverride]) async {
+    final baseUrl = urlOverride ?? getBackendUrl();
+    HttpClient? client;
+    try {
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+      final request = await client.getUrl(Uri.parse('$baseUrl/health'));
+      final response =
+          await request.close().timeout(const Duration(seconds: 4));
+      if (response.statusCode == 200) {
+        final body = await response.transform(utf8.decoder).join();
+        return jsonDecode(body) as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'statusCode': response.statusCode};
+    } catch (e) {
+      return {'status': 'offline', 'error': e.toString()};
+    } finally {
+      client?.close();
+    }
+  }
+
   /// Generate a contextual response from Spentee AI.
-  /// If [transactions] are provided and user gave consent, performs real analysis.
+  /// 1. Tries deterministic personal finance calculation first (100% accurate, local).
+  /// 2. If general question, connects to secure proxy backend (no raw data leaked).
+  /// 3. If backend is offline or unconfigured, explains setup cleanly.
   Future<ChatMessage> generateResponse({
     required String query,
     required List<Transaction> transactions,
+    List<Budget> budgets = const [],
+    List<SavingsGoal> savingsGoals = const [],
     required bool userConsentedToDataAnalysis,
     required String userMascot,
+    List<ChatMessage> conversationHistory = const [],
+    String? backendUrlOverride,
   }) async {
-    // Simulate real AI processing latency for natural conversation feel
-    await Future.delayed(const Duration(milliseconds: 650));
-
-    final q = query.trim().toLowerCase();
     final now = DateTime.now();
 
-    // 1. "How can I save more money?"
-    if (q.contains('save more money') ||
-        (q.contains('save') && q.contains('more')) ||
-        (q.contains('how') && q.contains('save'))) {
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1: Local Deterministic Financial Engine
+    // ─────────────────────────────────────────────────────────────────────────
+    final engineResult = FinancialIntelligenceEngine.instance.evaluateQuery(
+      query: query,
+      transactions: transactions,
+      budgets: budgets,
+      savingsGoals: savingsGoals,
+      userConsented: userConsentedToDataAnalysis,
+    );
+
+    if (engineResult != null) {
       return ChatMessage(
         id: 'ai_${now.millisecondsSinceEpoch}',
         isUser: false,
         timestamp: now,
-        text:
-            'Here are a few simple ways to save more money:\n\n'
-            '1. Track your daily expenses so you know where your money goes.\n'
-            '2. Reduce frequent small spends (like food delivery or unnecessary subscriptions).\n'
-            '3. Set a monthly savings goal and move a fixed amount right after you get paid.\n'
-            '4. Use the 50/30/20 rule - 50% needs, 30% wants, 20% savings/investments.\n\n'
-            'Want me to create a personalised savings plan based on your spending?',
-        actionButtons: const [
-          'Create Savings Plan',
-          'Monthly Budget Suggestion',
-          'Analyze My Spending',
-        ],
+        text: engineResult.text,
+        actionButtons: engineResult.actionButtons,
+        hasPlanCard: engineResult.hasPlanCard,
+        planData: engineResult.planData,
       );
     }
 
-    // 2. "Explain SIPs for beginners"
-    if (q.contains('sip') || q.contains('systematic investment')) {
-      return ChatMessage(
-        id: 'ai_${now.millisecondsSinceEpoch}',
-        isUser: false,
-        timestamp: now,
-        text:
-            'A Systematic Investment Plan (SIP) allows you to invest a fixed amount regularly (usually monthly) into mutual funds.\n\n'
-            'Key benefits of SIPs:\n'
-            '1. Rupee Cost Averaging: You automatically purchase more units when markets drop, and fewer when markets rise.\n'
-            '2. Power of Compounding: Reinvested returns generate additional returns over time, multiplying your wealth.\n'
-            '3. Financial Discipline: Fixed automatic debits right after salary day build consistent wealth effortlessly.\n'
-            '4. Low Entry Barrier: Start with as little as ₹500/month.\n\n'
-            '💡 Pro Tip: For beginners, broad-market index funds (like Nifty 50 or S&P 500) give reliable diversification with minimal fees.',
-        actionButtons: const [
-          'Create Savings Plan',
-          'Help me plan a monthly budget',
-        ],
-      );
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 2: Secure Backend Proxy for General-Purpose AI
+    // ─────────────────────────────────────────────────────────────────────────
+    final backendUrl = backendUrlOverride ?? getBackendUrl();
+    HttpClient? client;
 
-    // 3. "Help me plan a monthly budget"
-    if (q.contains('budget') ||
-        q.contains('plan') && q.contains('month') ||
-        q.contains('50/30/20')) {
-      return ChatMessage(
-        id: 'ai_${now.millisecondsSinceEpoch}',
-        isUser: false,
-        timestamp: now,
-        text:
-            'Here is the classic 50/30/20 budget framework adapted for your financial health:\n\n'
-            '1. Needs (50%): Rent, groceries, utility bills, commute, and health cover.\n'
-            '2. Wants (30%): Dining out, shopping, streaming subscriptions, and fun outings.\n'
-            '3. Savings & Investments (20%): Emergency savings, SIP investments, and retirement.\n\n'
-            'Here is a suggested allocation for an estimated ₹25,000 monthly income:',
-        hasPlanCard: true,
-        planData: {
-          'total': '₹25,000',
-          'needs': {'label': 'Needs (50%)', 'amount': '₹12,500', 'percent': 0.5},
-          'wants': {'label': 'Wants (30%)', 'amount': '₹7,500', 'percent': 0.3},
-          'savings': {'label': 'Savings (20%)', 'amount': '₹5,000', 'percent': 0.2},
-        },
-        actionButtons: const [
-          'Create Savings Plan',
-          'Analyze My Spending',
-        ],
-      );
-    }
+    try {
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final requestUri = Uri.parse('$backendUrl/api/chat');
+      final request = await client.postUrl(requestUri);
+      request.headers.contentType = ContentType.json;
 
-    // 4. "Review my spending this month" or Spending Analysis
-    if (q.contains('review') && q.contains('spending') ||
-        q.contains('spend') && q.contains('month') ||
-        q.contains('analyze') && q.contains('spending')) {
-      if (!userConsentedToDataAnalysis) {
+      // Build payload with strict privacy guarantees
+      final isPersonalFinancialQuery = _isPersonalFinancialQuery(query);
+      final Map<String, dynamic> summaryPayload;
+      if (userConsentedToDataAnalysis && isPersonalFinancialQuery) {
+        summaryPayload = FinancialIntelligenceEngine.buildMinimalSummary(
+          transactions: transactions,
+          budgets: budgets,
+          userConsented: true,
+        )..['include_in_prompt'] = true;
+      } else {
+        summaryPayload = {
+          'consent': userConsentedToDataAnalysis,
+          'include_in_prompt': false,
+        };
+      }
+
+      // Drop the trailing user message if it matches the current query to prevent turn duplication
+      final effectiveHistory = conversationHistory.isNotEmpty &&
+              conversationHistory.last.isUser &&
+              conversationHistory.last.text.trim().toLowerCase() ==
+                  query.trim().toLowerCase()
+          ? conversationHistory.sublist(0, conversationHistory.length - 1)
+          : conversationHistory;
+
+      final historyPayload = effectiveHistory
+          .where((m) => m.text.isNotEmpty)
+          .map((m) => {
+                'role': m.isUser ? 'user' : 'model',
+                'text': m.text,
+              })
+          .toList();
+
+      final bodyData = jsonEncode({
+        'message': query.trim(),
+        'summary': summaryPayload,
+        'history': historyPayload,
+      });
+
+      request.write(bodyData);
+      final response =
+          await request.close().timeout(const Duration(seconds: 25));
+
+      final responseBody = await response.transform(utf8.decoder).join();
+      final Map<String, dynamic> jsonResponse =
+          responseBody.isNotEmpty ? jsonDecode(responseBody) : {};
+
+      if (response.statusCode == 200 && jsonResponse.containsKey('reply')) {
+        final replyText = jsonResponse['reply'] as String;
+        return ChatMessage(
+          id: 'ai_${now.millisecondsSinceEpoch}',
+          isUser: false,
+          timestamp: now,
+          text: replyText,
+          actionButtons: const [
+            'How can I save ₹800 this month?',
+            'Where did most of my money go?',
+            'How much budget do I have left?',
+          ],
+        );
+      }
+
+      // Backend running but unconfigured (503)
+      if (response.statusCode == 503 ||
+          jsonResponse['error'] == 'Backend Unconfigured') {
+        return ChatMessage(
+          id: 'ai_${now.millisecondsSinceEpoch}',
+          isUser: false,
+          timestamp: now,
+          isError: true,
+          text:
+              '⚙️ **Spentee AI Backend Setup Required**\n\n'
+              'The secure AI backend server is active at `$backendUrl`, but `GEMINI_API_KEY` is not configured in `backend/.env`.\n\n'
+              '**To enable real general AI conversations:**\n'
+              '1. Open `backend/.env`\n'
+              '2. Set your Google Gemini API key: `GEMINI_API_KEY=your_key`\n'
+              '3. Restart the backend (`npm start` in `backend/`)\n\n'
+              '*Note: Your local financial calculations (spending, budgets, savings goals) are fully operational offline right now!*',
+          actionButtons: const [
+            'How much did I spend today?',
+            'Where did most of my money go?',
+            'How much budget do I have left?',
+          ],
+        );
+      }
+
+      // Rate limit (429)
+      if (response.statusCode == 429) {
         return ChatMessage(
           id: 'ai_${now.millisecondsSinceEpoch}',
           isUser: false,
           timestamp: now,
           text:
-              '🔒 Data Privacy Notice:\n\n'
-              'To review your spending, Spentee AI needs your explicit permission to analyze your local transaction records on this device.\n\n'
-              '• Your financial data never leaves your device.\n'
-              '• No transaction details are uploaded to external servers without consent.',
+              '⏳ **AI Provider Rate Limit Reached**\n\n'
+              'Spentee AI backend has momentarily hit upstream rate limits. Please wait a few seconds and tap Regenerate.',
+          isError: true,
           actionButtons: const [
-            'Grant Permission & Analyze',
-            'Cancel',
+            'How much did I spend today?',
+            'How much budget do I have left?',
           ],
         );
       }
 
-      // Compute actual spending from current transactions
-      final currentMonthTx = transactions.where((tx) =>
-          tx.type == TransactionType.expense &&
-          tx.date.month == now.month &&
-          tx.date.year == now.year).toList();
-
-      final totalExpense = currentMonthTx.fold<double>(
-          0.0, (sum, tx) => sum + tx.amount);
-
-      final Map<String, double> categoryTotals = {};
-      for (final tx in currentMonthTx) {
-        categoryTotals[tx.category] =
-            (categoryTotals[tx.category] ?? 0.0) + tx.amount;
-      }
-
-      String topCategory = 'None';
-      double topAmount = 0.0;
-      categoryTotals.forEach((cat, amt) {
-        if (amt > topAmount) {
-          topAmount = amt;
-          topCategory = cat;
-        }
-      });
-
+      // Other backend error
+      final errMessage =
+          jsonResponse['message'] ?? 'Unexpected server response (${response.statusCode}).';
       return ChatMessage(
         id: 'ai_${now.millisecondsSinceEpoch}',
         isUser: false,
         timestamp: now,
         text:
-            '📊 Spentee Spending Audit for This Month:\n\n'
-            '• Total Outflow: ₹${totalExpense.toStringAsFixed(0)} across ${currentMonthTx.length} transactions.\n'
-            '• Top Expense Area: $topCategory (₹${topAmount.toStringAsFixed(0)}).\n'
-            '• Trend Note: Your discretionary spending is concentrated in $topCategory.\n\n'
-            'Recommendation: Trimming non-essential spends in $topCategory by just 15% would free up an extra ₹${(topAmount * 0.15).toStringAsFixed(0)} for your savings goal!',
+            '⚠️ **AI Backend Service Error**\n\n$errMessage\n\nYou can retry your query or inspect your local financial totals.',
+        isError: true,
         actionButtons: const [
-          'Create Savings Plan',
-          'Monthly Budget Suggestion',
+          'How much did I spend today?',
+          'Where did most of my money go?',
         ],
       );
-    }
+    } catch (networkError) {
+      debugPrint('AI Backend connection error: $networkError');
 
-    // 5. Emergency Fund questions
-    if (q.contains('emergency') || q.contains('rainy day')) {
+      // Offline / Unreachable backend
       return ChatMessage(
         id: 'ai_${now.millisecondsSinceEpoch}',
         isUser: false,
         timestamp: now,
+        isError: true,
         text:
-            'An Emergency Fund is your personal safety buffer. Here is how to build one:\n\n'
-            '1. Target Amount: Strive to save 3 to 6 months of mandatory living expenses (rent + food + utilities + EMIs).\n'
-            '2. Where to park it: High-yield savings accounts or low-risk liquid mutual funds for instant access.\n'
-            '3. Golden Rule: Touch this money ONLY for genuine emergencies (unforeseen medical bills, job transitions, urgent repairs).',
+            '🔌 **AI Backend Offline**\n\n'
+            'Spentee AI could not reach the secure backend proxy at `$backendUrl`.\n\n'
+            '**To start your local AI proxy:**\n'
+            '```bash\n'
+            'cd backend\n'
+            'npm start\n'
+            '```\n\n'
+            '💡 *Good news:* All personal finance questions (e.g. *"How much did I spend today?"*, *"How much did I earn this month?"*, *"Where did most of my money go?"*) calculate deterministically on your device and work completely offline without needing the server.',
         actionButtons: const [
-          'Create Savings Plan',
-          'How can I save more money?',
+          'How much did I spend today?',
+          'How much did I earn this month?',
+          'Where did most of my money go?',
+          'How much budget do I have left?',
         ],
       );
+    } finally {
+      client?.close();
     }
+  }
 
-    // 6. Roast request
-    if (q.contains('roast') || q.contains('funny') || q.contains('joke')) {
-      return ChatMessage(
-        id: 'ai_${now.millisecondsSinceEpoch}',
-        isUser: false,
-        timestamp: now,
-        text:
-            '😎 Spentee Roast Mode Activated:\n\n'
-            '"You tap \'Pay Now\' with the confidence of a billionaire, then check your balance with one eye closed hoping the minus sign is just a speck of dust on the screen." 💀💸\n\n'
-            'Ready to put your wallet on a healthy diet?',
-        actionButtons: const [
-          'Help me plan a monthly budget',
-          'Review my spending this month',
-        ],
-      );
-    }
-
-    // 7. General Financial / Conversational Fallback
-    return ChatMessage(
-      id: 'ai_${now.millisecondsSinceEpoch}',
-      isUser: false,
-      timestamp: now,
-      text:
-          'That is a great financial inquiry! A solid financial life comes down to three core principles:\n\n'
-          '1. Live below your income and track recurring leakages.\n'
-          '2. Put idle cash into automated monthly investments.\n'
-          '3. Keep an emergency fund so market dips never force you into high-interest debt.\n\n'
-          'Would you like me to analyze your monthly spending or help plan a budget breakdown?',
-      actionButtons: const [
-        'How can I save more money?',
-        'Help me plan a monthly budget',
-        'Review my spending this month',
-      ],
-    );
+  /// Determines whether a user prompt explicitly requests personal financial advice,
+  /// review, or analysis regarding their own accounts, budgets, or spending.
+  static bool _isPersonalFinancialQuery(String query) {
+    final lower = query.toLowerCase();
+    final personalTriggers = [
+      'my spend',
+      'my budget',
+      'my expense',
+      'my income',
+      'my money',
+      'my transaction',
+      'my finance',
+      'my saving',
+      'can i afford',
+      'should i buy',
+      'did i spend',
+      'how much did i',
+      'how much do i have',
+      'review my',
+      'analyze my',
+      'break down my',
+    ];
+    return personalTriggers.any((trigger) => lower.contains(trigger));
   }
 }
