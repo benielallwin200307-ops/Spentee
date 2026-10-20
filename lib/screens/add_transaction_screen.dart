@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/transaction.dart';
 import '../state/app_state.dart';
+import 'lent_borrowed_screen.dart';
+import '../utils/date_restriction.dart';
 
 class _CategoryItem {
   final String name;
@@ -329,27 +331,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
+    final picked = await DateRestriction.showRestrictedDatePicker(
+      context,
       initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppTheme.primaryMint,
-              onPrimary: Color(0xFF030B15),
-              surface: Color(0xFF0B1920),
-              onSurface: Colors.white,
-            ),
-            dialogTheme: const DialogThemeData(
-              backgroundColor: Color(0xFF0B1920),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      primaryColor: AppTheme.primaryMint,
+      surfaceColor: const Color(0xFF0B1920),
     );
     if (picked != null) {
       setState(() {
@@ -538,6 +524,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               Expanded(
                 child: Text(
                   'Please enter an amount greater than ₹0!',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (DateRestriction.isFuture(_selectedDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF2A101C),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          content: Row(
+            children: const [
+              Icon(Icons.error_outline_rounded,
+                  color: AppTheme.accentPink, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Transaction date cannot be in the future! Please select today or an earlier date.',
                   style: TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w600),
                 ),
@@ -777,6 +789,45 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ],
                       ),
                     ),
+
+                    if (_selectedType == TransactionType.transfer) ...[
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const LentBorrowedScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0A222B),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF133C47)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.handshake_rounded, size: 14, color: AppTheme.primaryMint),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Tracking money lent or borrowed? Open Lent & Borrowed',
+                                  style: TextStyle(
+                                    color: Color(0xFFBDE0EA),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Icon(Icons.chevron_right_rounded, size: 16, color: AppTheme.primaryMint),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 16),
 

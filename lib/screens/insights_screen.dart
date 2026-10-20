@@ -4,6 +4,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../models/transaction.dart';
 import 'transactions_screen.dart';
+import '../utils/date_restriction.dart';
 
 /// Data model for category expense breakdown
 class _CategoryBreakdown {
@@ -61,12 +62,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    // Prefer October 2026 if current year is 2026, or current month/year
-    if (now.year == 2026) {
-      _selectedPeriod = DateTime(2026, 10, 1);
-    } else {
-      _selectedPeriod = DateTime(now.year, now.month, 1);
-    }
+    _selectedPeriod = DateTime(now.year, now.month, 1);
+  }
+
+  bool get _canGoNextMonth {
+    final now = DateTime.now();
+    return _selectedPeriod.year < now.year ||
+        (_selectedPeriod.year == now.year && _selectedPeriod.month < now.month);
   }
 
   void _prevMonth() {
@@ -76,6 +78,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   void _nextMonth() {
+    if (!_canGoNextMonth) return;
     setState(() {
       _selectedPeriod = DateTime(_selectedPeriod.year, _selectedPeriod.month + 1, 1);
     });
@@ -83,7 +86,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   void _selectMonth(DateTime date) {
     setState(() {
-      _selectedPeriod = DateTime(date.year, date.month, 1);
+      _selectedPeriod = DateRestriction.clampToCurrentMonth(date);
     });
   }
 
@@ -431,7 +434,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
               const SizedBox(width: 4),
               _MonthArrowButton(
                 icon: Icons.chevron_right_rounded,
-                onTap: _nextMonth,
+                isEnabled: _canGoNextMonth,
+                onTap: _canGoNextMonth ? _nextMonth : null,
               ),
             ],
           ),
@@ -1444,20 +1448,27 @@ class _LegendDot extends StatelessWidget {
 
 class _MonthArrowButton extends StatelessWidget {
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isEnabled;
 
-  const _MonthArrowButton({required this.icon, required this.onTap});
+  const _MonthArrowButton({
+    required this.icon,
+    this.onTap,
+    this.isEnabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: isEnabled ? onTap : null,
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.all(2),
         child: Icon(
           icon,
-          color: AppTheme.primaryMint,
+          color: isEnabled
+              ? AppTheme.primaryMint
+              : const Color(0xFF1B4A45).withValues(alpha: 0.4),
           size: 19,
         ),
       ),

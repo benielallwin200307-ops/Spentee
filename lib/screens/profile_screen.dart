@@ -5,6 +5,7 @@ import 'about_screen.dart';
 import 'budget_management_screen.dart';
 import 'category_management_screen.dart';
 import 'help_support_screen.dart';
+import 'lent_borrowed_screen.dart';
 import 'reminders_screen.dart';
 import 'splash_screen.dart';
 
@@ -18,7 +19,6 @@ class ProfileScreen extends StatelessWidget {
     final theme = MascotThemeData.of(context);
     final mascotImage = theme.getAvatarAsset(MascotExpression.main);
     final mascotLabel = theme.type.displayName;
-    final displayThemeLabel = _getThemeLabel(appState.displayTheme);
 
     return Scaffold(
       backgroundColor: const Color(0xFF030D11),
@@ -250,6 +250,22 @@ class ProfileScreen extends StatelessWidget {
                       );
                     },
                   ),
+                  const _CardDivider(),
+                  _ProfileOptionTile(
+                    icon: Icons.handshake_rounded,
+                    iconBg: const Color(0xFF0D323A),
+                    iconColor: const Color(0xFF00E5FF),
+                    title: 'Lent & Borrowed',
+                    subtitle: 'Track loans, repayments & funny reminders',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LentBorrowedScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
 
@@ -301,17 +317,6 @@ class ProfileScreen extends StatelessWidget {
                     trailingText: appState.selectedLanguage,
                     trailingTextColor: AppTheme.primaryMint,
                     onTap: () => _showLanguageSheet(context, appState),
-                  ),
-                  const _CardDivider(),
-                  _ProfileOptionTile(
-                    icon: Icons.nightlight_round,
-                    iconBg: const Color(0xFF131D3F),
-                    iconColor: const Color(0xFF5C7CFA),
-                    title: 'Display Theme',
-                    subtitle: 'Light, Dark or System',
-                    trailingText: displayThemeLabel,
-                    trailingTextColor: const Color(0xFF88A6B2),
-                    onTap: () => _showThemeSheet(context, appState),
                   ),
                 ],
               ),
@@ -404,18 +409,6 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _getThemeLabel(String theme) {
-    switch (theme.toLowerCase()) {
-      case 'light':
-        return 'Light';
-      case 'system':
-        return 'System';
-      case 'dark':
-      default:
-        return 'Dark';
-    }
   }
 
   // --- MODAL: Edit Profile ---
@@ -891,145 +884,6 @@ class ProfileScreen extends StatelessWidget {
                                     ? FontWeight.w800
                                     : FontWeight.w600,
                               ),
-                            ),
-                          ),
-                          if (isSelected)
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              color: AppTheme.primaryMint,
-                              size: 20,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // --- MODAL: Display Theme ---
-  void _showThemeSheet(BuildContext context, AppState appState) {
-    final themes = [
-      {
-        'id': 'Dark',
-        'title': 'Dark Mode',
-        'desc': 'Optimized for OLED & low light',
-        'icon': Icons.nightlight_round,
-        'color': const Color(0xFF5C7CFA),
-      },
-      {
-        'id': 'Light',
-        'title': 'Light Mode',
-        'desc': 'Clean and crisp daytime look',
-        'icon': Icons.wb_sunny_rounded,
-        'color': const Color(0xFFFFB300),
-      },
-      {
-        'id': 'System',
-        'title': 'System Default',
-        'desc': 'Automatically match device theme',
-        'icon': Icons.settings_brightness_rounded,
-        'color': AppTheme.primaryMint,
-      },
-    ];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0A181D),
-      barrierColor: Colors.black.withValues(alpha: 0.7),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E3842),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Display Theme',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ...themes.map((t) {
-                  final isSelected =
-                      appState.displayTheme.toLowerCase() ==
-                          (t['id'] as String).toLowerCase();
-                  return InkWell(
-                    onTap: () {
-                      appState.setDisplayTheme(t['id'] as String);
-                      Navigator.pop(ctx);
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFF082B24)
-                            : const Color(0xFF06151B),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppTheme.primaryMint
-                              : const Color(0xFF122C38),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            t['icon'] as IconData,
-                            color: t['color'] as Color,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  t['title'] as String,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? AppTheme.primaryMint
-                                        : Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w800
-                                        : FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  t['desc'] as String,
-                                  style: const TextStyle(
-                                    color: Color(0xFF7A9AA6),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
                             ),
                           ),
                           if (isSelected)

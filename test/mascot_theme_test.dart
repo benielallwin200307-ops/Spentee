@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spentee/theme/mascot_theme.dart';
 import 'package:spentee/state/app_state.dart';
+import 'package:spentee/screens/chat_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +48,7 @@ void main() {
       expect(theme.getAvatarAsset(MascotExpression.win), 'Assets/extracted/female_win.png');
       expect(theme.getAvatarAsset(MascotExpression.chill), 'Assets/extracted/female_chill.png');
 
-      expect(theme.chatBannerAsset, 'Assets/extracted/female_main.png');
+      expect(theme.chatBannerAsset, 'Assets/spentee_ai_female_banner.png');
       expect(theme.chatAiBubbleAsset, 'Assets/extracted/female_ai.png');
       expect(theme.insightsMascotAsset, 'Assets/extracted/female_main.png');
     });
@@ -68,6 +69,7 @@ void main() {
         'Assets/extracted/female_think.png',
         'Assets/extracted/female_win.png',
         'Assets/extracted/female_chill.png',
+        'Assets/spentee_ai_female_banner.png',
       ];
 
       for (final asset in requiredAssets) {
@@ -113,6 +115,42 @@ void main() {
 
       expect(state.getSavedMascotForUser('alice_uid'), 'female');
       expect(state.getSavedMascotForUser('bob_uid'), 'male');
+    });
+
+    testWidgets('6. ChatScreen renders new pink banner for Female theme and male banner for Male theme', (WidgetTester tester) async {
+      final appState = AppState();
+      appState.setSelectedMascot('female');
+
+      await tester.pumpWidget(
+        AppStateScope(
+          state: appState,
+          child: const MaterialApp(
+            home: ChatScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Female banner uses AspectRatio of 1024 / 430 and loads Assets/spentee_ai_female_banner.png
+      final femaleImageFinder = find.byWidgetPredicate((widget) =>
+          widget is Image &&
+          widget.image is AssetImage &&
+          (widget.image as AssetImage).assetName == 'Assets/spentee_ai_female_banner.png');
+      expect(femaleImageFinder, findsOneWidget);
+
+      final aspectRatioFinder = find.byWidgetPredicate((widget) =>
+          widget is AspectRatio && (widget.aspectRatio - 1024 / 430).abs() < 0.001);
+      expect(aspectRatioFinder, findsOneWidget);
+
+      // Switch to male
+      appState.setSelectedMascot('male');
+      await tester.pump();
+
+      final maleImageFinder = find.byWidgetPredicate((widget) =>
+          widget is Image &&
+          widget.image is AssetImage &&
+          (widget.image as AssetImage).assetName == 'Assets/extracted/chat_banner_mascot.png');
+      expect(maleImageFinder, findsOneWidget);
     });
   });
 }

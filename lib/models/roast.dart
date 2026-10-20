@@ -47,6 +47,33 @@ class RoastItem {
     this.situation,
   });
 
+  /// Returns a new RoastItem with placeholders like {amount}, {category}, {period}, {percentage}, {budget_remaining} replaced.
+  RoastItem populate(Map<String, String> placeholders) {
+    String formatted = text;
+    placeholders.forEach((key, val) {
+      formatted = formatted.replaceAll('{$key}', val);
+    });
+    return copyWith(text: formatted);
+  }
+
+  RoastItem copyWith({
+    String? id,
+    String? language,
+    String? text,
+    String? category,
+    String? mascotEmoji,
+    RoastCategory? situation,
+  }) {
+    return RoastItem(
+      id: id ?? this.id,
+      language: language ?? this.language,
+      text: text ?? this.text,
+      category: category ?? this.category,
+      mascotEmoji: mascotEmoji ?? this.mascotEmoji,
+      situation: situation ?? this.situation,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'language': language,

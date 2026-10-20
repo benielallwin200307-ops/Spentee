@@ -844,111 +844,156 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Welcome Banner matching Section 4:
-  /// Large rounded card with theme-adaptive gradient and border glow,
-  /// selected male/female mascot on the right, and welcoming copy on the left.
+  /// For Female theme: Displays the official transparent-background pink Spentee AI banner proportionally.
+  /// For Male theme: Preserves the existing dark emerald gradient banner and male mascot artwork.
   Widget _buildWelcomeBanner(AppState appState) {
     final theme = appState.mascotTheme;
-    return Container(
-      width: double.infinity,
-      height: 156,
-      decoration: BoxDecoration(
-        gradient: theme.bannerGradient,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: theme.subtleBorder,
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.primaryAccent.withValues(alpha: 0.15),
-            blurRadius: 20,
-            spreadRadius: 0,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(21),
-        child: Stack(
-          children: [
-            // Left text and copy
-            Positioned(
-              left: 18,
-              top: 14,
-              bottom: 14,
-              right: 175,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        const TextSpan(
-                          text: "Hey! I'm ",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        TextSpan(
-                          text: "Spentee AI",
-                          style: TextStyle(
-                            color: theme.primaryAccent,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const TextSpan(
-                          text: " 👋",
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Ask me anything about money, savings, budgeting, investments or even everyday life.',
-                    style: TextStyle(
-                      color: Color(0xFFCBD5E1),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
-            // Exact Spentee mascot on the right with seamless gradient blend
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 176,
-              child: ShaderMask(
-                shaderCallback: (Rect bounds) {
-                  return const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment(-0.25, 0.0),
-                    colors: [Colors.transparent, Colors.white],
-                  ).createShader(bounds);
-                },
-                blendMode: BlendMode.dstIn,
-                child: Image.asset(
-                  theme.chatBannerAsset,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.centerRight,
-                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                    theme.insightsMascotAsset,
-                    fit: BoxFit.cover,
-                    alignment: Alignment.centerRight,
-                  ),
+    // Female theme: Proportional new pink banner with subtle ambient glow
+    if (theme.isFemale) {
+      return GestureDetector(
+        onTap: () {
+          _focusNode.requestFocus();
+        },
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: theme.primaryAccent.withValues(alpha: 0.18),
+                blurRadius: 18,
+                spreadRadius: 0,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: AspectRatio(
+              aspectRatio: 1024 / 430,
+              child: Image.asset(
+                theme.chatBannerAsset,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (context, error, stackTrace) => Image.asset(
+                  'Assets/extracted/female_main.png',
+                  fit: BoxFit.contain,
                 ),
               ),
             ),
+          ),
+        ),
+      );
+    }
+
+    // Male theme: Preserved dark emerald gradient banner with male artwork & typography
+    return GestureDetector(
+      onTap: () {
+        _focusNode.requestFocus();
+      },
+      child: Container(
+        width: double.infinity,
+        height: 156,
+        decoration: BoxDecoration(
+          gradient: theme.bannerGradient,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: theme.subtleBorder,
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: theme.primaryAccent.withValues(alpha: 0.15),
+              blurRadius: 20,
+              spreadRadius: 0,
+              offset: const Offset(0, 4),
+            ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(21),
+          child: Stack(
+            children: [
+              // Left text and copy
+              Positioned(
+                left: 18,
+                top: 14,
+                bottom: 14,
+                right: 192,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: "Hey! I'm ",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TextSpan(
+                            text: "Spentee AI",
+                            style: TextStyle(
+                              color: AppTheme.primaryMint,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          TextSpan(
+                            text: " 👋",
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Ask me anything about money, savings, budgeting, investments or even everyday life.',
+                      style: TextStyle(
+                        color: Color(0xFFCBD5E1),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Exact Spentee mascot on the right with seamless gradient blend
+              Positioned(
+                right: -8,
+                top: 0,
+                bottom: 0,
+                width: 218,
+                child: ShaderMask(
+                  shaderCallback: (Rect bounds) {
+                    return const LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment(-0.75, 0.0),
+                      colors: [Colors.transparent, Colors.white],
+                    ).createShader(bounds);
+                  },
+                  blendMode: BlendMode.dstIn,
+                  child: Image.asset(
+                    theme.chatBannerAsset,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.centerRight,
+                    errorBuilder: (context, error, stackTrace) => Image.asset(
+                      theme.insightsMascotAsset,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.centerRight,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

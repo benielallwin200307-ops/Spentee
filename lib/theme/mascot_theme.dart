@@ -146,7 +146,7 @@ class MascotThemeData {
   /// AI Chat Welcome Banner illustration asset
   String get chatBannerAsset {
     return isFemale
-        ? 'Assets/extracted/female_main.png'
+        ? 'Assets/spentee_ai_female_banner.png'
         : 'Assets/extracted/chat_banner_mascot.png';
   }
 

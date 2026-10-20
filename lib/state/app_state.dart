@@ -6,11 +6,13 @@ import '../models/roast.dart';
 import '../models/budget.dart';
 import '../models/savings_goal.dart';
 import '../models/category_model.dart';
+import '../models/lent_borrowed_record.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/ai_chat_service.dart';
 import '../services/roast_engine.dart';
 import '../services/roast_library.dart';
+import '../utils/date_restriction.dart';
 
 /// Central state manager with persistent user profile and theme preferences.
 class AppState extends ChangeNotifier {
@@ -77,6 +79,7 @@ class AppState extends ChangeNotifier {
           await loadTransactionsFromStorage();
           await loadBudgetsFromStorage();
           await loadSavingsGoalsFromStorage();
+          await loadDebtsFromStorage();
           refreshRoast();
           notifyListeners();
         }
@@ -142,6 +145,7 @@ class AppState extends ChangeNotifier {
     await loadTransactionsFromStorage();
     await loadBudgetsFromStorage();
     await loadSavingsGoalsFromStorage();
+    await loadDebtsFromStorage();
     refreshRoast();
     notifyListeners();
     await saveToStorage();
@@ -227,6 +231,7 @@ class AppState extends ChangeNotifier {
         'isAuthenticated': _isAuthenticated,
         'userUid': _userUid,
         'userProfiles': _userProfiles,
+        'recentRoastIds': _recentRoastIds,
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -281,6 +286,15 @@ class AppState extends ChangeNotifier {
               if (v is bool) _notifications[k.toString()] = v;
             });
           }
+          if (data.containsKey('recentRoastIds') &&
+              data['recentRoastIds'] is List) {
+            _recentRoastIds.clear();
+            _recentRoastIds.addAll(
+              (data['recentRoastIds'] as List)
+                  .map((e) => e.toString())
+                  .where((e) => e.isNotEmpty),
+            );
+          }
         }
       }
 
@@ -317,6 +331,7 @@ class AppState extends ChangeNotifier {
       await loadTransactionsFromStorage();
       await loadBudgetsFromStorage();
       await loadSavingsGoalsFromStorage();
+      await loadDebtsFromStorage();
       await loadCategoriesFromStorage();
       refreshRoast();
       notifyListeners();
@@ -498,6 +513,11 @@ class AppState extends ChangeNotifier {
 
   /// Add new transaction with deterministic financial calculation.
   Future<void> addTransaction(Transaction tx) async {
+    // Shared date-validation rule: disallow future transaction dates
+    if (DateRestriction.isFuture(tx.date)) {
+      debugPrint('Validation failed: Attempted to add future transaction date ${tx.date}');
+      return;
+    }
     _transactions.insert(0, tx);
     if (tx.type == TransactionType.expense) {
       _balance -= tx.amount;
@@ -535,6 +555,31 @@ class AppState extends ChangeNotifier {
           tx.date.year == now.year &&
           tx.date.month == now.month &&
           tx.date.day == now.day) {
+        total += tx.amount;
+      }
+    }
+    return total;
+  }
+
+  /// Calculate current month's ordinary expenses (strictly excluding internal transfers).
+  double get monthExpense {
+    final now = DateTime.now();
+    double total = 0.0;
+    for (final tx in _transactions) {
+      if (tx.type == TransactionType.expense &&
+          tx.date.year == now.year &&
+          tx.date.month == now.month) {
+        total += tx.amount;
+      }
+    }
+    return total;
+  }
+
+  /// Calculate total ordinary expenses (strictly excluding internal transfers).
+  double get totalExpense {
+    double total = 0.0;
+    for (final tx in _transactions) {
+      if (tx.type == TransactionType.expense) {
         total += tx.amount;
       }
     }
@@ -644,6 +689,7 @@ class AppState extends ChangeNotifier {
     } else {
       _budgets.add(budget);
     }
+    refreshRoast();
     notifyListeners();
     await saveBudgetsToStorage();
   }
@@ -652,6 +698,7 @@ class AppState extends ChangeNotifier {
     final idx = _budgets.indexWhere((b) => b.id == budget.id);
     if (idx >= 0) {
       _budgets[idx] = budget;
+      refreshRoast();
       notifyListeners();
       await saveBudgetsToStorage();
     }
@@ -659,6 +706,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> deleteBudget(String id) async {
     _budgets.removeWhere((b) => b.id == id);
+    refreshRoast();
     notifyListeners();
     await saveBudgetsToStorage();
   }
@@ -755,6 +803,186 @@ class AppState extends ChangeNotifier {
     _savingsGoals.removeWhere((g) => g.id == id);
     notifyListeners();
     await saveSavingsGoalsToStorage();
+  }
+
+  // ─── Lent & Borrowed Money State & Persistence ────────────────────────────
+  final List<LentBorrowedRecord> _debts = [];
+
+  List<LentBorrowedRecord> get debts => List.unmodifiable(_debts);
+
+  /// All active (unsettled) money lent records
+  List<LentBorrowedRecord> get activeLentRecords =>
+      _debts.where((d) => d.type == DebtType.lent && !d.isFullySettled).toList();
+
+  /// All active (unsettled) money borrowed records
+  List<LentBorrowedRecord> get activeBorrowedRecords =>
+      _debts.where((d) => d.type == DebtType.borrowed && !d.isFullySettled).toList();
+
+  /// All fully settled records
+  List<LentBorrowedRecord> get settledDebtRecords =>
+      _debts.where((d) => d.isFullySettled).toList();
+
+  /// Total money user lent out that is still outstanding to collect (Receivable Asset).
+  double get totalLentOutstanding {
+    double total = 0.0;
+    for (final d in _debts) {
+      if (d.type == DebtType.lent) {
+        total += d.outstandingAmount;
+      }
+    }
+    return total;
+  }
+
+  /// Total money user borrowed that is still outstanding to repay (Payable Liability).
+  double get totalBorrowedOutstanding {
+    double total = 0.0;
+    for (final d in _debts) {
+      if (d.type == DebtType.borrowed) {
+        total += d.outstandingAmount;
+      }
+    }
+    return total;
+  }
+
+  /// Net balance position: (Lent Outstanding - Borrowed Outstanding).
+  double get netDebtPosition => totalLentOutstanding - totalBorrowedOutstanding;
+
+  /// Count of overdue records.
+  int get overdueDebtsCount => _debts.where((d) => d.isOverdue).length;
+
+  Future<File?> _getDebtsFile() async {
+    try {
+      final dir = await _getAppStorageDirectory();
+      if (dir == null) return null;
+
+      if (_userUid.isNotEmpty) {
+        final userFile = File('${dir.path}/spentee_debts_$_userUid.json');
+        if (await userFile.exists()) {
+          return userFile;
+        }
+        final legacyFile = File('${dir.path}/spentee_debts.json');
+        if (await legacyFile.exists()) {
+          if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+        }
+        return userFile;
+      }
+
+      return File('${dir.path}/spentee_debts_guest.json');
+    } catch (e) {
+      debugPrint('Debts storage lookup error: $e');
+      return null;
+    }
+  }
+
+  Future<void> saveDebtsToStorage() async {
+    try {
+      final file = await _getDebtsFile();
+      if (file == null) return;
+      final data = _debts.map((d) => d.toJson()).toList();
+      await file.writeAsString(jsonEncode(data));
+    } catch (e) {
+      debugPrint('Error saving debts to storage: $e');
+    }
+  }
+
+  Future<void> loadDebtsFromStorage() async {
+    try {
+      final file = await _getDebtsFile();
+      if (file != null && await file.exists()) {
+        final content = await file.readAsString();
+        if (content.trim().isNotEmpty) {
+          final data = jsonDecode(content);
+          if (data is List) {
+            final loaded = <LentBorrowedRecord>[];
+            for (final item in data) {
+              if (item is Map<String, dynamic>) {
+                loaded.add(LentBorrowedRecord.fromJson(item));
+              }
+            }
+            _debts.clear();
+            _debts.addAll(loaded);
+          }
+        }
+      } else {
+        _debts.clear();
+      }
+    } catch (e) {
+      debugPrint('Error loading debts from storage: $e');
+    }
+  }
+
+  Future<void> addDebt(LentBorrowedRecord record) async {
+    if (DateRestriction.isFuture(record.date)) {
+      debugPrint('Validation failed: Attempted to add future debt record date ${record.date}');
+      return;
+    }
+    final idx = _debts.indexWhere((d) => d.id == record.id);
+    if (idx >= 0) {
+      _debts[idx] = record;
+    } else {
+      _debts.insert(0, record);
+    }
+    notifyListeners();
+    await saveDebtsToStorage();
+  }
+
+  Future<void> updateDebt(LentBorrowedRecord record) async {
+    if (DateRestriction.isFuture(record.date)) {
+      debugPrint('Validation failed: Attempted to update with future debt record date ${record.date}');
+      return;
+    }
+    final idx = _debts.indexWhere((d) => d.id == record.id);
+    if (idx >= 0) {
+      _debts[idx] = record;
+      notifyListeners();
+      await saveDebtsToStorage();
+    }
+  }
+
+  Future<void> deleteDebt(String id) async {
+    _debts.removeWhere((d) => d.id == id);
+    notifyListeners();
+    await saveDebtsToStorage();
+  }
+
+  /// Records a repayment for a debt record safely.
+  /// Validates amount > 0 and amount <= outstandingAmount.
+  Future<bool> recordRepayment({
+    required String debtId,
+    required double amount,
+    DateTime? date,
+    String note = '',
+  }) async {
+    final effectiveDate = date ?? DateTime.now();
+    if (DateRestriction.isFuture(effectiveDate)) {
+      debugPrint('Validation failed: Attempted to record future repayment date $effectiveDate');
+      return false;
+    }
+
+    final idx = _debts.indexWhere((d) => d.id == debtId);
+    if (idx < 0) return false;
+
+    final record = _debts[idx];
+    if (amount <= 0 || amount > record.outstandingAmount + 0.001) {
+      return false; // Invalid amount
+    }
+
+    final newRepayment = RepaymentRecord(
+      id: 'rep_${DateTime.now().millisecondsSinceEpoch}',
+      amount: amount,
+      date: effectiveDate,
+      note: note.trim(),
+    );
+
+    final updatedRepayments = List<RepaymentRecord>.from(record.repayments)
+      ..add(newRepayment);
+
+    _debts[idx] = record.copyWith(repayments: updatedRepayments);
+    notifyListeners();
+    await saveDebtsToStorage();
+    return true;
   }
 
   // ─── Categories State & Persistence ────────────────────────────────────────
@@ -1018,6 +1246,7 @@ class AppState extends ChangeNotifier {
         if (_recentRoastIds.length > 20) {
           _recentRoastIds.removeAt(0);
         }
+        saveToStorage();
       }
     }
     return _cachedRoast!;
@@ -1038,6 +1267,7 @@ class AppState extends ChangeNotifier {
       if (_recentRoastIds.length > 20) {
         _recentRoastIds.removeAt(0);
       }
+      saveToStorage();
     }
     notifyListeners();
   }
@@ -1057,6 +1287,7 @@ class AppState extends ChangeNotifier {
         if (_recentRoastIds.length > 20) {
           _recentRoastIds.removeAt(0);
         }
+        saveToStorage();
       }
     } else {
       _cachedRoast = RoastLibrary.getOnboardingRoast(_selectedLanguage);

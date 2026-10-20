@@ -6,6 +6,8 @@ import '../models/transaction.dart';
 import 'add_transaction_screen.dart';
 import 'transactions_screen.dart';
 import 'roast_screen.dart';
+import 'budget_management_screen.dart';
+import 'lent_borrowed_screen.dart';
 
 /// Screen 9 — Home / Dashboard Screen
 /// Matches the reference storyboard: greeting, balance card, 3 shortcut buttons,
@@ -257,7 +259,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                         child: ClipOval(
                           child: Image.asset(
-                            theme.getAvatarAsset(MascotExpression.happy),
+                            theme.getAvatarAsset(MascotExpression.main),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 Icon(Icons.face_rounded,
@@ -297,16 +299,13 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _ActionShortcutButton(
-                        icon: Icons.qr_code_scanner_rounded,
+                        icon: Icons.wallet_rounded,
                         iconColor: AppTheme.accentBlue,
-                        label: 'Scan\nBill',
+                        label: 'Budgets',
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content:
-                                  Text('Bill scanner coming soon! 📷'),
-                              backgroundColor: AppTheme.bgCard,
-                              behavior: SnackBarBehavior.floating,
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const BudgetManagementScreen(),
                             ),
                           );
                         },
@@ -342,7 +341,7 @@ class HomeScreen extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.asset(
-                            theme.getAvatarAsset(MascotExpression.ai),
+                            theme.getAvatarAsset(MascotExpression.main),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 const Icon(Icons.smart_toy_rounded,
@@ -378,6 +377,90 @@ class HomeScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+                      const Icon(Icons.arrow_forward_ios_rounded,
+                          color: AppTheme.textGrey, size: 13),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ─── Lent & Borrowed Quick Summary Card ─────────────────────
+                SpenteeCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  backgroundColor: const Color(0xFF091E25),
+                  border: Border.all(
+                    color: const Color(0xFF133C47),
+                    width: 1,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LentBorrowedScreen()),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D323A),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF154854)),
+                        ),
+                        child: const Icon(
+                          Icons.handshake_rounded,
+                          color: Color(0xFF00E5FF),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Lent & Borrowed Money',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              appState.activeLentRecords.isNotEmpty ||
+                                      appState.activeBorrowedRecords.isNotEmpty
+                                  ? '₹${appState.totalLentOutstanding.toStringAsFixed(0)} to collect • ₹${appState.totalBorrowedOutstanding.toStringAsFixed(0)} to repay'
+                                  : 'Track loans, repayments & funny reminders',
+                              style: const TextStyle(
+                                color: Color(0xFF88A6B2),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (appState.overdueDebtsCount > 0) ...[
+                        Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF3366).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${appState.overdueDebtsCount} Overdue',
+                            style: const TextStyle(
+                              color: Color(0xFFFF3366),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       const Icon(Icons.arrow_forward_ios_rounded,
                           color: AppTheme.textGrey, size: 13),
                     ],
@@ -596,14 +679,19 @@ class _ActionShortcutButton extends StatelessWidget {
           children: [
             Icon(icon, color: iconColor, size: 26),
             const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFFD6E2F0),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
+            SizedBox(
+              height: 28,
+              child: Center(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFD6E2F0),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
+                ),
               ),
             ),
           ],

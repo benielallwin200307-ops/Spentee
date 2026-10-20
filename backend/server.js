@@ -116,62 +116,109 @@ Your core rules:
       parts: [{ text: userPrompt }],
     });
 
-    const endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
+    const candidateModels = [
+      MODEL_NAME,
+      'gemini-3.5-flash',
+      'gemini-3.7-flash',
+      'gemini-3.1-flash-lite',
+    ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
 
-    const apiResponse = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemInstruction }],
-        },
-        contents: contents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 800,
-          topP: 0.95,
-        },
-      }),
-    });
+    let succeededReply = null;
+    let succeededModel = null;
+    let lastErrorStatus = 500;
+    let lastErrorMessage = 'Failed to generate response.';
 
-    if (!apiResponse.ok) {
-      const errorText = await apiResponse.text();
-      let errorJson = {};
+    for (const activeModel of candidateModels) {
+      const endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${GEMINI_API_KEY}`;
+      const abortController = new AbortController();
+      const timeoutHandle = setTimeout(() => abortController.abort(), 20000);
+
       try {
-        errorJson = JSON.parse(errorText);
-      } catch (_) {}
-
-      if (apiResponse.status === 429) {
-        return res.status(429).json({
-          error: 'Rate Limit Exceeded',
-          message:
-            'Spentee AI backend reached its AI provider rate limit. Please retry in a moment.',
+        const apiResponse = await fetch(endpointUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents: contents,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 800,
+              topP: 0.95,
+            },
+          }),
+          signal: abortController.signal,
         });
-      }
 
-      console.error('Gemini API Error:', apiResponse.status, errorText);
-      return res.status(502).json({
-        error: 'AI Provider Error',
-        message: `Upstream AI provider error (${apiResponse.status}): ${
-          errorJson?.error?.message || 'Failed to generate response.'
-        }`,
+        if (apiResponse.ok) {
+          const data = await apiResponse.json();
+          const candidate = data.candidates?.[0];
+          succeededReply =
+            candidate?.content?.parts?.[0]?.text ||
+            'I processed your query, but could not produce a response at this time. Please try asking again.';
+          succeededModel = activeModel;
+          break;
+        }
+
+        const errorText = await apiResponse.text();
+        let errorJson = {};
+        try {
+          errorJson = JSON.parse(errorText);
+        } catch (_) {}
+
+        lastErrorStatus = apiResponse.status;
+        lastErrorMessage =
+          errorJson?.error?.message || `Upstream AI provider error (${apiResponse.status})`;
+        console.warn(`Model ${activeModel} returned ${apiResponse.status}: ${lastErrorMessage}`);
+
+        // If rate limit (429), fail fast to inform user
+        if (apiResponse.status === 429) {
+          return res.status(429).json({
+            error: 'Rate Limit Exceeded',
+            message:
+              'Spentee AI backend reached its AI provider rate limit. Please retry in a moment.',
+          });
+        }
+        // If 503 (high demand) or 404 (unavailable), continue to next candidate model
+      } catch (callErr) {
+        if (callErr.name === 'AbortError') {
+          console.warn(`Model ${activeModel} timed out after 20s`);
+          lastErrorStatus = 504;
+          lastErrorMessage = 'The AI model took too long to respond.';
+        } else {
+          console.warn(`Model ${activeModel} network error:`, callErr.message);
+        }
+      } finally {
+        clearTimeout(timeoutHandle);
+      }
+    }
+
+    if (succeededReply != null) {
+      return res.json({
+        reply: succeededReply.trim(),
+        model: succeededModel,
+        status: 'ok',
       });
     }
 
-    const data = await apiResponse.json();
-    const candidate = data.candidates?.[0];
-    const replyText =
-      candidate?.content?.parts?.[0]?.text ||
-      'I processed your query, but could not produce a response at this time. Please try asking again.';
+    if (lastErrorStatus === 504) {
+      return res.status(504).json({
+        error: 'Gateway Timeout',
+        message: 'The AI model took too long to respond. Please retry your question.',
+      });
+    }
 
-    return res.json({
-      reply: replyText.trim(),
-      model: MODEL_NAME,
-      status: 'ok',
+    return res.status(502).json({
+      error: 'AI Provider Error',
+      message: `Upstream AI provider error (${lastErrorStatus}): ${lastErrorMessage}`,
     });
   } catch (err) {
+    if (err.name === 'AbortError') {
+      console.error('Gemini API Request timed out after 20s');
+      return res.status(504).json({
+        error: 'Gateway Timeout',
+        message: 'The AI model took too long to respond. Please retry your question.',
+      });
+    }
     console.error('Server error in /api/chat:', err);
     return res.status(500).json({
       error: 'Internal Server Error',
@@ -180,11 +227,19 @@ Your core rules:
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Spentee AI Secure Proxy running on http://localhost:${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Spentee AI Secure Proxy running on http://0.0.0.0:${PORT} (http://localhost:${PORT})`);
   console.log(
     `API Key Status: ${
       GEMINI_API_KEY && GEMINI_API_KEY.length > 10 ? 'Configured ✅' : 'Missing ⚠️'
     }`
   );
+  console.log(`Configured Model: ${MODEL_NAME}`);
+});
+
+process.on('SIGINT', () => {
+  server.close(() => process.exit(0));
+});
+process.on('SIGTERM', () => {
+  server.close(() => process.exit(0));
 });

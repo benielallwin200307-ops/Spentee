@@ -78,14 +78,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       mascotAsset: 'Assets/extracted/lang_top_bg_clean.png',
       fallbackEmoji: '🌐',
     ),
-    _OnboardingStep(
-      heading: 'Choose your',
-      highlight: 'mascot',
-      subtitleLine1: 'Select your companion',
-      subtitleLine2: '& personalized theme.',
-      mascotAsset: 'Assets/extracted/mascot_main.png',
-      fallbackEmoji: '⚡',
-    ),
   ];
 
   @override
@@ -305,12 +297,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   onSelectLanguage: _onSelectLanguage,
                                 );
                               }
-                              if (index == 3) {
-                                return _MascotStepView(
-                                  screenHeight: screenHeight,
-                                  screenWidth: screenWidth,
-                                );
-                              }
                               return _OnboardingPageView(
                                 step: _steps[index],
                                 screenHeight: screenHeight,
@@ -326,9 +312,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: List.generate(_steps.length, (index) {
                             final isActive = index == _currentStep;
-                            final activeColor = _currentStep == 3
-                                ? AppStateScope.of(context).mascotTheme.primaryAccent
-                                : mintGreen;
                             return AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
                               margin:
@@ -337,7 +320,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               height: 8,
                               decoration: BoxDecoration(
                                 color: isActive
-                                    ? activeColor
+                                    ? mintGreen
                                     : const Color(0xFF425154),
                                 borderRadius: BorderRadius.circular(4.0),
                               ),
@@ -347,63 +330,56 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                         const SizedBox(height: 24),
 
-                        // Next / Continue button with adaptive accent glow
-                        Builder(
-                          builder: (context) {
-                            final activeThemeColor = _currentStep == 3
-                                ? AppStateScope.of(context).mascotTheme.primaryAccent
-                                : mintGreen;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24),
-                              child: Container(
-                                width: double.infinity,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(36),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: activeThemeColor.withValues(alpha: 0.38),
-                                      blurRadius: 28,
-                                      spreadRadius: 2,
-                                      offset: const Offset(0, 4),
+                        // Next / Continue button with subtle green glow
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Container(
+                            width: double.infinity,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(36),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: mintGreen.withValues(alpha: 0.38),
+                                  blurRadius: 28,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: mintGreen,
+                              borderRadius: BorderRadius.circular(36),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(36),
+                                onTap: _onNext,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Text(
+                                      _currentStep < _steps.length - 1
+                                          ? 'Next'
+                                          : 'Get Started',
+                                      style: const TextStyle(
+                                        color: darkText,
+                                        fontSize: 18.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    const Positioned(
+                                      right: 24,
+                                      child: Icon(
+                                        Icons.arrow_forward_rounded,
+                                        color: darkText,
+                                        size: 24,
+                                      ),
                                     ),
                                   ],
                                 ),
-                                child: Material(
-                                  color: activeThemeColor,
-                                  borderRadius: BorderRadius.circular(36),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(36),
-                                    onTap: _onNext,
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Text(
-                                          _currentStep < _steps.length - 1
-                                              ? 'Next'
-                                              : 'Get Started',
-                                          style: const TextStyle(
-                                            color: darkText,
-                                            fontSize: 18.5,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: -0.2,
-                                          ),
-                                        ),
-                                        const Positioned(
-                                          right: 24,
-                                          child: Icon(
-                                            Icons.arrow_forward_rounded,
-                                            color: darkText,
-                                            size: 24,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 20),
                       ],
@@ -1071,246 +1047,4 @@ class _LanguageStepView extends StatelessWidget {
   }
 }
 
-/// Step 4 — Interactive Mascot & Theme Selection View
-class _MascotStepView extends StatelessWidget {
-  final double screenHeight;
-  final double screenWidth;
-
-  const _MascotStepView({
-    required this.screenHeight,
-    required this.screenWidth,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = AppStateScope.of(context);
-    final topPadding = MediaQuery.paddingOf(context).top;
-    final selectedMascot = appState.selectedMascot;
-
-    return Stack(
-      children: [
-        Positioned(
-          top: math.max(screenHeight * 0.052, topPadding + 8.0),
-          left: 24,
-          right: 24,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Choose your\n',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: math.min(screenWidth * 0.092, 34.0),
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
-                        height: 1.15,
-                      ),
-                    ),
-                    TextSpan(
-                      text: 'mascot,\n',
-                      style: TextStyle(
-                        color: _OnboardingScreenState.mintGreen,
-                        fontSize: math.min(screenWidth * 0.092, 34.0),
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
-                        height: 1.15,
-                      ),
-                    ),
-                    TextSpan(
-                      text: "your finance guide!",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: math.min(screenWidth * 0.092, 34.0),
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
-                        height: 1.15,
-                      ),
-                    ),
-                  ],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Container(
-                width: 48,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: _OnboardingScreenState.mintGreen,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Personalize your companion & visual theme.\nChange anytime in Profile Settings.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF90A4AE),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          top: screenHeight * 0.28,
-          left: 18,
-          right: 18,
-          bottom: 16,
-          child: Center(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildMascotCard(
-                    context: context,
-                    id: 'male',
-                    name: 'Male Mascot',
-                    themeName: 'Neon Mint Theme',
-                    avatarAsset: 'Assets/extracted/mascot_main.png',
-                    accentColor: AppTheme.primaryMint,
-                    isSelected: selectedMascot != 'female',
-                    onTap: () => appState.setSelectedMascot('male'),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _buildMascotCard(
-                    context: context,
-                    id: 'female',
-                    name: 'Female Mascot',
-                    themeName: 'Rose Pink Theme',
-                    avatarAsset: 'Assets/extracted/female_main.png',
-                    accentColor: const Color(0xFFFF528E),
-                    isSelected: selectedMascot == 'female',
-                    onTap: () => appState.setSelectedMascot('female'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMascotCard({
-    required BuildContext context,
-    required String id,
-    required String name,
-    required String themeName,
-    required String avatarAsset,
-    required Color accentColor,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? accentColor.withValues(alpha: 0.12)
-              : const Color(0xFF071922),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: isSelected
-                ? accentColor
-                : const Color(0xFF133543),
-            width: isSelected ? 2.0 : 1.2,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: accentColor.withValues(alpha: 0.28),
-                    blurRadius: 18,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected
-                    ? accentColor.withValues(alpha: 0.18)
-                    : const Color(0xFF0F2633),
-                border: Border.all(
-                  color: isSelected
-                      ? accentColor.withValues(alpha: 0.6)
-                      : const Color(0xFF1E4255),
-                  width: 1.5,
-                ),
-              ),
-              child: ClipOval(
-                child: Image.asset(
-                  avatarAsset,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    Icons.face_rounded,
-                    color: accentColor,
-                    size: 40,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14.5,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              themeName,
-              style: TextStyle(
-                color: isSelected ? accentColor : const Color(0xFF7E97A0),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected ? accentColor : Colors.transparent,
-                border: isSelected
-                    ? null
-                    : Border.all(
-                        color: const Color(0xFF2E5365),
-                        width: 1.8,
-                      ),
-              ),
-              child: isSelected
-                  ? const Center(
-                      child: Icon(
-                        Icons.check,
-                        size: 14,
-                        color: Color(0xFF012421),
-                      ),
-                    )
-                  : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 

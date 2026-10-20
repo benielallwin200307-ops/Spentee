@@ -67,40 +67,68 @@ class AiChatService {
     }
   }
 
-  /// Determines the active backend proxy URL.
+  /// Determines candidate backend URLs in priority order.
   /// Precedence:
-  /// 1. SPENTEE_AI_BACKEND_URL compile-time define
-  /// 2. Android emulator host (10.0.2.2:3000) when running on Android
-  /// 3. localhost:3000 for local desktop/web development
-  String getBackendUrl() {
-    const envUrl = String.fromEnvironment('SPENTEE_AI_BACKEND_URL');
-    if (envUrl.isNotEmpty) return envUrl;
-
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:3000';
+  /// 1. urlOverride if provided
+  /// 2. SPENTEE_AI_BACKEND_URL compile-time define
+  /// 3. Android: ['http://10.0.2.2:3000', 'http://127.0.0.1:3000'] (handles QEMU NAT and ADB reverse)
+  /// 4. Other platforms: ['http://localhost:3000']
+  List<String> getCandidateBackendUrls([String? urlOverride]) {
+    if (urlOverride != null && urlOverride.trim().isNotEmpty) {
+      return [urlOverride.trim()];
     }
-    return 'http://localhost:3000';
+    const envUrl = String.fromEnvironment('SPENTEE_AI_BACKEND_URL');
+    if (envUrl.isNotEmpty) {
+      return [envUrl];
+    }
+    if (!kIsWeb && Platform.isAndroid) {
+      return const ['http://10.0.2.2:3000', 'http://127.0.0.1:3000'];
+    }
+    return const ['http://localhost:3000'];
   }
 
-  /// Check backend health status.
+  /// Active default backend URL
+  String getBackendUrl([String? urlOverride]) {
+    return getCandidateBackendUrls(urlOverride).first;
+  }
+
+  /// Check backend health status with multi-candidate fallback.
   Future<Map<String, dynamic>> checkBackendHealth([String? urlOverride]) async {
-    final baseUrl = urlOverride ?? getBackendUrl();
-    HttpClient? client;
-    try {
-      client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
-      final request = await client.getUrl(Uri.parse('$baseUrl/health'));
-      final response =
-          await request.close().timeout(const Duration(seconds: 4));
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        return jsonDecode(body) as Map<String, dynamic>;
+    final candidateUrls = getCandidateBackendUrls(urlOverride);
+    Map<String, dynamic> lastResult = {
+      'status': 'offline',
+      'error': 'No reachable backend',
+    };
+
+    for (final baseUrl in candidateUrls) {
+      HttpClient? client;
+      try {
+        client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+        final request = await client.getUrl(Uri.parse('$baseUrl/health'));
+        final response =
+            await request.close().timeout(const Duration(seconds: 4));
+        if (response.statusCode == 200) {
+          final body = await response.transform(utf8.decoder).join();
+          final data = jsonDecode(body) as Map<String, dynamic>;
+          data['activeUrl'] = baseUrl;
+          return data;
+        }
+        lastResult = {
+          'status': 'error',
+          'statusCode': response.statusCode,
+          'activeUrl': baseUrl,
+        };
+      } catch (e) {
+        lastResult = {
+          'status': 'offline',
+          'error': e.toString(),
+          'attemptedUrl': baseUrl,
+        };
+      } finally {
+        client?.close();
       }
-      return {'status': 'error', 'statusCode': response.statusCode};
-    } catch (e) {
-      return {'status': 'offline', 'error': e.toString()};
-    } finally {
-      client?.close();
     }
+    return lastResult;
   }
 
   /// Generate a contextual response from Spentee AI.
@@ -145,160 +173,182 @@ class AiChatService {
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 2: Secure Backend Proxy for General-Purpose AI
     // ─────────────────────────────────────────────────────────────────────────
-    final backendUrl = backendUrlOverride ?? getBackendUrl();
-    HttpClient? client;
+    final candidateUrls = getCandidateBackendUrls(backendUrlOverride);
 
-    try {
-      client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final requestUri = Uri.parse('$backendUrl/api/chat');
-      final request = await client.postUrl(requestUri);
-      request.headers.contentType = ContentType.json;
-
-      // Build payload with strict privacy guarantees
-      final isPersonalFinancialQuery = _isPersonalFinancialQuery(query);
-      final Map<String, dynamic> summaryPayload;
-      if (userConsentedToDataAnalysis && isPersonalFinancialQuery) {
-        summaryPayload = FinancialIntelligenceEngine.buildMinimalSummary(
-          transactions: transactions,
-          budgets: budgets,
-          userConsented: true,
-        )..['include_in_prompt'] = true;
-      } else {
-        summaryPayload = {
-          'consent': userConsentedToDataAnalysis,
-          'include_in_prompt': false,
-        };
-      }
-
-      // Drop the trailing user message if it matches the current query to prevent turn duplication
-      final effectiveHistory = conversationHistory.isNotEmpty &&
-              conversationHistory.last.isUser &&
-              conversationHistory.last.text.trim().toLowerCase() ==
-                  query.trim().toLowerCase()
-          ? conversationHistory.sublist(0, conversationHistory.length - 1)
-          : conversationHistory;
-
-      final historyPayload = effectiveHistory
-          .where((m) => m.text.isNotEmpty)
-          .map((m) => {
-                'role': m.isUser ? 'user' : 'model',
-                'text': m.text,
-              })
-          .toList();
-
-      final bodyData = jsonEncode({
-        'message': query.trim(),
-        'summary': summaryPayload,
-        'history': historyPayload,
-      });
-
-      request.write(bodyData);
-      final response =
-          await request.close().timeout(const Duration(seconds: 25));
-
-      final responseBody = await response.transform(utf8.decoder).join();
-      final Map<String, dynamic> jsonResponse =
-          responseBody.isNotEmpty ? jsonDecode(responseBody) : {};
-
-      if (response.statusCode == 200 && jsonResponse.containsKey('reply')) {
-        final replyText = jsonResponse['reply'] as String;
-        return ChatMessage(
-          id: 'ai_${now.millisecondsSinceEpoch}',
-          isUser: false,
-          timestamp: now,
-          text: replyText,
-          actionButtons: const [
-            'How can I save ₹800 this month?',
-            'Where did most of my money go?',
-            'How much budget do I have left?',
-          ],
-        );
-      }
-
-      // Backend running but unconfigured (503)
-      if (response.statusCode == 503 ||
-          jsonResponse['error'] == 'Backend Unconfigured') {
-        return ChatMessage(
-          id: 'ai_${now.millisecondsSinceEpoch}',
-          isUser: false,
-          timestamp: now,
-          isError: true,
-          text:
-              '⚙️ **Spentee AI Backend Setup Required**\n\n'
-              'The secure AI backend server is active at `$backendUrl`, but `GEMINI_API_KEY` is not configured in `backend/.env`.\n\n'
-              '**To enable real general AI conversations:**\n'
-              '1. Open `backend/.env`\n'
-              '2. Set your Google Gemini API key: `GEMINI_API_KEY=your_key`\n'
-              '3. Restart the backend (`npm start` in `backend/`)\n\n'
-              '*Note: Your local financial calculations (spending, budgets, savings goals) are fully operational offline right now!*',
-          actionButtons: const [
-            'How much did I spend today?',
-            'Where did most of my money go?',
-            'How much budget do I have left?',
-          ],
-        );
-      }
-
-      // Rate limit (429)
-      if (response.statusCode == 429) {
-        return ChatMessage(
-          id: 'ai_${now.millisecondsSinceEpoch}',
-          isUser: false,
-          timestamp: now,
-          text:
-              '⏳ **AI Provider Rate Limit Reached**\n\n'
-              'Spentee AI backend has momentarily hit upstream rate limits. Please wait a few seconds and tap Regenerate.',
-          isError: true,
-          actionButtons: const [
-            'How much did I spend today?',
-            'How much budget do I have left?',
-          ],
-        );
-      }
-
-      // Other backend error
-      final errMessage =
-          jsonResponse['message'] ?? 'Unexpected server response (${response.statusCode}).';
-      return ChatMessage(
-        id: 'ai_${now.millisecondsSinceEpoch}',
-        isUser: false,
-        timestamp: now,
-        text:
-            '⚠️ **AI Backend Service Error**\n\n$errMessage\n\nYou can retry your query or inspect your local financial totals.',
-        isError: true,
-        actionButtons: const [
-          'How much did I spend today?',
-          'Where did most of my money go?',
-        ],
-      );
-    } catch (networkError) {
-      debugPrint('AI Backend connection error: $networkError');
-
-      // Offline / Unreachable backend
-      return ChatMessage(
-        id: 'ai_${now.millisecondsSinceEpoch}',
-        isUser: false,
-        timestamp: now,
-        isError: true,
-        text:
-            '🔌 **AI Backend Offline**\n\n'
-            'Spentee AI could not reach the secure backend proxy at `$backendUrl`.\n\n'
-            '**To start your local AI proxy:**\n'
-            '```bash\n'
-            'cd backend\n'
-            'npm start\n'
-            '```\n\n'
-            '💡 *Good news:* All personal finance questions (e.g. *"How much did I spend today?"*, *"How much did I earn this month?"*, *"Where did most of my money go?"*) calculate deterministically on your device and work completely offline without needing the server.',
-        actionButtons: const [
-          'How much did I spend today?',
-          'How much did I earn this month?',
-          'Where did most of my money go?',
-          'How much budget do I have left?',
-        ],
-      );
-    } finally {
-      client?.close();
+    // Build payload with strict privacy guarantees
+    final isPersonalFinancialQuery = _isPersonalFinancialQuery(query);
+    final Map<String, dynamic> summaryPayload;
+    if (userConsentedToDataAnalysis && isPersonalFinancialQuery) {
+      summaryPayload = FinancialIntelligenceEngine.buildMinimalSummary(
+        transactions: transactions,
+        budgets: budgets,
+        userConsented: true,
+      )..['include_in_prompt'] = true;
+    } else {
+      summaryPayload = {
+        'consent': userConsentedToDataAnalysis,
+        'include_in_prompt': false,
+      };
     }
+
+    // Drop the trailing user message if it matches the current query to prevent turn duplication
+    final effectiveHistory = conversationHistory.isNotEmpty &&
+            conversationHistory.last.isUser &&
+            conversationHistory.last.text.trim().toLowerCase() ==
+                query.trim().toLowerCase()
+        ? conversationHistory.sublist(0, conversationHistory.length - 1)
+        : conversationHistory;
+
+    final historyPayload = effectiveHistory
+        .where((m) => m.text.isNotEmpty)
+        .map((m) => {
+              'role': m.isUser ? 'user' : 'model',
+              'text': m.text,
+            })
+        .toList();
+
+    final bodyData = jsonEncode({
+      'message': query.trim(),
+      'summary': summaryPayload,
+      'history': historyPayload,
+    });
+
+    String targetUrl = candidateUrls.first;
+    dynamic lastNetworkError;
+
+    for (final backendUrl in candidateUrls) {
+      targetUrl = backendUrl;
+      HttpClient? client;
+
+      try {
+        client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+        final requestUri = Uri.parse('$backendUrl/api/chat');
+        final request = await client.postUrl(requestUri);
+        request.headers.contentType = ContentType.json;
+        request.write(bodyData);
+        final response =
+            await request.close().timeout(const Duration(seconds: 25));
+
+        final responseBody = await response.transform(utf8.decoder).join();
+        final Map<String, dynamic> jsonResponse =
+            responseBody.isNotEmpty ? jsonDecode(responseBody) : {};
+
+        if (response.statusCode == 200 && jsonResponse.containsKey('reply')) {
+          final replyText = jsonResponse['reply'] as String;
+          return ChatMessage(
+            id: 'ai_${now.millisecondsSinceEpoch}',
+            isUser: false,
+            timestamp: now,
+            text: replyText,
+            actionButtons: const [
+              'How can I save ₹800 this month?',
+              'Where did most of my money go?',
+              'How much budget do I have left?',
+            ],
+          );
+        }
+
+        // Backend running but unconfigured (503)
+        if (response.statusCode == 503 ||
+            jsonResponse['error'] == 'Backend Unconfigured') {
+          return ChatMessage(
+            id: 'ai_${now.millisecondsSinceEpoch}',
+            isUser: false,
+            timestamp: now,
+            isError: true,
+            text:
+                '⚙️ **Spentee AI Backend Setup Required**\n\n'
+                'The secure AI backend server is active at `$backendUrl`, but `GEMINI_API_KEY` is not configured in `backend/.env`.\n\n'
+                'Please configure your Gemini API key in `backend/.env` to enable general AI conversations.\n\n'
+                '💡 *Your local financial calculations, budgets, and savings goals are fully operational offline!*',
+            actionButtons: const [
+              'How much did I spend today?',
+              'Where did most of my money go?',
+              'How much budget do I have left?',
+            ],
+          );
+        }
+
+        // Rate limit (429)
+        if (response.statusCode == 429) {
+          return ChatMessage(
+            id: 'ai_${now.millisecondsSinceEpoch}',
+            isUser: false,
+            timestamp: now,
+            text:
+                '⏳ **AI Provider Rate Limit Reached**\n\n'
+                'Spentee AI backend has momentarily hit upstream rate limits. Please wait a few seconds and tap Retry.',
+            isError: true,
+            actionButtons: const [
+              'How much did I spend today?',
+              'How much budget do I have left?',
+            ],
+          );
+        }
+
+        // Upstream Gateway Timeout (504)
+        if (response.statusCode == 504 ||
+            jsonResponse['error'] == 'Gateway Timeout') {
+          return ChatMessage(
+            id: 'ai_${now.millisecondsSinceEpoch}',
+            isUser: false,
+            timestamp: now,
+            text:
+                '⏱️ **AI Response Timed Out**\n\n'
+                'The upstream AI service took too long to generate a response. Please tap Retry to try again.',
+            isError: true,
+            actionButtons: const [
+              'How much did I spend today?',
+              'Where did most of my money go?',
+            ],
+          );
+        }
+
+        // Other backend error
+        final errMessage =
+            jsonResponse['message'] ?? 'Unexpected server response (${response.statusCode}).';
+        return ChatMessage(
+          id: 'ai_${now.millisecondsSinceEpoch}',
+          isUser: false,
+          timestamp: now,
+          text:
+              '⚠️ **AI Backend Service Error**\n\n$errMessage\n\nYou can retry your query or inspect your local financial totals.',
+          isError: true,
+          actionButtons: const [
+            'How much did I spend today?',
+            'Where did most of my money go?',
+          ],
+        );
+      } catch (networkError) {
+        lastNetworkError = networkError;
+        debugPrint('Candidate AI backend URL $backendUrl unreachable: $networkError');
+        // If there's another candidate URL (e.g. adb reverse vs 10.0.2.2), try next
+        continue;
+      } finally {
+        client?.close();
+      }
+    }
+
+    // All candidate URLs failed -> Clean, friendly offline system notice
+    debugPrint('All candidate AI backend URLs unreachable. Last error: $lastNetworkError');
+    return ChatMessage(
+      id: 'ai_${now.millisecondsSinceEpoch}',
+      isUser: false,
+      timestamp: now,
+      isError: true,
+      text:
+          '🔌 **Spentee AI Backend Offline**\n\n'
+          'Could not reach the local Spentee AI backend service at `$targetUrl`.\n\n'
+          '• General conversational questions require the local backend service.\n'
+          '• You can start the service using **start_backend.bat** (or `cd backend` and run `npm start`).\n\n'
+          '💡 **All personal finance features** (spending totals, monthly budgets, savings goals, category insights) calculate deterministically on this device and are 100% active offline.',
+      actionButtons: const [
+        'How much did I spend today?',
+        'How much did I earn this month?',
+        'Where did most of my money go?',
+        'How much budget do I have left?',
+      ],
+    );
   }
 
   /// Determines whether a user prompt explicitly requests personal financial advice,
