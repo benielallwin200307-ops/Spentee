@@ -463,10 +463,10 @@ void main() {
       );
 
       expect(response.isUser, isFalse);
-      // Must not return fake AI answer; must explain backend setup
+      // Must not return fake AI answer; must explain backend offline cleanly
       expect(response.text, contains('AI Backend Offline'));
-      expect(response.text, contains('cd backend'));
-      expect(response.text, contains('npm start'));
+      expect(response.text, contains('Retry Connection'));
+      expect(response.actionButtons, contains('Retry Connection'));
       expect(response.actionButtons, contains('How much did I spend today?'));
     });
 

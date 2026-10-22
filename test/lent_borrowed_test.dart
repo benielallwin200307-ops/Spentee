@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spentee/models/budget.dart';
 import 'package:spentee/models/lent_borrowed_record.dart';
+import 'package:spentee/screens/lent_borrowed_screen.dart';
 import 'package:spentee/services/debt_reminder_library.dart';
 import 'package:spentee/state/app_state.dart';
 
@@ -333,6 +335,142 @@ void main() {
           msg.toLowerCase().contains('received') ||
           msg.toLowerCase().contains('restored') ||
           msg.toLowerCase().contains('zeroed'), isTrue);
+    });
+
+    testWidgets('13. Redesigned UI: Header, Summary Cards, Tabs and Chips render correctly', (tester) async {
+      final appState = AppState();
+      final now = DateTime.now();
+
+      final recordLent = LentBorrowedRecord(
+        id: 'widget_lent_1',
+        type: DebtType.lent,
+        personName: 'Rahul Sharma',
+        amount: 2500.0,
+        date: now,
+        dueDate: now.add(const Duration(days: 7)),
+        note: 'Dinner & Cab share',
+      );
+
+      final recordBorrowed = LentBorrowedRecord(
+        id: 'widget_borrowed_1',
+        type: DebtType.borrowed,
+        personName: 'Priya Patel',
+        amount: 1200.0,
+        date: now,
+        dueDate: now.add(const Duration(days: 14)),
+      );
+
+      appState.setDebtsForTesting([recordLent, recordBorrowed]);
+
+      await tester.pumpWidget(
+        AppStateScope(
+          state: appState,
+          child: const MaterialApp(
+            home: LentBorrowedScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Header checks
+      expect(find.text('Lent & Borrowed'), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.add_rounded), findsWidgets); // App bar plus & FAB
+
+      // Summary cards
+      expect(find.text('To Collect'), findsOneWidget);
+      expect(find.text('To Repay'), findsOneWidget);
+      expect(find.text('₹2500'), findsWidgets);
+      expect(find.text('₹1200'), findsWidgets);
+
+      // Tabs
+      expect(find.text('Money Lent'), findsOneWidget);
+      expect(find.text('Borrowed'), findsOneWidget);
+      expect(find.text('Settled'), findsOneWidget);
+
+      // Filter chips
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Pending'), findsWidgets);
+      expect(find.text('Partially Repaid'), findsOneWidget);
+      expect(find.text('Overdue'), findsOneWidget);
+    });
+
+    testWidgets('14. Redesigned UI: Record Card, Reminder Box, Actions and Details Modal', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final appState = AppState();
+      final now = DateTime.now();
+
+      final recordLent = LentBorrowedRecord(
+        id: 'card_test_1',
+        type: DebtType.lent,
+        personName: 'Amit Verma',
+        amount: 3500.0,
+        date: now,
+        dueDate: now.add(const Duration(days: 5)),
+        note: 'Concert tickets',
+      );
+
+      appState.setDebtsForTesting([recordLent]);
+
+      await tester.pumpWidget(
+        AppStateScope(
+          state: appState,
+          child: const MaterialApp(
+            home: LentBorrowedScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Card attributes
+      expect(find.text('Amit Verma'), findsOneWidget);
+      expect(find.text('A'), findsOneWidget); // Initial avatar
+      expect(find.text('₹3500'), findsWidgets); // Card amount & summary
+      expect(find.text('Pending'), findsWidgets); // Badge & Filter chip
+
+      // Embedded reminder box elements
+      expect(find.text('Another joke'), findsOneWidget);
+      expect(find.text('Copy reminder'), findsOneWidget);
+
+      // Action buttons on card
+      expect(find.text('Record Repayment'), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
+
+      // Ensure visible and tap 3-dot overflow menu
+      await tester.ensureVisible(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('View Details'), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+
+      // Tap View Details to open loan details modal sheet
+      await tester.tap(find.text('View Details'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Loan Details'), findsOneWidget);
+      expect(find.text('Original'), findsOneWidget);
+      expect(find.text('Outstanding'), findsOneWidget);
+      expect(find.text('Concert tickets'), findsOneWidget);
+      expect(find.text('Close'), findsOneWidget);
+
+      // Close modal
+      await tester.tap(find.text('Close'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Loan Details'), findsNothing);
     });
   });
 }

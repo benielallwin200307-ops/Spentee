@@ -9,8 +9,10 @@ class SavingsGoal {
   final DateTime createdAt;
   final bool isCompleted;
   final String notes;
+  final DateTime updatedAt;
+  final bool isDeleted;
 
-  const SavingsGoal({
+  SavingsGoal({
     required this.id,
     required this.title,
     required this.targetAmount,
@@ -20,7 +22,9 @@ class SavingsGoal {
     required this.createdAt,
     this.isCompleted = false,
     this.notes = '',
-  });
+    DateTime? updatedAt,
+    this.isDeleted = false,
+  }) : updatedAt = updatedAt ?? DateTime.now();
 
   /// Progress ratio towards the goal (0.0 to 1.0).
   double get progressRatio {
@@ -46,6 +50,8 @@ class SavingsGoal {
       'createdAt': createdAt.toIso8601String(),
       'isCompleted': isCompleted,
       'notes': notes,
+      'updatedAt': updatedAt.toIso8601String(),
+      'isDeleted': isDeleted,
     };
   }
 
@@ -64,6 +70,10 @@ class SavingsGoal {
           : DateTime.now(),
       isCompleted: json['isCompleted'] as bool? ?? false,
       notes: json['notes'] as String? ?? '',
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      isDeleted: json['isDeleted'] as bool? ?? false,
     );
   }
 
@@ -77,6 +87,8 @@ class SavingsGoal {
     DateTime? createdAt,
     bool? isCompleted,
     String? notes,
+    DateTime? updatedAt,
+    bool? isDeleted,
   }) {
     return SavingsGoal(
       id: id ?? this.id,
@@ -88,6 +100,8 @@ class SavingsGoal {
       createdAt: createdAt ?? this.createdAt,
       isCompleted: isCompleted ?? this.isCompleted,
       notes: notes ?? this.notes,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 }

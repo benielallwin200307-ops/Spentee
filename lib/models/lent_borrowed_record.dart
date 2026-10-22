@@ -61,8 +61,10 @@ class LentBorrowedRecord {
   final DateTime? dueDate;
   final String note;
   final List<RepaymentRecord> repayments;
+  final DateTime updatedAt;
+  final bool isDeleted;
 
-  const LentBorrowedRecord({
+  LentBorrowedRecord({
     required this.id,
     required this.type,
     required this.personName,
@@ -71,7 +73,9 @@ class LentBorrowedRecord {
     this.dueDate,
     this.note = '',
     this.repayments = const [],
-  });
+    DateTime? updatedAt,
+    this.isDeleted = false,
+  }) : updatedAt = updatedAt ?? DateTime.now();
 
   /// Total sum of all recorded repayments.
   double get repaidAmount {
@@ -137,9 +141,9 @@ class LentBorrowedRecord {
   String get statusLabel {
     switch (status) {
       case DebtStatus.settled:
-        return 'Fully Settled';
+        return 'Settled';
       case DebtStatus.overdue:
-        return 'Overdue ($daysOverdue d)';
+        return 'Overdue';
       case DebtStatus.partiallyRepaid:
         return 'Partially Repaid';
       case DebtStatus.pending:
@@ -171,6 +175,8 @@ class LentBorrowedRecord {
       'dueDate': dueDate?.toIso8601String(),
       'note': note,
       'repayments': repayments.map((r) => r.toJson()).toList(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'isDeleted': isDeleted,
     };
   }
 
@@ -202,6 +208,10 @@ class LentBorrowedRecord {
           : null,
       note: json['note'] as String? ?? '',
       repayments: reps,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      isDeleted: json['isDeleted'] as bool? ?? false,
     );
   }
 
@@ -214,6 +224,8 @@ class LentBorrowedRecord {
     DateTime? dueDate,
     String? note,
     List<RepaymentRecord>? repayments,
+    DateTime? updatedAt,
+    bool? isDeleted,
   }) {
     return LentBorrowedRecord(
       id: id ?? this.id,
@@ -224,6 +236,8 @@ class LentBorrowedRecord {
       dueDate: dueDate ?? this.dueDate,
       note: note ?? this.note,
       repayments: repayments ?? this.repayments,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 }

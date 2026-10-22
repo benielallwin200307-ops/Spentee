@@ -17,8 +17,7 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
     final theme = MascotThemeData.of(context);
-    final mascotImage = theme.getAvatarAsset(MascotExpression.main);
-    final mascotLabel = theme.type.displayName;
+    final mascotLabel = theme.isFemale ? 'Radiant Pink' : 'Neon Mint';
 
     return Scaffold(
       backgroundColor: const Color(0xFF030D11),
@@ -149,19 +148,15 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            mascotImage,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              color: theme.isFemale
-                                  ? const Color(0xFF240D1B)
-                                  : const Color(0xFF092520),
-                              child: Icon(
-                                Icons.person_rounded,
-                                color: theme.primaryAccent,
-                                size: 34,
-                              ),
+                        child: Center(
+                          child: Text(
+                            appState.userName.isNotEmpty
+                                ? appState.userName[0].toUpperCase()
+                                : 'A',
+                            style: TextStyle(
+                              color: theme.primaryAccent,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -280,13 +275,13 @@ class ProfileScreen extends StatelessWidget {
               _GroupCard(
                 children: [
                   _ProfileOptionTile(
-                    icon: Icons.face_rounded,
+                    icon: Icons.palette_rounded,
                     iconBg: theme.isFemale
                         ? const Color(0xFF2D1022)
                         : const Color(0xFF08332A),
                     iconColor: theme.primaryAccent,
-                    title: 'Mascot Theme',
-                    subtitle: 'Choose your favourite mascot',
+                    title: 'Theme Accent',
+                    subtitle: 'Choose your color accent',
                     trailingText: mascotLabel,
                     trailingTextColor: theme.primaryAccent,
                     onTap: () => _showMascotSwitchSheet(context, appState),
@@ -614,7 +609,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Choose Mascot Companion',
+                  'Theme Accent',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -623,13 +618,13 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Switch companions anytime. All your financial data remains completely safe.',
+                  'Personalize your color palette. All your financial data remains completely safe.',
                   style: TextStyle(color: Color(0xFF7E9DAA), fontSize: 13),
                 ),
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    // Male Option
+                    // Mint Option
                     Expanded(
                       child: InkWell(
                         onTap: () {
@@ -637,7 +632,7 @@ class ProfileScreen extends StatelessWidget {
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Switched to Male Mascot 🕶️'),
+                              content: Text('Switched to Neon Mint Theme ✨'),
                               backgroundColor: Color(0xFF092E27),
                               behavior: SnackBarBehavior.floating,
                             ),
@@ -661,27 +656,29 @@ class ProfileScreen extends StatelessWidget {
                           child: Column(
                             children: [
                               Container(
-                                width: 68,
-                                height: 68,
+                                width: 56,
+                                height: 56,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
+                                  color: AppTheme.primaryMint.withValues(alpha: 0.15),
                                   border: Border.all(
                                     color: currentMascot == 'male'
                                         ? AppTheme.primaryMint
-                                        : Colors.transparent,
+                                        : AppTheme.primaryMint.withValues(alpha: 0.4),
                                     width: 2,
                                   ),
                                 ),
-                                child: ClipOval(
-                                  child: Image.asset(
-                                    'Assets/extracted/mascot_main.png',
-                                    fit: BoxFit.cover,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.eco_rounded,
+                                    color: AppTheme.primaryMint,
+                                    size: 26,
                                   ),
                                 ),
                               ),
                               const SizedBox(height: 12),
                               const Text(
-                                'Male Mascot',
+                                'Neon Mint',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 15,
@@ -705,7 +702,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 14),
-                    // Female Option
+                    // Pink Option
                     Expanded(
                       child: InkWell(
                         onTap: () {
@@ -713,7 +710,7 @@ class ProfileScreen extends StatelessWidget {
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Switched to Female Mascot 💖'),
+                              content: Text('Switched to Radiant Pink Theme 💖'),
                               backgroundColor: Color(0xFF092E27),
                               behavior: SnackBarBehavior.floating,
                             ),
@@ -737,27 +734,29 @@ class ProfileScreen extends StatelessWidget {
                           child: Column(
                             children: [
                               Container(
-                                width: 68,
-                                height: 68,
+                                width: 56,
+                                height: 56,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
+                                  color: const Color(0xFFFF528E).withValues(alpha: 0.15),
                                   border: Border.all(
                                     color: currentMascot == 'female'
                                         ? const Color(0xFFFF528E)
-                                        : Colors.transparent,
+                                        : const Color(0xFFFF528E).withValues(alpha: 0.4),
                                     width: 2,
                                   ),
                                 ),
-                                child: ClipOval(
-                                  child: Image.asset(
-                                    'Assets/extracted/female_main.png',
-                                    fit: BoxFit.cover,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.favorite_rounded,
+                                    color: Color(0xFFFF528E),
+                                    size: 26,
                                   ),
                                 ),
                               ),
                               const SizedBox(height: 12),
                               const Text(
-                                'Female Mascot',
+                                'Radiant Pink',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 15,

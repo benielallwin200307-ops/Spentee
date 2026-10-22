@@ -8,15 +8,19 @@ class Budget {
   final String period; // 'Monthly'
   final int year;
   final int month;
+  final DateTime updatedAt;
+  final bool isDeleted;
 
-  const Budget({
+  Budget({
     required this.id,
     required this.category,
     required this.limitAmount,
     this.period = 'Monthly',
     required this.year,
     required this.month,
-  });
+    DateTime? updatedAt,
+    this.isDeleted = false,
+  }) : updatedAt = updatedAt ?? DateTime.now();
 
   /// Calculate the spent amount in this budget category for the given month from saved transactions.
   double calculateSpent(List<Transaction> transactions) {
@@ -53,6 +57,8 @@ class Budget {
       'period': period,
       'year': year,
       'month': month,
+      'updatedAt': updatedAt.toIso8601String(),
+      'isDeleted': isDeleted,
     };
   }
 
@@ -64,6 +70,10 @@ class Budget {
       period: json['period'] as String? ?? 'Monthly',
       year: json['year'] as int? ?? DateTime.now().year,
       month: json['month'] as int? ?? DateTime.now().month,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      isDeleted: json['isDeleted'] as bool? ?? false,
     );
   }
 
@@ -74,6 +84,8 @@ class Budget {
     String? period,
     int? year,
     int? month,
+    DateTime? updatedAt,
+    bool? isDeleted,
   }) {
     return Budget(
       id: id ?? this.id,
@@ -82,6 +94,8 @@ class Budget {
       period: period ?? this.period,
       year: year ?? this.year,
       month: month ?? this.month,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 }

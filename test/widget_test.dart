@@ -5,6 +5,7 @@ import 'package:spentee/screens/auth_screens.dart';
 import 'package:spentee/screens/onboarding_screens.dart';
 import 'package:spentee/screens/home_screen.dart';
 import 'package:spentee/screens/budget_management_screen.dart';
+import 'package:spentee/screens/lent_borrowed_screen.dart';
 import 'package:spentee/state/app_state.dart';
 
 void main() {
@@ -67,7 +68,7 @@ void main() {
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('HomeScreen replaces Scan Bill with Budgets and navigates to BudgetManagementScreen',
+  testWidgets('HomeScreen replaces Budgets with Lend & Repay and navigates to LentBorrowedScreen',
       (WidgetTester tester) async {
     final appState = AppState();
 
@@ -84,26 +85,28 @@ void main() {
     // Verify 3 quick-action buttons exist
     expect(find.text('Add\nExpense'), findsOneWidget);
     expect(find.text('Add\nIncome'), findsOneWidget);
-    expect(find.text('Budgets'), findsOneWidget);
-    expect(find.textContaining('Scan'), findsNothing);
+    expect(find.text('Lend\n& Repay'), findsOneWidget);
+    expect(find.text('Budgets'), findsNothing);
 
-    // Tap Budgets button
-    await tester.tap(find.text('Budgets'));
+    // Verify separate Lent & Borrowed Money summary card is removed
+    expect(find.text('Lent & Borrowed Money'), findsNothing);
+
+    // Tap Lend & Repay button
+    await tester.tap(find.text('Lend\n& Repay'));
     await tester.pumpAndSettle();
 
-    // Verify BudgetManagementScreen opened
-    expect(find.byType(BudgetManagementScreen), findsOneWidget);
-    expect(find.text('Manage Budget'), findsOneWidget);
+    // Verify LentBorrowedScreen opened
+    expect(find.byType(LentBorrowedScreen), findsOneWidget);
 
     // Verify back navigation returns to HomeScreen
-    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded));
     await tester.pumpAndSettle();
 
-    expect(find.byType(BudgetManagementScreen), findsNothing);
+    expect(find.byType(LentBorrowedScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 
-  testWidgets('HomeScreen displays clean mascot images for both Male and Female selections without text',
+  testWidgets('HomeScreen displays clean fintech icons and no mascot character illustrations',
       (WidgetTester tester) async {
     final appState = AppState();
     appState.setSelectedMascot('male');
@@ -118,44 +121,32 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Verify Male mascot clean image is displayed and no happy/ai avatar text assets
+    // Verify no character images are displayed on Home
     final maleMainImages = find.byWidgetPredicate((widget) =>
         widget is Image &&
         widget.image is AssetImage &&
         (widget.image as AssetImage).assetName ==
             'Assets/extracted/mascot_main.png');
-    // Top avatar, Total balance card, and AI banner all use clean mascot_main.png
-    expect(maleMainImages, findsAtLeastNWidgets(2));
+    expect(maleMainImages, findsNothing);
 
-    final maleTextImages = find.byWidgetPredicate((widget) =>
-        widget is Image &&
-        widget.image is AssetImage &&
-        ((widget.image as AssetImage).assetName ==
-                'Assets/extracted/avatar_happy.png' ||
-            (widget.image as AssetImage).assetName ==
-                'Assets/extracted/avatar_ai.png'));
-    expect(maleTextImages, findsNothing);
+    // Verify clean fintech balance wallet icon and AI spark icon are displayed
+    expect(find.byIcon(Icons.account_balance_wallet_rounded), findsAtLeastNWidgets(1));
+    expect(find.byIcon(Icons.auto_awesome_rounded), findsAtLeastNWidgets(1));
 
-    // Switch to Female mascot (as done in Profile Settings)
+    // Switch to Female theme (as done in Profile Settings)
     appState.setSelectedMascot('female');
     await tester.pumpAndSettle();
 
-    // Verify Female mascot clean image is displayed reactively
+    // Verify still zero character illustrations on Home
     final femaleMainImages = find.byWidgetPredicate((widget) =>
         widget is Image &&
         widget.image is AssetImage &&
         (widget.image as AssetImage).assetName ==
             'Assets/extracted/female_main.png');
-    expect(femaleMainImages, findsAtLeastNWidgets(2));
+    expect(femaleMainImages, findsNothing);
 
-    final femaleTextImages = find.byWidgetPredicate((widget) =>
-        widget is Image &&
-        widget.image is AssetImage &&
-        ((widget.image as AssetImage).assetName ==
-                'Assets/extracted/female_happy.png' ||
-            (widget.image as AssetImage).assetName ==
-                'Assets/extracted/female_ai.png'));
-    expect(femaleTextImages, findsNothing);
+    // Verify clean icons persist
+    expect(find.byIcon(Icons.account_balance_wallet_rounded), findsAtLeastNWidgets(1));
   });
 }
 

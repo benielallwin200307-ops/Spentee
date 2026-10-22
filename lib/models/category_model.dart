@@ -9,15 +9,17 @@ class CategoryItem {
   final bool isCustom;
   final IconData icon;
   final Color color;
+  final DateTime updatedAt;
 
-  const CategoryItem({
+  CategoryItem({
     required this.id,
     required this.name,
     required this.isExpense,
     this.isCustom = false,
     required this.icon,
     required this.color,
-  });
+    DateTime? updatedAt,
+  }) : updatedAt = updatedAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
     return {
@@ -26,6 +28,7 @@ class CategoryItem {
       'isExpense': isExpense,
       'isCustom': isCustom,
       'colorValue': color.toARGB32(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
@@ -42,6 +45,9 @@ class CategoryItem {
       isCustom: isCustom,
       icon: Transaction.iconForCategory(name),
       color: colorVal != null ? Color(colorVal) : Transaction.colorForCategory(name),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 
@@ -52,6 +58,7 @@ class CategoryItem {
     bool? isCustom,
     IconData? icon,
     Color? color,
+    DateTime? updatedAt,
   }) {
     return CategoryItem(
       id: id ?? this.id,
@@ -60,6 +67,7 @@ class CategoryItem {
       isCustom: isCustom ?? this.isCustom,
       icon: icon ?? this.icon,
       color: color ?? this.color,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }

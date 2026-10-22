@@ -1012,21 +1012,34 @@ class _InsightsScreenState extends State<InsightsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Mascot Artwork
-              SizedBox(
-                width: 122,
-                child: Image.asset(
-                  theme.insightsMascotAsset,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: theme.isFemale
-                        ? const Color(0xFF1E0817)
-                        : const Color(0xFF031E18),
-                    child: Icon(
-                      Icons.smart_toy_rounded,
-                      color: theme.primaryAccent,
-                      size: 40,
+              // Clean Fintech Analytics Icon Badge
+              Padding(
+                padding: const EdgeInsets.only(left: 16, top: 16, bottom: 16),
+                child: Center(
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: theme.primaryAccent.withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: theme.primaryAccent.withValues(alpha: 0.35),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.primaryAccent.withValues(alpha: 0.2),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.insights_rounded,
+                        color: theme.primaryAccent,
+                        size: 24,
+                      ),
                     ),
                   ),
                 ),
@@ -1035,7 +1048,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
               // Insight Observation and Suggestion
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 14, 12, 14),
+                  padding: const EdgeInsets.fromLTRB(14, 16, 16, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,

@@ -18,8 +18,10 @@ class Transaction {
   final Color categoryColor;
   final DateTime date;
   final String note;
+  final DateTime updatedAt;
+  final bool isDeleted;
 
-  const Transaction({
+  Transaction({
     required this.id,
     required this.title,
     required this.amount,
@@ -29,7 +31,37 @@ class Transaction {
     required this.categoryColor,
     required this.date,
     this.note = '',
-  });
+    DateTime? updatedAt,
+    this.isDeleted = false,
+  }) : updatedAt = updatedAt ?? DateTime.now();
+
+  Transaction copyWith({
+    String? id,
+    String? title,
+    double? amount,
+    TransactionType? type,
+    String? category,
+    IconData? icon,
+    Color? categoryColor,
+    DateTime? date,
+    String? note,
+    DateTime? updatedAt,
+    bool? isDeleted,
+  }) {
+    return Transaction(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      amount: amount ?? this.amount,
+      type: type ?? this.type,
+      category: category ?? this.category,
+      icon: icon ?? this.icon,
+      categoryColor: categoryColor ?? this.categoryColor,
+      date: date ?? this.date,
+      note: note ?? this.note,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
+  }
 
   /// Formatted amount string (e.g. "₹250")
   String get formattedAmount {
@@ -139,6 +171,8 @@ class Transaction {
       'categoryColor': categoryColor.toARGB32(),
       'date': date.toIso8601String(),
       'note': note,
+      'updatedAt': updatedAt.toIso8601String(),
+      'isDeleted': isDeleted,
     };
   }
 
@@ -169,6 +203,10 @@ class Transaction {
           ? DateTime.tryParse(json['date'] as String) ?? DateTime.now()
           : DateTime.now(),
       note: json['note'] as String? ?? '',
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      isDeleted: json['isDeleted'] as bool? ?? false,
     );
   }
 }

@@ -104,17 +104,38 @@ class NotificationsScreen extends StatelessWidget {
                 physics: const BouncingScrollPhysics(),
                 child: Column(
                   children: [
-                    // Top Section: Mascot with window, bell bubble, and sparkles
+                    // Top Section: Clean Bell Emblem Header
                     SizedBox(
                       width: double.infinity,
-                      height: topArtHeight,
+                      height: topArtHeight < 140.0 ? 140.0 : topArtHeight * 0.75,
                       child: Stack(
                         children: [
-                          Positioned.fill(
-                            child: Image.asset(
-                              'Assets/extracted/notifications_mascot_art.png',
-                              fit: BoxFit.cover,
-                              alignment: Alignment.bottomCenter,
+                          Center(
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: mintGreen.withValues(alpha: 0.12),
+                                border: Border.all(
+                                  color: mintGreen.withValues(alpha: 0.4),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: mintGreen.withValues(alpha: 0.25),
+                                    blurRadius: 20,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.notifications_active_rounded,
+                                  color: mintGreen,
+                                  size: 40,
+                                ),
+                              ),
                             ),
                           ),
                           // Subtle back button if navigable

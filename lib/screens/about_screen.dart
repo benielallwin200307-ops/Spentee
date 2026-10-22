@@ -107,12 +107,13 @@ class AboutScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 10),
 
-              // Logo & Mascot Banner
+              // Logo Banner
               Container(
                 width: 88,
                 height: 88,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  color: const Color(0xFF0C242D),
                   border: Border.all(color: AppTheme.primaryMint, width: 2.5),
                   boxShadow: [
                     BoxShadow(
@@ -122,18 +123,11 @@ class AboutScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'Assets/extracted/mascot_main.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: const Color(0xFF0C242D),
-                      child: const Icon(
-                        Icons.account_balance_wallet_rounded,
-                        color: AppTheme.primaryMint,
-                        size: 40,
-                      ),
-                    ),
+                child: const Center(
+                  child: Icon(
+                    Icons.account_balance_wallet_rounded,
+                    color: AppTheme.primaryMint,
+                    size: 44,
                   ),
                 ),
               ),

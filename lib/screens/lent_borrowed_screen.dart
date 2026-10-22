@@ -51,89 +51,102 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
-    final theme = MascotThemeData.of(context);
 
     final lentActive = appState.activeLentRecords;
     final borrowedActive = appState.activeBorrowedRecords;
     final settled = appState.settledDebtRecords;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF030D11),
+      backgroundColor: const Color(0xFF020C10),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF092027),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF133C47)),
-            ),
-            child: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: 16,
-              color: Colors.white,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Center(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF061E24),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF0F3B44), width: 1.2),
+                ),
+                child: const Icon(
+                  Icons.chevron_left_rounded,
+                  size: 26,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
-          onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
           'Lent & Borrowed',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
           ),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Add Loan / Borrowing',
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.primaryAccent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.primaryAccent.withValues(alpha: 0.4),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _openAddEditModal(context, appState),
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF061E24),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF00E5A3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.add_rounded,
+                    size: 24,
+                    color: Color(0xFF00E5A3),
+                  ),
                 ),
               ),
-              child: Icon(
-                Icons.add_rounded,
-                size: 20,
-                color: theme.primaryAccent,
-              ),
             ),
-            onPressed: () => _openAddEditModal(context, appState),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
           // ── Summary Cards ──────────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             child: _buildSummaryCards(appState),
           ),
 
-          // ── Tabs ───────────────────────────────────────────────────────────
+          // ── Main Tabs (Underline Navigation Bar) ───────────────────────────
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF091E25),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF133944)),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Color(0xFF0D2F38), width: 1.2),
+              ),
             ),
             child: TabBar(
               controller: _tabController,
-              indicator: BoxDecoration(
-                color: theme.primaryAccent,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              labelColor: const Color(0xFF021015),
-              unselectedLabelColor: const Color(0xFF88A6B2),
+              indicatorColor: const Color(0xFF00E5A3),
+              indicatorWeight: 3.0,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF00E5A3),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
               labelStyle: const TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 13,
@@ -144,49 +157,70 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
               ),
               tabs: [
                 Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Money Lent'),
-                      if (lentActive.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        _buildCountBadge(lentActive.length, isSelected: _tabController.index == 0),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Money Lent'),
+                        if (lentActive.isNotEmpty) ...[
+                          const SizedBox(width: 5),
+                          _buildCountBadge(
+                            lentActive.length,
+                            isSelected: _tabController.index == 0,
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
                 Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Borrowed'),
-                      if (borrowedActive.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        _buildCountBadge(borrowedActive.length, isSelected: _tabController.index == 1),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Borrowed'),
+                        if (borrowedActive.isNotEmpty) ...[
+                          const SizedBox(width: 5),
+                          _buildCountBadge(
+                            borrowedActive.length,
+                            isSelected: _tabController.index == 1,
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
                 Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Settled'),
-                      if (settled.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        _buildCountBadge(settled.length, isSelected: _tabController.index == 2),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Settled'),
+                        if (settled.isNotEmpty) ...[
+                          const SizedBox(width: 5),
+                          _buildCountBadge(
+                            settled.length,
+                            isSelected: _tabController.index == 2,
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          // ── Filter Chips ───────────────────────────────────────────────────
+          // ── Status Filter Chips ─────────────────────────────────────────────
           if (_tabController.index < 2)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -243,12 +277,17 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: theme.primaryAccent,
+        backgroundColor: const Color(0xFF00E5A3),
         foregroundColor: const Color(0xFF03161C),
-        icon: const Icon(Icons.add_rounded, size: 22),
+        elevation: 4,
+        icon: const Icon(Icons.add_rounded, size: 22, color: Color(0xFF03161C)),
         label: const Text(
           'Add Record',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            color: Color(0xFF03161C),
+          ),
         ),
         onPressed: () => _openAddEditModal(context, appState),
       ),
@@ -257,11 +296,11 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
 
   Widget _buildCountBadge(int count, {required bool isSelected}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         color: isSelected
-            ? const Color(0xFF03161C).withValues(alpha: 0.25)
-            : const Color(0xFF12343E),
+            ? const Color(0xFF00E5A3).withValues(alpha: 0.18)
+            : const Color(0xFF0F323B),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -269,7 +308,7 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
-          color: isSelected ? const Color(0xFF03161C) : Colors.white,
+          color: isSelected ? const Color(0xFF00E5A3) : const Color(0xFF7A9FA9),
         ),
       ),
     );
@@ -280,23 +319,22 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
     return GestureDetector(
       onTap: () => setState(() => _filter = label),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF144552)
-              : const Color(0xFF091E25),
+          color: isSelected ? const Color(0xFF072128) : const Color(0xFF06181E),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? AppTheme.primaryMint : const Color(0xFF12343E),
+            color: isSelected ? const Color(0xFF00E5A3) : const Color(0xFF0F323B),
+            width: isSelected ? 1.4 : 1.0,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 12.5,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : const Color(0xFF88A6B2),
+            color: isSelected ? Colors.white : const Color(0xFF7A9FA9),
           ),
         ),
       ),
@@ -321,22 +359,17 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
   Widget _buildSummaryCards(AppState appState) {
     final toCollect = appState.totalLentOutstanding;
     final toRepay = appState.totalBorrowedOutstanding;
-    final overdueCount = appState.overdueDebtsCount;
 
     return Row(
       children: [
         // To Collect (Receivables)
         Expanded(
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF062B28), Color(0xFF0A1F24)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: const Color(0xFF061E24),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFF104A41)),
+              border: Border.all(color: const Color(0xFF0D3D46), width: 1.2),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,34 +377,36 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryMint.withValues(alpha: 0.15),
+                        color: const Color(0xFF0A333A),
                         borderRadius: BorderRadius.circular(8),
                       ),
+                      alignment: Alignment.center,
                       child: const Icon(
-                        Icons.call_received_rounded,
-                        color: AppTheme.primaryMint,
-                        size: 16,
+                        Icons.north_east_rounded,
+                        color: Color(0xFF00E5A3),
+                        size: 18,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     const Text(
                       'To Collect',
                       style: TextStyle(
-                        color: Color(0xFF8BB5AB),
-                        fontSize: 12,
+                        color: Color(0xFF7CA1AA),
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(
                   _formatCurrency(toCollect),
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
+                    color: Color(0xFF00E5A3),
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -385,15 +420,11 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
         // To Repay (Payables)
         Expanded(
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF2C190B), Color(0xFF1B1612)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: const Color(0xFF1A1713),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFF4D2B12)),
+              border: Border.all(color: const Color(0xFF382C1F), width: 1.2),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,52 +432,36 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFB300).withValues(alpha: 0.15),
+                        color: const Color(0xFF332514),
                         borderRadius: BorderRadius.circular(8),
                       ),
+                      alignment: Alignment.center,
                       child: const Icon(
-                        Icons.call_made_rounded,
+                        Icons.south_east_rounded,
                         color: Color(0xFFFFB300),
-                        size: 16,
+                        size: 18,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     const Text(
                       'To Repay',
                       style: TextStyle(
-                        color: Color(0xFFC7A17D),
-                        fontSize: 12,
+                        color: Color(0xFF9E8E7D),
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (overdueCount > 0) ...[
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF3366).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '$overdueCount Overdue',
-                          style: const TextStyle(
-                            color: Color(0xFFFF3366),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(
                   _formatCurrency(toRepay),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -485,7 +500,7 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                 ),
                 child: const Icon(
                   Icons.handshake_rounded,
-                  color: AppTheme.primaryMint,
+                  color: Color(0xFF00E5A3),
                   size: 36,
                 ),
               ),
@@ -536,217 +551,161 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF071920),
+        color: const Color(0xFF061E24),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: record.isOverdue
               ? const Color(0xFFFF3366).withValues(alpha: 0.4)
-              : const Color(0xFF0F323D),
+              : const Color(0xFF0E3842),
+          width: 1.2,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row: Avatar, Name, Amounts, Status Chip
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Avatar
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: record.type == DebtType.lent
-                      ? const Color(0xFF0B3B33)
-                      : const Color(0xFF382312),
-                  child: Text(
-                    record.personName.isNotEmpty
-                        ? record.personName[0].toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      color: record.type == DebtType.lent
-                          ? AppTheme.primaryMint
-                          : const Color(0xFFFFB300),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
+          // ── Header Row: Circular Avatar, Name, Amount, Status Badge ─────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Circular Initial Avatar
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0B3439),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  record.personName.trim().isNotEmpty
+                      ? record.personName.trim()[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(width: 12),
+              ),
+              const SizedBox(width: 14),
 
-                // Name & Date
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        record.personName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${record.type == DebtType.lent ? "Lent on" : "Borrowed on"} ${_formatDate(record.date)}',
-                        style: const TextStyle(
-                          color: Color(0xFF7E9FA9),
-                          fontSize: 12,
-                        ),
-                      ),
-                      if (record.note.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          record.note,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF5A7A84),
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // Outstanding amount & Status chip
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+              // Name & Subtitle
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _formatCurrency(record.outstandingAmount),
-                      style: TextStyle(
-                        color: record.isFullySettled
-                            ? const Color(0xFF00E676)
-                            : (record.type == DebtType.lent
-                                ? AppTheme.primaryMint
-                                : const Color(0xFFFFB300)),
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
+                      record.personName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: record.statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: record.statusColor.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Text(
-                        record.statusLabel,
-                        style: TextStyle(
-                          color: record.statusColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${record.type == DebtType.lent ? "Lent on" : "Borrowed on"} ${_formatDate(record.date)}',
+                      style: const TextStyle(
+                        color: Color(0xFF769AA5),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
 
-          // Progress bar (if partially repaid)
-          if (record.repayments.isNotEmpty && !record.isFullySettled)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Outstanding Amount & Status Chip
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: record.progressRatio,
-                      backgroundColor: const Color(0xFF0F323D),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        record.type == DebtType.lent
-                            ? AppTheme.primaryMint
-                            : const Color(0xFFFFB300),
-                      ),
-                      minHeight: 5,
+                  Text(
+                    _formatCurrency(
+                      record.outstandingAmount > 0
+                          ? record.outstandingAmount
+                          : record.amount,
+                    ),
+                    style: TextStyle(
+                      color: record.isFullySettled
+                          ? const Color(0xFF00E676)
+                          : (record.type == DebtType.lent
+                              ? const Color(0xFF00E5A3)
+                              : const Color(0xFFFFB300)),
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 5),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Repaid: ${_formatCurrency(record.repaidAmount)} of ${_formatCurrency(record.amount)}',
-                        style: const TextStyle(
-                          color: Color(0xFF7E9FA9),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        '${(record.progressRatio * 100).round()}%',
-                        style: TextStyle(
-                          color: record.type == DebtType.lent
-                              ? AppTheme.primaryMint
-                              : const Color(0xFFFFB300),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+                  _buildStatusBadge(record),
                 ],
               ),
-            ),
+            ],
+          ),
 
-          // Due date banner
+          const SizedBox(height: 12),
+
+          // ── Due Date Row ───────────────────────────────────────────────────
           if (record.dueDate != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Icon(
-                    record.isOverdue
-                        ? Icons.warning_amber_rounded
-                        : Icons.event_available_rounded,
-                    size: 14,
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 14,
+                  color: record.isOverdue
+                      ? const Color(0xFFFF3366)
+                      : const Color(0xFF769AA5),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  record.isOverdue
+                      ? 'Due ${_formatDate(record.dueDate!)} · ${record.daysOverdue} days overdue'
+                      : 'Due ${_formatDate(record.dueDate!)} · ${record.daysUntilDue} days left',
+                  style: TextStyle(
                     color: record.isOverdue
                         ? const Color(0xFFFF3366)
-                        : const Color(0xFF7E9FA9),
+                        : const Color(0xFF769AA5),
+                    fontSize: 12,
+                    fontWeight:
+                        record.isOverdue ? FontWeight.w700 : FontWeight.w500,
                   ),
-                  const SizedBox(width: 5),
-                  Text(
-                    record.isOverdue
-                        ? 'Due date was ${_formatDate(record.dueDate!)} (${record.daysOverdue}d overdue)'
-                        : 'Due on ${_formatDate(record.dueDate!)} (${record.daysUntilDue}d left)',
-                    style: TextStyle(
-                      color: record.isOverdue
-                          ? const Color(0xFFFF3366)
-                          : const Color(0xFF7E9FA9),
-                      fontSize: 11,
-                      fontWeight: record.isOverdue
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                ),
+              ],
+            )
+          else if (record.note.isNotEmpty)
+            Row(
+              children: [
+                const Icon(
+                  Icons.notes_rounded,
+                  size: 14,
+                  color: Color(0xFF769AA5),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    record.note,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF769AA5),
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
-          // ── Funny Reminder Bubble ──────────────────────────────────────────
+          // ── Reminder Panel (Embedded Box) ───────────────────────────────────
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A222B),
+              color: const Color(0xFF08232B),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF144350)),
+              border: Border.all(color: const Color(0xFF0F3C47), width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,27 +713,34 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('💬', style: TextStyle(fontSize: 14)),
-                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.chat_bubble_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         funnyReminder,
                         style: const TextStyle(
-                          color: Color(0xFFBDE0EA),
-                          fontSize: 12,
-                          height: 1.4,
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          height: 1.35,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFF0D353E)),
+                const SizedBox(height: 10),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Shuffle reminder button
+                    // Another Joke
                     InkWell(
+                      borderRadius: BorderRadius.circular(8),
                       onTap: () {
                         setState(() {
                           _reminderSeedMap[record.id] =
@@ -782,17 +748,20 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                         });
                       },
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                         child: Row(
                           children: [
-                            Icon(Icons.refresh_rounded,
-                                size: 13, color: Color(0xFF7E9FA9)),
-                            SizedBox(width: 4),
+                            Icon(
+                              Icons.refresh_rounded,
+                              size: 15,
+                              color: Color(0xFF769AA5),
+                            ),
+                            SizedBox(width: 6),
                             Text(
-                              'Another Joke',
+                              'Another joke',
                               style: TextStyle(
-                                color: Color(0xFF7E9FA9),
-                                fontSize: 11,
+                                color: Color(0xFF769AA5),
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -800,9 +769,10 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    // Copy reminder message button
+
+                    // Copy reminder
                     InkWell(
+                      borderRadius: BorderRadius.circular(8),
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: funnyReminder));
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -814,8 +784,11 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                             ),
                             content: Row(
                               children: [
-                                const Icon(Icons.check_circle_rounded,
-                                    color: AppTheme.primaryMint, size: 18),
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF00E5A3),
+                                  size: 18,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -832,25 +805,21 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                           ),
                         );
                       },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryMint.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppTheme.primaryMint.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: const Row(
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Row(
                           children: [
-                            Icon(Icons.copy_rounded,
-                                size: 12, color: AppTheme.primaryMint),
-                            SizedBox(width: 4),
+                            Icon(
+                              Icons.copy_rounded,
+                              size: 14,
+                              color: Color(0xFF00E5A3),
+                            ),
+                            SizedBox(width: 6),
                             Text(
-                              'Copy Reminder',
+                              'Copy reminder',
                               style: TextStyle(
-                                color: AppTheme.primaryMint,
-                                fontSize: 11,
+                                color: Color(0xFF00E5A3),
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -866,70 +835,100 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
 
           const SizedBox(height: 12),
 
-          // ── Actions Footer ─────────────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: const BoxDecoration(
-              color: Color(0xFF051318),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-            ),
-            child: Row(
-              children: [
-                if (!record.isFullySettled)
-                  Expanded(
+          // ── Action Footer: Record Repayment & Three-Dot Overflow ────────────
+          Row(
+            children: [
+              if (!record.isFullySettled)
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: record.type == DebtType.lent
-                            ? AppTheme.primaryMint
-                            : const Color(0xFFFFB300),
+                        backgroundColor: const Color(0xFF00E5A3),
                         foregroundColor: const Color(0xFF03161C),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      icon: const Icon(Icons.payments_rounded, size: 16),
+                      icon: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        size: 18,
+                        color: Color(0xFF03161C),
+                      ),
                       label: Text(
-                        record.type == DebtType.lent ? 'Record Repayment' : 'Record My Payment',
+                        record.type == DebtType.lent
+                            ? 'Record Repayment'
+                            : 'Record My Payment',
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
+                          color: Color(0xFF03161C),
                         ),
                       ),
                       onPressed: () => _openRepaymentModal(context, appState, record),
                     ),
                   ),
-
-                if (record.repayments.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF88A6B2),
-                      side: const BorderSide(color: Color(0xFF144350)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                )
+              else
+                Expanded(
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0B3322),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF145437)),
                     ),
-                    icon: const Icon(Icons.history_rounded, size: 16),
-                    label: Text(
-                      'History (${record.repayments.length})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    alignment: Alignment.center,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF00E676),
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Fully Settled',
+                          style: TextStyle(
+                            color: Color(0xFF00E676),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                    onPressed: () => _openHistoryModal(context, record),
                   ),
-                ],
+                ),
 
-                const Spacer(),
+              const SizedBox(width: 10),
 
-                // More Options: Edit & Delete
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF7E9FA9)),
-                  color: const Color(0xFF0A222B),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // Three-Dot Overflow Button
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF072128),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF0E3842), width: 1.2),
+                ),
+                child: PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(
+                    Icons.more_vert_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  color: const Color(0xFF08232B),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: const BorderSide(color: Color(0xFF0F3B44)),
+                  ),
                   onSelected: (val) {
-                    if (val == 'edit') {
+                    if (val == 'details') {
+                      _showDetailsModal(context, appState, record);
+                    } else if (val == 'edit') {
                       _openAddEditModal(context, appState, existing: record);
                     } else if (val == 'delete') {
                       _confirmDelete(context, appState, record);
@@ -937,12 +936,44 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                   },
                   itemBuilder: (ctx) => [
                     const PopupMenuItem(
+                      value: 'details',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.visibility_outlined,
+                            size: 17,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'View Details',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(Icons.edit_rounded, size: 16, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text('Edit', style: TextStyle(color: Colors.white, fontSize: 13)),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 17,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Edit',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -950,15 +981,438 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFFF3366)),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Color(0xFFFF3366), fontSize: 13)),
+                          Icon(
+                            Icons.delete_outline_rounded,
+                            size: 17,
+                            color: Color(0xFFFF3366),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: Color(0xFFFF3366),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(LentBorrowedRecord record) {
+    Color bg;
+    Color border;
+    Color text;
+
+    switch (record.status) {
+      case DebtStatus.pending:
+        bg = const Color(0xFF382310);
+        border = const Color(0xFF5A3815);
+        text = const Color(0xFFFFB300);
+        break;
+      case DebtStatus.partiallyRepaid:
+        bg = const Color(0xFF0A2B33);
+        border = const Color(0xFF104A57);
+        text = const Color(0xFF00E5FF);
+        break;
+      case DebtStatus.overdue:
+        bg = const Color(0xFF38121A);
+        border = const Color(0xFF661E2E);
+        text = const Color(0xFFFF3366);
+        break;
+      case DebtStatus.settled:
+        bg = const Color(0xFF0B3322);
+        border = const Color(0xFF145437);
+        text = const Color(0xFF00E676);
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        record.statusLabel,
+        style: TextStyle(
+          color: text,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  void _showDetailsModal(
+    BuildContext context,
+    AppState appState,
+    LentBorrowedRecord record,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF061E24),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle bar
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F3B44),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Title and direction badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Loan Details',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    _buildStatusBadge(record),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+              // Person tile
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF08252D),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF0F3C47)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF0B3439),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        record.personName.trim().isNotEmpty
+                            ? record.personName.trim()[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            record.personName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            record.type == DebtType.lent
+                                ? 'Money Lent (Receivable)'
+                                : 'Money Borrowed (Payable)',
+                            style: TextStyle(
+                              color: record.type == DebtType.lent
+                                  ? const Color(0xFF00E5A3)
+                                  : const Color(0xFFFFB300),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Financial stats grid
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDetailStatBox(
+                      'Original',
+                      _formatCurrency(record.amount),
+                      Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildDetailStatBox(
+                      'Repaid',
+                      _formatCurrency(record.repaidAmount),
+                      const Color(0xFF00E676),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildDetailStatBox(
+                      'Outstanding',
+                      _formatCurrency(record.outstandingAmount),
+                      record.type == DebtType.lent
+                          ? const Color(0xFF00E5A3)
+                          : const Color(0xFFFFB300),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Date info
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF08252D),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF0F3C47)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Transaction Date',
+                            style: TextStyle(
+                                color: Color(0xFF769AA5), fontSize: 12)),
+                        Text(_formatDate(record.date),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                    if (record.dueDate != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Due Date',
+                              style: TextStyle(
+                                  color: Color(0xFF769AA5), fontSize: 12)),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              '${_formatDate(record.dueDate!)} (${record.isOverdue ? "${record.daysOverdue}d overdue" : "${record.daysUntilDue}d left"})',
+                              textAlign: TextAlign.end,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: record.isOverdue
+                                    ? const Color(0xFFFF3366)
+                                    : Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (record.note.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Note',
+                              style: TextStyle(
+                                  color: Color(0xFF769AA5), fontSize: 12)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              record.note,
+                              textAlign: TextAlign.end,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              if (record.repayments.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Repayment History',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700)),
+                    Text('${record.repayments.length} installment(s)',
+                        style: const TextStyle(
+                            color: Color(0xFF769AA5), fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 140),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: record.repayments.length,
+                    separatorBuilder: (c, i) => const SizedBox(height: 6),
+                    itemBuilder: (c, i) {
+                      final rep = record.repayments[i];
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF08252D),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_formatCurrency(rep.amount),
+                                    style: const TextStyle(
+                                        color: Color(0xFF00E676),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800)),
+                                if (rep.note.isNotEmpty)
+                                  Text(rep.note,
+                                      style: const TextStyle(
+                                          color: Color(0xFF769AA5),
+                                          fontSize: 11)),
+                              ],
+                            ),
+                            Text(_formatDate(rep.date),
+                                style: const TextStyle(
+                                    color: Color(0xFF769AA5), fontSize: 11)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
+
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  if (!record.isFullySettled) ...[
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00E5A3),
+                            foregroundColor: const Color(0xFF03161C),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(
+                              Icons.account_balance_wallet_rounded,
+                              size: 18),
+                          label: const Text('Record Repayment',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w800)),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            _openRepaymentModal(context, appState, record);
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFF0F3C47)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Close',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+  }
+
+  Widget _buildDetailStatBox(String title, String value, Color valueColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF08252D),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF0F3C47)),
+      ),
+      child: Column(
+        children: [
+          Text(title,
+              style: const TextStyle(
+                  color: Color(0xFF769AA5),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                  color: valueColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -1226,11 +1680,28 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                     const SizedBox(height: 6),
                     GestureDetector(
                       onTap: () async {
-                        final picked = await DateRestriction.showRestrictedDatePicker(
-                          context,
-                          initialDate: selectedDueDate ?? DateRestriction.localToday,
-                          primaryColor: AppTheme.primaryMint,
-                          surfaceColor: const Color(0xFF091E25),
+                        final now = DateTime.now();
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDueDate ?? now.add(const Duration(days: 7)),
+                          firstDate: now.subtract(const Duration(days: 365)),
+                          lastDate: now.add(const Duration(days: 365 * 5)),
+                          builder: (ctx, child) {
+                            return Theme(
+                              data: Theme.of(ctx).copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Color(0xFF00E5A3),
+                                  onPrimary: Color(0xFF03161C),
+                                  surface: Color(0xFF091E25),
+                                  onSurface: Colors.white,
+                                ),
+                                dialogTheme: const DialogThemeData(
+                                  backgroundColor: Color(0xFF091E25),
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
                         );
                         if (picked != null) {
                           setModalState(() => selectedDueDate = picked);
@@ -1685,110 +2156,6 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
               ),
             );
           },
-        );
-      },
-    );
-  }
-
-  // ── History Modal ──────────────────────────────────────────────────────────
-  void _openHistoryModal(BuildContext context, LentBorrowedRecord record) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF091E25),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF133C47),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Repayment History • ${record.personName}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Total Repaid: ${_formatCurrency(record.repaidAmount)} of ${_formatCurrency(record.amount)}',
-                style: const TextStyle(
-                  color: AppTheme.primaryMint,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (record.repayments.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text(
-                      'No repayments recorded yet.',
-                      style: TextStyle(color: Color(0xFF88A6B2)),
-                    ),
-                  ),
-                )
-              else
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: record.repayments.length,
-                    separatorBuilder: (_, _) => const Divider(color: Color(0xFF0F323D)),
-                    itemBuilder: (ctx, idx) {
-                      final rep = record.repayments[idx];
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0C2A34),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.check_circle_outline_rounded,
-                            color: AppTheme.primaryMint,
-                            size: 20,
-                          ),
-                        ),
-                        title: Text(
-                          _formatCurrency(rep.amount),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                          ),
-                        ),
-                        subtitle: Text(
-                          rep.note.isNotEmpty
-                              ? '${_formatDate(rep.date)} • ${rep.note}'
-                              : _formatDate(rep.date),
-                          style: const TextStyle(
-                            color: Color(0xFF7E9FA9),
-                            fontSize: 12,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
         );
       },
     );

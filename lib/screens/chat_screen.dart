@@ -843,58 +843,18 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Welcome Banner matching Section 4:
-  /// For Female theme: Displays the official transparent-background pink Spentee AI banner proportionally.
-  /// For Male theme: Preserves the existing dark emerald gradient banner and male mascot artwork.
+  /// Welcome Banner:
+  /// Clean, professional fintech banner with theme gradient, subtle border and glowing AI icon badge.
   Widget _buildWelcomeBanner(AppState appState) {
     final theme = appState.mascotTheme;
 
-    // Female theme: Proportional new pink banner with subtle ambient glow
-    if (theme.isFemale) {
-      return GestureDetector(
-        onTap: () {
-          _focusNode.requestFocus();
-        },
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: theme.primaryAccent.withValues(alpha: 0.18),
-                blurRadius: 18,
-                spreadRadius: 0,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: AspectRatio(
-              aspectRatio: 1024 / 430,
-              child: Image.asset(
-                theme.chatBannerAsset,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-                errorBuilder: (context, error, stackTrace) => Image.asset(
-                  'Assets/extracted/female_main.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Male theme: Preserved dark emerald gradient banner with male artwork & typography
     return GestureDetector(
       onTap: () {
         _focusNode.requestFocus();
       },
       child: Container(
         width: double.infinity,
-        height: 156,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         decoration: BoxDecoration(
           gradient: theme.bannerGradient,
           borderRadius: BorderRadius.circular(22),
@@ -911,89 +871,122 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(21),
-          child: Stack(
-            children: [
-              // Left text and copy
-              Positioned(
-                left: 18,
-                top: 14,
-                bottom: 14,
-                right: 192,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: "Hey! I'm ",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: theme.primaryAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: theme.primaryAccent.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              color: theme.primaryAccent,
+                              size: 13,
                             ),
-                          ),
-                          TextSpan(
-                            text: "Spentee AI",
-                            style: TextStyle(
-                              color: AppTheme.primaryMint,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
+                            const SizedBox(width: 4),
+                            Text(
+                              'FINANCIAL AI',
+                              style: TextStyle(
+                                color: theme.primaryAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                              ),
                             ),
-                          ),
-                          TextSpan(
-                            text: " 👋",
-                            style: TextStyle(fontSize: 16),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Ask me anything about money, savings, budgeting, investments or even everyday life.',
-                      style: TextStyle(
-                        color: Color(0xFFCBD5E1),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Exact Spentee mascot on the right with seamless gradient blend
-              Positioned(
-                right: -8,
-                top: 0,
-                bottom: 0,
-                width: 218,
-                child: ShaderMask(
-                  shaderCallback: (Rect bounds) {
-                    return const LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment(-0.75, 0.0),
-                      colors: [Colors.transparent, Colors.white],
-                    ).createShader(bounds);
-                  },
-                  blendMode: BlendMode.dstIn,
-                  child: Image.asset(
-                    theme.chatBannerAsset,
-                    fit: BoxFit.cover,
-                    alignment: Alignment.centerRight,
-                    errorBuilder: (context, error, stackTrace) => Image.asset(
-                      theme.insightsMascotAsset,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.centerRight,
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        const TextSpan(
+                          text: "Ask ",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        TextSpan(
+                          text: "Spentee AI",
+                          style: TextStyle(
+                            color: theme.primaryAccent,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const TextSpan(
+                          text: " anything",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Direct answers about personal finances, budgets, savings and investments. Private by default.',
+                    style: TextStyle(
+                      color: Color(0xFFCBD5E1),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w400,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            // Clean AI Spark Emblem
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.primaryAccent.withValues(alpha: 0.12),
+                border: Border.all(
+                  color: theme.primaryAccent.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.primaryAccent.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.auto_awesome_rounded,
+                  color: theme.primaryAccent,
+                  size: 28,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1293,23 +1286,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
-            child: ClipOval(
+            child: Center(
               child: message.isError
-                  ? Container(
-                      color: const Color(0xFF1E1018),
-                      child: const Icon(
-                        Icons.dns_outlined,
-                        size: 16,
-                        color: Color(0xFFFF7A85),
-                      ),
+                  ? const Icon(
+                      Icons.error_outline_rounded,
+                      size: 16,
+                      color: Color(0xFFFF7A85),
                     )
-                  : Image.asset(
-                      appState.mascotTheme.chatAiBubbleAsset,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Image.asset(
-                        appState.mascotTheme.chatAiBubbleFallbackAsset,
-                        fit: BoxFit.cover,
-                      ),
+                  : Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 16,
+                      color: appState.mascotTheme.primaryAccent,
                     ),
             ),
           ),
@@ -1468,9 +1455,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildContextualActionChip(String label, AppState appState) {
     Color chipColor = AppTheme.primaryMint;
-    if (label.contains('Budget')) chipColor = AppTheme.accentCyan;
-    if (label.contains('Analyze') || label.contains('Grant')) {
+    IconData chipIcon = Icons.query_stats_rounded;
+
+    if (label.contains('Retry')) {
+      chipColor = AppTheme.accentOrange;
+      chipIcon = Icons.refresh_rounded;
+    } else if (label.contains('Savings')) {
+      chipColor = AppTheme.primaryMint;
+      chipIcon = Icons.savings_rounded;
+    } else if (label.contains('Budget')) {
+      chipColor = AppTheme.accentCyan;
+      chipIcon = Icons.pie_chart_rounded;
+    } else if (label.contains('Analyze') || label.contains('Grant')) {
       chipColor = AppTheme.accentPurple;
+      chipIcon = Icons.query_stats_rounded;
     }
 
     return ActionChip(
@@ -1482,18 +1480,14 @@ class _ChatScreenState extends State<ChatScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            label.contains('Savings')
-                ? Icons.savings_rounded
-                : (label.contains('Budget')
-                    ? Icons.pie_chart_rounded
-                    : Icons.query_stats_rounded),
+            chipIcon,
             color: chipColor,
             size: 14,
           ),
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -1502,7 +1496,9 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       onPressed: () {
-        if (label == 'Create Savings Plan' || label == 'Create Savings Goal') {
+        if (label == 'Retry Connection' || label == 'Retry') {
+          appState.regenerateLastResponse();
+        } else if (label == 'Create Savings Plan' || label == 'Create Savings Goal') {
           _showCreateSavingsPlanDialog(appState);
         } else if (label == 'Set Category Budget' || label == 'Monthly Budget Suggestion') {
           _showSetBudgetDialog(appState);
@@ -1870,16 +1866,14 @@ class _ChatScreenState extends State<ChatScreen> {
             height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
+              color: theme.primaryAccent.withValues(alpha: 0.15),
               border: Border.all(color: theme.primaryAccent, width: 1.5),
             ),
-            child: ClipOval(
-              child: Image.asset(
-                theme.chatAiBubbleAsset,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Image.asset(
-                  theme.chatAiBubbleFallbackAsset,
-                  fit: BoxFit.cover,
-                ),
+            child: Center(
+              child: Icon(
+                Icons.auto_awesome_rounded,
+                size: 16,
+                color: theme.primaryAccent,
               ),
             ),
           ),

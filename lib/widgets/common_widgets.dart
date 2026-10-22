@@ -126,13 +126,15 @@ class SpenteeCard extends StatelessWidget {
   }
 }
 
-/// Circular avatar for character illustration adapting to the active mascot theme.
+/// Circular avatar adapting to the active theme with clean initials or icons.
 class MascotAvatar extends StatelessWidget {
   final double size;
   final String? imagePath;
   final MascotExpression? expression;
   final VoidCallback? onTap;
   final bool hasGlow;
+  final String? initials;
+  final IconData? icon;
 
   const MascotAvatar({
     super.key,
@@ -141,20 +143,67 @@ class MascotAvatar extends StatelessWidget {
     this.expression,
     this.onTap,
     this.hasGlow = false,
+    this.initials,
+    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = MascotThemeData.of(context);
-    final resolvedPath = imagePath ??
-        theme.getAvatarAsset(expression ?? MascotExpression.main);
     final accentColor = theme.primaryAccent;
+
+    Widget content;
+    if (initials != null && initials!.isNotEmpty) {
+      content = Center(
+        child: Text(
+          initials!.toUpperCase(),
+          style: TextStyle(
+            color: accentColor,
+            fontSize: size * 0.42,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.5,
+          ),
+        ),
+      );
+    } else if (icon != null) {
+      content = Center(
+        child: Icon(
+          icon,
+          color: accentColor,
+          size: size * 0.52,
+        ),
+      );
+    } else if (imagePath != null && imagePath!.isNotEmpty && !imagePath!.contains('mascot') && !imagePath!.contains('female_') && !imagePath!.contains('avatar_')) {
+      content = ClipOval(
+        child: Image.asset(
+          imagePath!,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            color: AppTheme.bgElevated,
+            child: Icon(
+              Icons.person_rounded,
+              color: accentColor,
+              size: size * 0.5,
+            ),
+          ),
+        ),
+      );
+    } else {
+      content = Center(
+        child: Icon(
+          Icons.person_rounded,
+          color: accentColor,
+          size: size * 0.52,
+        ),
+      );
+    }
 
     Widget avatar = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
+        color: AppTheme.bgElevated,
         border: Border.all(
           color: hasGlow ? accentColor : accentColor.withValues(alpha: 0.35),
           width: 2,
@@ -169,20 +218,7 @@ class MascotAvatar extends StatelessWidget {
               ]
             : null,
       ),
-      child: ClipOval(
-        child: Image.asset(
-          resolvedPath,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Container(
-            color: AppTheme.bgElevated,
-            child: Icon(
-              Icons.face_rounded,
-              color: accentColor,
-              size: size * 0.5,
-            ),
-          ),
-        ),
-      ),
+      child: content,
     );
 
     if (onTap != null) {

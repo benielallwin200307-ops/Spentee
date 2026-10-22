@@ -4,6 +4,8 @@ import '../widgets/common_widgets.dart';
 import '../state/app_state.dart';
 import '../models/transaction.dart';
 import 'add_transaction_screen.dart';
+import 'edit_transaction_screen.dart';
+import '../widgets/transaction_details_modal.dart';
 
 /// Screen 12 — Transactions List Screen
 /// Shows all transactions with All / Expense / Income filter tabs.
@@ -242,6 +244,7 @@ class _TransactionTile extends StatelessWidget {
     final isTransfer = tx.type == TransactionType.transfer;
 
     return SpenteeCard(
+      onTap: () => TransactionDetailsModal.show(context, tx),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       borderRadius: 16,
       child: Row(
@@ -258,6 +261,8 @@ class _TransactionTile extends StatelessWidget {
               children: [
                 Text(
                   tx.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -276,6 +281,8 @@ class _TransactionTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     tx.note,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppTheme.textDim,
                       fontSize: 10,
@@ -313,6 +320,124 @@ class _TransactionTile extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(width: 4),
+          _buildMenu(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenu(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: const Color(0xFF0C1B22),
+      ),
+      child: PopupMenuButton<String>(
+        icon: const Icon(
+          Icons.more_vert_rounded,
+          color: AppTheme.textGrey,
+          size: 20,
+        ),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        color: const Color(0xFF0C1B22),
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF1E3842), width: 1.2),
+        ),
+        onSelected: (value) async {
+          if (value == 'details') {
+            TransactionDetailsModal.show(context, tx);
+          } else if (value == 'edit') {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EditTransactionScreen(transaction: tx),
+              ),
+            );
+          } else if (value == 'delete') {
+            final confirmed =
+                await TransactionDetailsModal.showDeleteConfirmation(context, tx);
+            if (confirmed && context.mounted) {
+              final appState = AppStateScope.of(context);
+              await appState.deleteTransaction(tx.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF0D2526),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded,
+                            color: AppTheme.primaryMint, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Deleted ${tx.title} (${tx.formattedAmount})',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            }
+          }
+        },
+        itemBuilder: (ctx) => [
+          const PopupMenuItem<String>(
+            value: 'details',
+            child: Row(
+              children: [
+                Icon(Icons.visibility_rounded,
+                    color: AppTheme.primaryMint, size: 18),
+                SizedBox(width: 12),
+                Text('View Details',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_rounded,
+                    color: AppTheme.accentCyan, size: 18),
+                SizedBox(width: 12),
+                Text('Edit Transaction',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(height: 1),
+          const PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded,
+                    color: Color(0xFFEF4444), size: 18),
+                SizedBox(width: 12),
+                Text('Delete Transaction',
+                    style: TextStyle(
+                        color: Color(0xFFEF4444),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ],
       ),

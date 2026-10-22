@@ -12,13 +12,40 @@ import '../services/auth_service.dart';
 import '../services/ai_chat_service.dart';
 import '../services/roast_engine.dart';
 import '../services/roast_library.dart';
+import '../services/sync_service.dart';
 import '../utils/date_restriction.dart';
 
 /// Central state manager with persistent user profile and theme preferences.
 class AppState extends ChangeNotifier {
   // Balance (starts strictly at 0.0 for new users)
+  // Balance (starts strictly at 0.0 for new users)
+  // _balance only reflects income/expense transactions.
+  // Use availableBalance for the true spendable cash position.
   double _balance = 0.0;
   double get balance => _balance;
+
+  /// Spendable cash in hand:
+  /// = income − expenses − money lent (net of repayments received)
+  ///                      + money borrowed (net of repayments made)
+  double get availableBalance {
+    double lentNet = 0.0;
+    double borrowedNet = 0.0;
+    for (final d in _debts) {
+      if (d.type == DebtType.lent) {
+        // Lent reduces available cash; repayments received restore it
+        lentNet += d.amount - d.repaidAmount;
+      } else {
+        // Borrowed increases available cash; repayments made reduce it
+        borrowedNet += d.amount - d.repaidAmount;
+      }
+    }
+    return _balance - lentNet + borrowedNet;
+  }
+
+  /// Net Worth = Available Balance + Money to Collect − Money to Repay
+  double get netWorth =>
+      availableBalance + totalLentOutstanding - totalBorrowedOutstanding;
+
 
   // User Profile
   String _userUid = '';
@@ -62,9 +89,13 @@ class AppState extends ChangeNotifier {
           _transactions.clear();
           _balance = 0.0;
           _budgets.clear();
+          _savingsGoals.clear();
+          _debts.clear();
+          SyncService.instance.stopListening();
           refreshRoast();
           notifyListeners();
-        } else if (user != null && (!_isAuthenticated || _userUid != user.uid)) {
+        } else if (user != null) {
+          final bool isDifferentUser = (!_isAuthenticated || _userUid != user.uid);
           _isAuthenticated = true;
           _userUid = user.uid;
           _userEmail = user.email ?? _userEmail;
@@ -76,17 +107,197 @@ class AppState extends ChangeNotifier {
             _selectedMascot = _userProfiles[user.uid]['selectedMascot'];
             _userGender = _selectedMascot;
           }
-          await loadTransactionsFromStorage();
-          await loadBudgetsFromStorage();
-          await loadSavingsGoalsFromStorage();
-          await loadDebtsFromStorage();
-          refreshRoast();
-          notifyListeners();
+          if (isDifferentUser) {
+            await loadTransactionsFromStorage();
+            await loadBudgetsFromStorage();
+            await loadSavingsGoalsFromStorage();
+            await loadDebtsFromStorage();
+            refreshRoast();
+            notifyListeners();
+          }
+          _initSync();
         }
       });
     } catch (e) {
       debugPrint('Auth listener init error: $e');
     }
+  }
+
+  /// Testing helper to initialize sync handlers with a dummy user UID
+  @visibleForTesting
+  void initSyncForTesting([String uid = 'test_user_uid']) {
+    _userUid = uid;
+    _isAuthenticated = true;
+    _initSync();
+  }
+
+  /// Initialize Firestore sync: set up callbacks and start real-time listeners.
+  void _initSync() {
+    if (_userUid.isEmpty || _userUid.startsWith('local_')) return;
+
+    final sync = SyncService.instance;
+    sync.setActiveUid(_userUid);
+    sync.stopListening();
+
+    // Register callbacks for remote changes using resilient union-merge strategy
+    sync.onTransactionsChanged = (remoteTxs) {
+      final txMap = <String, Transaction>{};
+      for (final tx in _transactions) {
+        txMap[tx.id] = tx;
+      }
+      for (final remote in remoteTxs) {
+        final local = txMap[remote.id];
+        if (local == null || remote.updatedAt.isAfter(local.updatedAt) || remote.updatedAt.isAtSameMomentAs(local.updatedAt)) {
+          txMap[remote.id] = remote;
+        }
+      }
+      _transactions.clear();
+      _transactions.addAll(txMap.values.where((tx) => !tx.isDeleted));
+      _transactions.sort((a, b) => b.date.compareTo(a.date));
+      _recalculateBalance();
+      refreshRoast();
+      notifyListeners();
+      saveTransactionsToStorage();
+    };
+
+    sync.onBudgetsChanged = (remoteBudgets) {
+      final budgetMap = <String, Budget>{};
+      for (final b in _budgets) {
+        budgetMap[b.id] = b;
+      }
+      for (final remote in remoteBudgets) {
+        final local = budgetMap[remote.id];
+        if (local == null || remote.updatedAt.isAfter(local.updatedAt) || remote.updatedAt.isAtSameMomentAs(local.updatedAt)) {
+          budgetMap[remote.id] = remote;
+        }
+      }
+      _budgets.clear();
+      _budgets.addAll(budgetMap.values.where((b) => !b.isDeleted));
+      refreshRoast();
+      notifyListeners();
+      saveBudgetsToStorage();
+    };
+
+    sync.onSavingsGoalsChanged = (remoteGoals) {
+      final goalMap = <String, SavingsGoal>{};
+      for (final g in _savingsGoals) {
+        goalMap[g.id] = g;
+      }
+      for (final remote in remoteGoals) {
+        final local = goalMap[remote.id];
+        if (local == null || remote.updatedAt.isAfter(local.updatedAt) || remote.updatedAt.isAtSameMomentAs(local.updatedAt)) {
+          goalMap[remote.id] = remote;
+        }
+      }
+      _savingsGoals.clear();
+      _savingsGoals.addAll(goalMap.values.where((g) => !g.isDeleted));
+      notifyListeners();
+      saveSavingsGoalsToStorage();
+    };
+
+    sync.onDebtsChanged = (remoteDebts) {
+      final debtMap = <String, LentBorrowedRecord>{};
+      for (final d in _debts) {
+        debtMap[d.id] = d;
+      }
+      for (final remote in remoteDebts) {
+        final local = debtMap[remote.id];
+        if (local == null || remote.updatedAt.isAfter(local.updatedAt) || remote.updatedAt.isAtSameMomentAs(local.updatedAt)) {
+          debtMap[remote.id] = remote;
+        }
+      }
+      _debts.clear();
+      _debts.addAll(debtMap.values.where((d) => !d.isDeleted));
+      notifyListeners();
+      saveDebtsToStorage();
+    };
+
+    sync.onCategoriesChanged = (remoteCategories) {
+      final customMap = <String, CategoryItem>{};
+      for (final c in _customCategories.where((c) => c.isCustom)) {
+        customMap[c.id] = c;
+      }
+      for (final remote in remoteCategories) {
+        if (remote.isCustom) {
+          final local = customMap[remote.id];
+          if (local == null || remote.updatedAt.isAfter(local.updatedAt) || remote.updatedAt.isAtSameMomentAs(local.updatedAt)) {
+            customMap[remote.id] = remote;
+          }
+        }
+      }
+      final defaults = _customCategories.where((c) => !c.isCustom).toList();
+      _customCategories.clear();
+      _customCategories.addAll(defaults);
+      _customCategories.addAll(customMap.values);
+      notifyListeners();
+      saveCategoriesToStorage();
+    };
+
+    sync.onProfileChanged = (profileData) {
+      bool changed = false;
+      if (profileData['selectedMascot'] != null && profileData['selectedMascot'] != _selectedMascot) {
+        _selectedMascot = profileData['selectedMascot'];
+        _userGender = _selectedMascot;
+        changed = true;
+      }
+      if (profileData['selectedLanguage'] != null && profileData['selectedLanguage'] != _selectedLanguage) {
+        _selectedLanguage = profileData['selectedLanguage'];
+        changed = true;
+      }
+      if (profileData['displayTheme'] != null && profileData['displayTheme'] != _displayTheme) {
+        _displayTheme = profileData['displayTheme'];
+        changed = true;
+      }
+      if (profileData['userName'] != null && (profileData['userName'] as String).isNotEmpty && profileData['userName'] != _userName) {
+        _userName = profileData['userName'];
+        changed = true;
+      }
+      if (changed) {
+        notifyListeners();
+      }
+    };
+
+    // Perform first-time migration then start listening
+    _performMigrationAndListen();
+  }
+
+  Future<void> _performMigrationAndListen() async {
+    try {
+      SyncService.instance.setActiveUid(_userUid);
+      await SyncService.instance.performMigration(
+        localTransactions: List.from(_transactions),
+        localBudgets: List.from(_budgets),
+        localSavingsGoals: List.from(_savingsGoals),
+        localDebts: List.from(_debts),
+        localCategories: List.from(_customCategories),
+        localProfile: {
+          'userName': _userName,
+          'userEmail': _userEmail,
+          'selectedMascot': _selectedMascot,
+          'userGender': _userGender,
+          'selectedLanguage': _selectedLanguage,
+          'displayTheme': _displayTheme,
+          'notificationTime': _notificationTime,
+          'updatedAt': DateTime.now().toIso8601String(),
+        },
+      );
+      SyncService.instance.startListening();
+    } catch (e) {
+      debugPrint('Sync migration error: $e');
+    }
+  }
+
+  /// Recalculate balance from all transactions deterministically.
+  void _recalculateBalance() {
+    double bal = 0.0;
+    for (final tx in _transactions) {
+      if (tx.type == TransactionType.expense) {
+        bal -= tx.amount;
+      } else if (tx.type == TransactionType.income) {
+        bal += tx.amount;
+      }
+    }
+    _balance = bal;
   }
 
   bool hasSavedMascotForUser(String uid) {
@@ -149,6 +360,7 @@ class AppState extends ChangeNotifier {
     refreshRoast();
     notifyListeners();
     await saveToStorage();
+    _initSync();
   }
 
   Future<void> updateUserName(String newName) async {
@@ -176,6 +388,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    SyncService.instance.stopListening();
     try {
       await AuthService.instance.signOut();
     } catch (e) {
@@ -186,6 +399,8 @@ class AppState extends ChangeNotifier {
     _transactions.clear();
     _balance = 0.0;
     _budgets.clear();
+    _savingsGoals.clear();
+    _debts.clear();
     refreshRoast();
     notifyListeners();
     await saveToStorage();
@@ -234,6 +449,19 @@ class AppState extends ChangeNotifier {
         'recentRoastIds': _recentRoastIds,
       };
       await file.writeAsString(jsonEncode(data));
+
+      if (_userUid.isNotEmpty && !_userUid.startsWith('local_')) {
+        SyncService.instance.syncProfile({
+          'userName': _userName,
+          'userEmail': _userEmail,
+          'userGender': _userGender,
+          'selectedMascot': _selectedMascot,
+          'selectedLanguage': _selectedLanguage,
+          'displayTheme': _displayTheme,
+          'notificationTime': _notificationTime,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      }
     } catch (e) {
       debugPrint('Error saving user profile to storage: $e');
     }
@@ -335,6 +563,10 @@ class AppState extends ChangeNotifier {
       await loadCategoriesFromStorage();
       refreshRoast();
       notifyListeners();
+
+      if (_isAuthenticated && _userUid.isNotEmpty && !_userUid.startsWith('local_')) {
+        _initSync();
+      }
     } catch (e) {
       debugPrint('Error loading user profile from storage: $e');
     }
@@ -518,16 +750,18 @@ class AppState extends ChangeNotifier {
       debugPrint('Validation failed: Attempted to add future transaction date ${tx.date}');
       return;
     }
-    _transactions.insert(0, tx);
-    if (tx.type == TransactionType.expense) {
-      _balance -= tx.amount;
-    } else if (tx.type == TransactionType.income) {
-      _balance += tx.amount;
+    final syncedTx = tx.copyWith(updatedAt: DateTime.now());
+    _transactions.insert(0, syncedTx);
+    if (syncedTx.type == TransactionType.expense) {
+      _balance -= syncedTx.amount;
+    } else if (syncedTx.type == TransactionType.income) {
+      _balance += syncedTx.amount;
     }
     // Note: Transfers do not count as purchases or earnings.
     refreshRoast();
     notifyListeners();
     await saveTransactionsToStorage();
+    SyncService.instance.syncTransaction(syncedTx);
   }
 
   /// Delete transaction and adjust balance deterministically.
@@ -543,7 +777,51 @@ class AppState extends ChangeNotifier {
       refreshRoast();
       notifyListeners();
       await saveTransactionsToStorage();
+      SyncService.instance.deleteTransactionRemote(id);
     }
+  }
+
+  /// Update an existing transaction and adjust balance deterministically.
+  Future<bool> updateTransaction(Transaction updatedTx) async {
+    final idx = _transactions.indexWhere((t) => t.id == updatedTx.id);
+    if (idx < 0) return false;
+
+    // Disallow future transaction dates
+    if (DateRestriction.isFuture(updatedTx.date)) {
+      debugPrint('Validation failed: Attempted to update with future transaction date ${updatedTx.date}');
+      return false;
+    }
+
+    final oldTx = _transactions[idx];
+
+    // Revert old transaction's balance effect
+    if (oldTx.type == TransactionType.expense) {
+      _balance += oldTx.amount;
+    } else if (oldTx.type == TransactionType.income) {
+      _balance -= oldTx.amount;
+    }
+
+    // Apply updated transaction's balance effect
+    if (updatedTx.type == TransactionType.expense) {
+      _balance -= updatedTx.amount;
+    } else if (updatedTx.type == TransactionType.income) {
+      _balance += updatedTx.amount;
+    }
+
+    _transactions[idx] = updatedTx;
+    // Keep transactions sorted newest first by date
+    _transactions.sort((a, b) => b.date.compareTo(a.date));
+
+    final syncedTx = _transactions[idx].copyWith(updatedAt: DateTime.now());
+    _transactions[idx] = syncedTx;
+    // Keep transactions sorted newest first by date
+    _transactions.sort((a, b) => b.date.compareTo(a.date));
+
+    refreshRoast();
+    notifyListeners();
+    await saveTransactionsToStorage();
+    SyncService.instance.syncTransaction(syncedTx);
+    return true;
   }
 
   /// Calculate today's spending total (excluding internal transfers).
@@ -680,27 +958,31 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addBudget(Budget budget) async {
+    final syncedBudget = budget.copyWith(updatedAt: DateTime.now());
     final idx = _budgets.indexWhere((b) =>
-        b.category.toLowerCase().trim() == budget.category.toLowerCase().trim() &&
-        b.year == budget.year &&
-        b.month == budget.month);
+        b.category.toLowerCase().trim() == syncedBudget.category.toLowerCase().trim() &&
+        b.year == syncedBudget.year &&
+        b.month == syncedBudget.month);
     if (idx >= 0) {
-      _budgets[idx] = budget;
+      _budgets[idx] = syncedBudget;
     } else {
-      _budgets.add(budget);
+      _budgets.add(syncedBudget);
     }
     refreshRoast();
     notifyListeners();
     await saveBudgetsToStorage();
+    SyncService.instance.syncBudget(syncedBudget);
   }
 
   Future<void> updateBudget(Budget budget) async {
     final idx = _budgets.indexWhere((b) => b.id == budget.id);
     if (idx >= 0) {
-      _budgets[idx] = budget;
+      final syncedBudget = budget.copyWith(updatedAt: DateTime.now());
+      _budgets[idx] = syncedBudget;
       refreshRoast();
       notifyListeners();
       await saveBudgetsToStorage();
+      SyncService.instance.syncBudget(syncedBudget);
     }
   }
 
@@ -709,6 +991,7 @@ class AppState extends ChangeNotifier {
     refreshRoast();
     notifyListeners();
     await saveBudgetsToStorage();
+    SyncService.instance.deleteBudgetRemote(id);
   }
 
   // ─── Savings Goals State & Persistence ─────────────────────────────────────
@@ -780,22 +1063,26 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addSavingsGoal(SavingsGoal goal) async {
-    final idx = _savingsGoals.indexWhere((g) => g.id == goal.id);
+    final syncedGoal = goal.copyWith(updatedAt: DateTime.now());
+    final idx = _savingsGoals.indexWhere((g) => g.id == syncedGoal.id);
     if (idx >= 0) {
-      _savingsGoals[idx] = goal;
+      _savingsGoals[idx] = syncedGoal;
     } else {
-      _savingsGoals.insert(0, goal);
+      _savingsGoals.insert(0, syncedGoal);
     }
     notifyListeners();
     await saveSavingsGoalsToStorage();
+    SyncService.instance.syncSavingsGoal(syncedGoal);
   }
 
   Future<void> updateSavingsGoal(SavingsGoal goal) async {
     final idx = _savingsGoals.indexWhere((g) => g.id == goal.id);
     if (idx >= 0) {
-      _savingsGoals[idx] = goal;
+      final syncedGoal = goal.copyWith(updatedAt: DateTime.now());
+      _savingsGoals[idx] = syncedGoal;
       notifyListeners();
       await saveSavingsGoalsToStorage();
+      SyncService.instance.syncSavingsGoal(syncedGoal);
     }
   }
 
@@ -803,6 +1090,7 @@ class AppState extends ChangeNotifier {
     _savingsGoals.removeWhere((g) => g.id == id);
     notifyListeners();
     await saveSavingsGoalsToStorage();
+    SyncService.instance.deleteSavingsGoalRemote(id);
   }
 
   // ─── Lent & Borrowed Money State & Persistence ────────────────────────────
@@ -821,6 +1109,14 @@ class AppState extends ChangeNotifier {
   /// All fully settled records
   List<LentBorrowedRecord> get settledDebtRecords =>
       _debts.where((d) => d.isFullySettled).toList();
+
+  /// Testing helper to set debts directly in memory without disk I/O
+  @visibleForTesting
+  void setDebtsForTesting(List<LentBorrowedRecord> records) {
+    _debts.clear();
+    _debts.addAll(records);
+    notifyListeners();
+  }
 
   /// Total money user lent out that is still outstanding to collect (Receivable Asset).
   double get totalLentOutstanding {
@@ -918,14 +1214,16 @@ class AppState extends ChangeNotifier {
       debugPrint('Validation failed: Attempted to add future debt record date ${record.date}');
       return;
     }
-    final idx = _debts.indexWhere((d) => d.id == record.id);
+    final syncedRecord = record.copyWith(updatedAt: DateTime.now());
+    final idx = _debts.indexWhere((d) => d.id == syncedRecord.id);
     if (idx >= 0) {
-      _debts[idx] = record;
+      _debts[idx] = syncedRecord;
     } else {
-      _debts.insert(0, record);
+      _debts.insert(0, syncedRecord);
     }
     notifyListeners();
     await saveDebtsToStorage();
+    SyncService.instance.syncDebt(syncedRecord);
   }
 
   Future<void> updateDebt(LentBorrowedRecord record) async {
@@ -935,9 +1233,11 @@ class AppState extends ChangeNotifier {
     }
     final idx = _debts.indexWhere((d) => d.id == record.id);
     if (idx >= 0) {
-      _debts[idx] = record;
+      final syncedRecord = record.copyWith(updatedAt: DateTime.now());
+      _debts[idx] = syncedRecord;
       notifyListeners();
       await saveDebtsToStorage();
+      SyncService.instance.syncDebt(syncedRecord);
     }
   }
 
@@ -945,6 +1245,7 @@ class AppState extends ChangeNotifier {
     _debts.removeWhere((d) => d.id == id);
     notifyListeners();
     await saveDebtsToStorage();
+    SyncService.instance.deleteDebtRemote(id);
   }
 
   /// Records a repayment for a debt record safely.
@@ -979,9 +1280,14 @@ class AppState extends ChangeNotifier {
     final updatedRepayments = List<RepaymentRecord>.from(record.repayments)
       ..add(newRepayment);
 
-    _debts[idx] = record.copyWith(repayments: updatedRepayments);
+    final syncedRecord = record.copyWith(
+      repayments: updatedRepayments,
+      updatedAt: DateTime.now(),
+    );
+    _debts[idx] = syncedRecord;
     notifyListeners();
     await saveDebtsToStorage();
+    SyncService.instance.syncDebt(syncedRecord);
     return true;
   }
 
@@ -1151,16 +1457,22 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addCustomCategory(CategoryItem cat) async {
-    _customCategories.add(cat);
+    final syncedCat = cat.copyWith(updatedAt: DateTime.now());
+    _customCategories.add(syncedCat);
     notifyListeners();
     await saveCategoriesToStorage();
+    SyncService.instance.syncCategory(syncedCat);
   }
 
   Future<void> renameCategory(String id, String newName) async {
     final idx = _customCategories.indexWhere((c) => c.id == id);
     if (idx >= 0) {
       final oldName = _customCategories[idx].name;
-      _customCategories[idx] = _customCategories[idx].copyWith(name: newName);
+      final syncedCat = _customCategories[idx].copyWith(
+        name: newName,
+        updatedAt: DateTime.now(),
+      );
+      _customCategories[idx] = syncedCat;
 
       // Protect historical transactions: update any matching old category name
       bool txsUpdated = false;
@@ -1177,6 +1489,7 @@ class AppState extends ChangeNotifier {
             categoryColor: _transactions[i].categoryColor,
             date: _transactions[i].date,
             note: _transactions[i].note,
+            updatedAt: DateTime.now(),
           );
           txsUpdated = true;
         }
@@ -1184,8 +1497,12 @@ class AppState extends ChangeNotifier {
 
       notifyListeners();
       await saveCategoriesToStorage();
+      if (syncedCat.isCustom) {
+        SyncService.instance.syncCategory(syncedCat);
+      }
       if (txsUpdated) {
         await saveTransactionsToStorage();
+        SyncService.instance.syncAllTransactions(_transactions);
       }
     }
   }
@@ -1211,6 +1528,7 @@ class AppState extends ChangeNotifier {
             categoryColor: AppTheme.textGrey,
             date: _transactions[i].date,
             note: _transactions[i].note,
+            updatedAt: DateTime.now(),
           );
           txsUpdated = true;
         }
@@ -1218,8 +1536,10 @@ class AppState extends ChangeNotifier {
 
       notifyListeners();
       await saveCategoriesToStorage();
+      SyncService.instance.deleteCategoryRemote(id);
       if (txsUpdated) {
         await saveTransactionsToStorage();
+        SyncService.instance.syncAllTransactions(_transactions);
       }
     }
   }

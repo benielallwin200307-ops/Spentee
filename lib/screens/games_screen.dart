@@ -326,22 +326,21 @@ class _GamesScreenState extends State<GamesScreen> {
                         Row(
                           children: [
                             Container(
-                              width: 58,
-                              height: 58,
+                              width: 56,
+                              height: 56,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: AppTheme.primaryMint.withValues(alpha: 0.15),
+                                border: Border.all(
+                                  color: AppTheme.primaryMint.withValues(alpha: 0.4),
+                                  width: 1.5,
+                                ),
                               ),
-                              child: ClipOval(
-                                child: Image.asset(
-                                  MascotThemeData.of(context)
-                                      .getAvatarAsset(MascotExpression.win),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Icon(Icons.emoji_events_rounded,
-                                          color: MascotThemeData.of(context)
-                                              .primaryAccent,
-                                          size: 28),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.extension_rounded,
+                                  color: AppTheme.primaryMint,
+                                  size: 28,
                                 ),
                               ),
                             ),

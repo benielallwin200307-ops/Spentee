@@ -6,8 +6,9 @@ import '../models/transaction.dart';
 import 'add_transaction_screen.dart';
 import 'transactions_screen.dart';
 import 'roast_screen.dart';
-import 'budget_management_screen.dart';
 import 'lent_borrowed_screen.dart';
+import 'edit_transaction_screen.dart';
+import '../widgets/transaction_details_modal.dart';
 
 /// Screen 9 — Home / Dashboard Screen
 /// Matches the reference storyboard: greeting, balance card, 3 shortcut buttons,
@@ -38,7 +39,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _showCharacterSelectionSheet(BuildContext context, AppState state) {
+  void _showThemeSelectionSheet(BuildContext context, AppState state) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.bgCard,
@@ -51,7 +52,7 @@ class HomeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Choose Your Mascot',
+              'Theme Accent',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -60,7 +61,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Select your financial partner to personalize roasts and advice',
+              'Select your preferred color accent for charts and highlights',
               style: TextStyle(color: AppTheme.textGrey, fontSize: 13),
               textAlign: TextAlign.center,
             ),
@@ -69,8 +70,9 @@ class HomeScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 GestureMapOption(
-                  name: 'Male Mascot',
-                  imagePath: 'Assets/extracted/mascot_main.png',
+                  name: 'Neon Mint',
+                  color: const Color(0xFF00E676),
+                  icon: Icons.eco_rounded,
                   isSelected: state.selectedMascot == 'male',
                   onTap: () {
                     state.setSelectedMascot('male');
@@ -78,8 +80,9 @@ class HomeScreen extends StatelessWidget {
                   },
                 ),
                 GestureMapOption(
-                  name: 'Female Mascot',
-                  imagePath: 'Assets/extracted/female_main.png',
+                  name: 'Radiant Pink',
+                  color: const Color(0xFFFF528E),
+                  icon: Icons.favorite_rounded,
                   isSelected: state.selectedMascot == 'female',
                   onTap: () {
                     state.setSelectedMascot('female');
@@ -100,8 +103,9 @@ class HomeScreen extends StatelessWidget {
     final appState = AppStateScope.of(context);
     final theme = appState.mascotTheme;
 
+    final availBal = appState.availableBalance;
     final balanceStr =
-        '₹ ${appState.balance.toStringAsFixed(appState.balance.truncateToDouble() == appState.balance ? 0 : 2)}';
+        '₹ ${availBal.toStringAsFixed(availBal.truncateToDouble() == availBal ? 0 : 2)}';
     final todaySpentStr =
         '₹${appState.todaySpending.toStringAsFixed(appState.todaySpending.truncateToDouble() == appState.todaySpending ? 0 : 2)}';
     final incomeStr =
@@ -152,16 +156,18 @@ class HomeScreen extends StatelessWidget {
                     ),
                     MascotAvatar(
                       size: 46,
-                      expression: MascotExpression.main,
+                      initials: appState.userName.isNotEmpty
+                          ? appState.userName[0]
+                          : 'A',
                       hasGlow: true,
-                      onTap: () =>
-                          _showCharacterSelectionSheet(context, appState),
+                      onTap: onOpenProfile ??
+                          () => _showThemeSelectionSheet(context, appState),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
 
-                // ─── Total Balance Card ─────────────────────────────────────
+                // ─── Available Balance Card ─────────────────────────────────
                 SpenteeCard(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -177,7 +183,7 @@ class HomeScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Total Balance',
+                              'Available Balance',
                               style: TextStyle(
                                 color: AppTheme.textGrey,
                                 fontSize: 13,
@@ -230,6 +236,7 @@ class HomeScreen extends StatelessWidget {
                                 ),
                               ],
                             ),
+
                             const SizedBox(height: 8),
                             Row(
                               children: [
@@ -249,22 +256,30 @@ class HomeScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      // Mascot illustration
+                      // Balance metric indicator
                       Container(
-                        width: 80,
-                        height: 80,
+                        width: 68,
+                        height: 68,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: theme.backgroundBadge,
+                          border: Border.all(
+                            color: theme.subtleBorder,
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.primaryAccent.withValues(alpha: 0.2),
+                              blurRadius: 14,
+                              spreadRadius: 1,
+                            ),
+                          ],
                         ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            theme.getAvatarAsset(MascotExpression.main),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Icon(Icons.face_rounded,
-                                    color: theme.primaryAccent,
-                                    size: 36),
+                        child: Center(
+                          child: Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: theme.primaryAccent,
+                            size: 32,
                           ),
                         ),
                       ),
@@ -299,16 +314,12 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _ActionShortcutButton(
-                        icon: Icons.wallet_rounded,
+                        icon: Icons.handshake_rounded,
                         iconColor: AppTheme.accentBlue,
-                        label: 'Budgets',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const BudgetManagementScreen(),
-                            ),
-                          );
-                        },
+                        label: 'Lend\n& Repay',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const LentBorrowedScreen()),
+                        ),
                       ),
                     ),
                   ],
@@ -337,15 +348,16 @@ class HomeScreen extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: AppTheme.accentBlue.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.accentBlue.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.asset(
-                            theme.getAvatarAsset(MascotExpression.main),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.smart_toy_rounded,
-                                    color: AppTheme.accentBlue, size: 22),
+                        child: const Center(
+                          child: Icon(
+                            Icons.auto_awesome_rounded,
+                            color: AppTheme.accentBlue,
+                            size: 22,
                           ),
                         ),
                       ),
@@ -377,90 +389,6 @@ class HomeScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const Icon(Icons.arrow_forward_ios_rounded,
-                          color: AppTheme.textGrey, size: 13),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // ─── Lent & Borrowed Quick Summary Card ─────────────────────
-                SpenteeCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  backgroundColor: const Color(0xFF091E25),
-                  border: Border.all(
-                    color: const Color(0xFF133C47),
-                    width: 1,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const LentBorrowedScreen()),
-                    );
-                  },
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0D323A),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF154854)),
-                        ),
-                        child: const Icon(
-                          Icons.handshake_rounded,
-                          color: Color(0xFF00E5FF),
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Lent & Borrowed Money',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              appState.activeLentRecords.isNotEmpty ||
-                                      appState.activeBorrowedRecords.isNotEmpty
-                                  ? '₹${appState.totalLentOutstanding.toStringAsFixed(0)} to collect • ₹${appState.totalBorrowedOutstanding.toStringAsFixed(0)} to repay'
-                                  : 'Track loans, repayments & funny reminders',
-                              style: const TextStyle(
-                                color: Color(0xFF88A6B2),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (appState.overdueDebtsCount > 0) ...[
-                        Container(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF3366).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${appState.overdueDebtsCount} Overdue',
-                            style: const TextStyle(
-                              color: Color(0xFFFF3366),
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
                       const Icon(Icons.arrow_forward_ios_rounded,
                           color: AppTheme.textGrey, size: 13),
                     ],
@@ -582,6 +510,7 @@ class HomeScreen extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final tx = recentTxs[index];
                       return SpenteeCard(
+                        onTap: () => TransactionDetailsModal.show(context, tx),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 12),
                         borderRadius: 16,
@@ -599,6 +528,8 @@ class HomeScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     tx.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 14,
@@ -630,6 +561,8 @@ class HomeScreen extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
+                            const SizedBox(width: 4),
+                            _buildTransactionMenu(context, tx),
                           ],
                         ),
                       );
@@ -641,6 +574,122 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionMenu(BuildContext context, Transaction tx) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: const Color(0xFF0C1B22),
+      ),
+      child: PopupMenuButton<String>(
+        icon: const Icon(
+          Icons.more_vert_rounded,
+          color: AppTheme.textGrey,
+          size: 20,
+        ),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        color: const Color(0xFF0C1B22),
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF1E3842), width: 1.2),
+        ),
+        onSelected: (value) async {
+          if (value == 'details') {
+            TransactionDetailsModal.show(context, tx);
+          } else if (value == 'edit') {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EditTransactionScreen(transaction: tx),
+              ),
+            );
+          } else if (value == 'delete') {
+            final confirmed =
+                await TransactionDetailsModal.showDeleteConfirmation(context, tx);
+            if (confirmed && context.mounted) {
+              final appState = AppStateScope.of(context);
+              await appState.deleteTransaction(tx.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF0D2526),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded,
+                            color: AppTheme.primaryMint, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Deleted ${tx.title} (${tx.formattedAmount})',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            }
+          }
+        },
+        itemBuilder: (ctx) => [
+          const PopupMenuItem<String>(
+            value: 'details',
+            child: Row(
+              children: [
+                Icon(Icons.visibility_rounded,
+                    color: AppTheme.primaryMint, size: 18),
+                SizedBox(width: 12),
+                Text('View Details',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_rounded,
+                    color: AppTheme.accentCyan, size: 18),
+                SizedBox(width: 12),
+                Text('Edit Transaction',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(height: 1),
+          const PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded,
+                    color: Color(0xFFEF4444), size: 18),
+                SizedBox(width: 12),
+                Text('Delete Transaction',
+                    style: TextStyle(
+                        color: Color(0xFFEF4444),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -701,56 +750,68 @@ class _ActionShortcutButton extends StatelessWidget {
   }
 }
 
-/// Helper for mascot selection modal.
+/// Helper for theme selection modal.
 class GestureMapOption extends StatelessWidget {
   final String name;
-  final String imagePath;
+  final String? imagePath;
+  final Color? color;
+  final IconData? icon;
   final bool isSelected;
   final VoidCallback onTap;
 
   const GestureMapOption({
     super.key,
     required this.name,
-    required this.imagePath,
+    this.imagePath,
+    this.color,
+    this.icon,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = color ?? AppTheme.primaryMint;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.primaryMint.withValues(alpha: 0.15)
+              ? activeColor.withValues(alpha: 0.15)
               : AppTheme.bgSurface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color:
-                isSelected ? AppTheme.primaryMint : Colors.transparent,
+            color: isSelected ? activeColor : const Color(0xFF14333F),
             width: 2,
           ),
         ),
         child: Column(
           children: [
             Container(
-              width: 70,
-              height: 70,
-              decoration: const BoxDecoration(shape: BoxShape.circle),
-              child: ClipOval(
-                child: Image.asset(imagePath, fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.face_rounded,
-                            color: AppTheme.primaryMint, size: 32)),
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: activeColor.withValues(alpha: 0.2),
+                border: Border.all(
+                  color: isSelected ? activeColor : activeColor.withValues(alpha: 0.5),
+                  width: 2,
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  icon ?? Icons.palette_rounded,
+                  color: activeColor,
+                  size: 26,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               name,
               style: TextStyle(
-                color: isSelected ? AppTheme.primaryMint : Colors.white,
+                color: isSelected ? activeColor : Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),

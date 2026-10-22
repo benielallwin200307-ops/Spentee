@@ -40,8 +40,6 @@ class _RoastScreenState extends State<RoastScreen> {
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
     final roast = appState.currentRoast;
-    final theme = MascotThemeData.of(context);
-    final roastAvatar = theme.getAvatarAsset(MascotExpression.roast);
 
     final expenseTxs = appState.transactions
         .where((t) => t.type == TransactionType.expense)
@@ -160,12 +158,17 @@ class _RoastScreenState extends State<RoastScreen> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Mascot with shades avatar
+                          // Witty Fire Badge Icon
                           Container(
-                            width: 80,
-                            height: 80,
+                            width: 72,
+                            height: 72,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
+                              color: AppTheme.accentPink.withValues(alpha: 0.15),
+                              border: Border.all(
+                                color: AppTheme.accentPink.withValues(alpha: 0.5),
+                                width: 2,
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: AppTheme.accentPink.withValues(alpha: 0.3),
@@ -174,13 +177,11 @@ class _RoastScreenState extends State<RoastScreen> {
                                 ),
                               ],
                             ),
-                            child: ClipOval(
-                              child: Image.asset(
-                                roastAvatar,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.face_rounded,
-                                        color: AppTheme.accentPink, size: 36),
+                            child: const Center(
+                              child: Icon(
+                                Icons.local_fire_department_rounded,
+                                color: AppTheme.accentPink,
+                                size: 36,
                               ),
                             ),
                           ),

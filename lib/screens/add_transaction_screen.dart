@@ -100,10 +100,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         icon: Icons.account_balance_rounded,
         color: AppTheme.accentBlue),
     _CategoryItem(
-        name: 'Sent to Friend',
-        icon: Icons.person_rounded,
-        color: AppTheme.accentPurple),
-    _CategoryItem(
         name: 'Savings Vault',
         icon: Icons.lock_clock_rounded,
         color: AppTheme.primaryMint),

@@ -117,7 +117,7 @@ void main() {
       expect(state.getSavedMascotForUser('bob_uid'), 'male');
     });
 
-    testWidgets('6. ChatScreen renders new pink banner for Female theme and male banner for Male theme', (WidgetTester tester) async {
+    testWidgets('6. ChatScreen renders clean fintech banner for Female theme and male theme without character art', (WidgetTester tester) async {
       final appState = AppState();
       appState.setSelectedMascot('female');
 
@@ -131,26 +131,27 @@ void main() {
       );
       await tester.pump();
 
-      // Female banner uses AspectRatio of 1024 / 430 and loads Assets/spentee_ai_female_banner.png
+      // Verify clean fintech AI banner content
+      expect(find.text('FINANCIAL AI'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome_rounded), findsWidgets);
+
+      // Verify no character banner images are rendered
       final femaleImageFinder = find.byWidgetPredicate((widget) =>
           widget is Image &&
           widget.image is AssetImage &&
           (widget.image as AssetImage).assetName == 'Assets/spentee_ai_female_banner.png');
-      expect(femaleImageFinder, findsOneWidget);
-
-      final aspectRatioFinder = find.byWidgetPredicate((widget) =>
-          widget is AspectRatio && (widget.aspectRatio - 1024 / 430).abs() < 0.001);
-      expect(aspectRatioFinder, findsOneWidget);
+      expect(femaleImageFinder, findsNothing);
 
       // Switch to male
       appState.setSelectedMascot('male');
       await tester.pump();
 
+      expect(find.text('FINANCIAL AI'), findsOneWidget);
       final maleImageFinder = find.byWidgetPredicate((widget) =>
           widget is Image &&
           widget.image is AssetImage &&
           (widget.image as AssetImage).assetName == 'Assets/extracted/chat_banner_mascot.png');
-      expect(maleImageFinder, findsOneWidget);
+      expect(maleImageFinder, findsNothing);
     });
   });
 }

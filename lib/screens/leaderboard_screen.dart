@@ -161,9 +161,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                           // Avatar
                           MascotAvatar(
                             size: 38,
-                            imagePath: isUser
-                                ? theme.getAvatarAsset(MascotExpression.main)
-                                : item.avatarPath,
+                            initials: isUser
+                                ? (appState.userName.isNotEmpty
+                                    ? appState.userName[0]
+                                    : 'U')
+                                : (item.username.isNotEmpty
+                                    ? item.username[0]
+                                    : 'P'),
                             hasGlow: isUser,
                           ),
                           const SizedBox(width: 12),
@@ -268,6 +272,7 @@ class _PodiumColumn extends StatelessWidget {
           height: isWinner ? 64 : 52,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            color: crownColor.withValues(alpha: 0.15),
             border: Border.all(color: crownColor, width: 2),
             boxShadow: [
               BoxShadow(
@@ -277,12 +282,14 @@ class _PodiumColumn extends StatelessWidget {
               ),
             ],
           ),
-          child: ClipOval(
-            child: Image.asset(
-              entry.avatarPath,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  Image.asset('Assets/extracted/mascot_main.png'),
+          child: Center(
+            child: Text(
+              entry.username.isNotEmpty ? entry.username[0].toUpperCase() : 'U',
+              style: TextStyle(
+                color: crownColor,
+                fontSize: isWinner ? 24 : 18,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
