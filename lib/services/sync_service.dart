@@ -8,6 +8,34 @@ import '../models/lent_borrowed_record.dart';
 import '../models/category_model.dart';
 import '../services/auth_service.dart';
 
+/// Represents the reconciled results from a two-way synchronization migration.
+class MigrationResult {
+  final List<Transaction> transactions;
+  final List<Budget> budgets;
+  final List<SavingsGoal> savingsGoals;
+  final List<LentBorrowedRecord> debts;
+  final List<CategoryItem> categories;
+  final Map<String, dynamic>? profile;
+
+  const MigrationResult({
+    required this.transactions,
+    required this.budgets,
+    required this.savingsGoals,
+    required this.debts,
+    required this.categories,
+    this.profile,
+  });
+
+  static const empty = MigrationResult(
+    transactions: [],
+    budgets: [],
+    savingsGoals: [],
+    debts: [],
+    categories: [],
+    profile: null,
+  );
+}
+
 /// Centralized Firestore synchronization service for cross-device data sync.
 ///
 /// Architecture:
@@ -63,7 +91,15 @@ class SyncService {
   // Explicitly set UID when available from AppState session
   String? _activeUid;
   void setActiveUid(String? uid) {
+    if (_activeUid != uid) {
+      _migrationDone = false;
+    }
     _activeUid = uid;
+  }
+
+  /// Reset migration flag to allow re-reconciliation (e.g. after auth change)
+  void resetMigration() {
+    _migrationDone = false;
   }
 
   /// Returns the current authenticated user's UID, or null if not authenticated.
@@ -87,10 +123,11 @@ class SyncService {
 
   // ─── Initial Migration ─────────────────────────────────────────────────────
 
-  /// Performs first-time migration: uploads all local records to Firestore
-  /// and downloads any existing cloud records that are missing locally.
+  /// Performs robust two-way migration: uploads all local records to Firestore,
+  /// downloads any existing cloud records that are missing locally, and returns
+  /// the unified, reconciled dataset so the caller updates immediately.
   /// This is additive-only — no records are deleted.
-  Future<void> performMigration({
+  Future<MigrationResult> performMigration({
     required List<Transaction> localTransactions,
     required List<Budget> localBudgets,
     required List<SavingsGoal> localSavingsGoals,
@@ -98,75 +135,110 @@ class SyncService {
     required List<CategoryItem> localCategories,
     required Map<String, dynamic> localProfile,
   }) async {
-    if (_migrationDone || _userDoc == null) return;
+    if (_migrationDone || _userDoc == null) {
+      return MigrationResult.empty;
+    }
 
     try {
       _suppressListeners = true;
 
-      // Migrate transactions
-      await _migrateCollection<Transaction>(
+      // 1. Reconcile transactions
+      final reconciledTxs = await _migrateCollection<Transaction>(
         collection: _transactionsCol!,
         localRecords: localTransactions,
         getId: (t) => t.id,
         toJson: (t) => t.toJson(),
         fromJson: (json) => Transaction.fromJson(json),
         getUpdatedAt: (t) => t.updatedAt,
+        getIsDeleted: (t) => t.isDeleted,
       );
 
-      // Migrate budgets
-      await _migrateCollection<Budget>(
+      // 2. Reconcile budgets
+      final reconciledBudgets = await _migrateCollection<Budget>(
         collection: _budgetsCol!,
         localRecords: localBudgets,
         getId: (b) => b.id,
         toJson: (b) => b.toJson(),
         fromJson: (json) => Budget.fromJson(json),
         getUpdatedAt: (b) => b.updatedAt,
+        getIsDeleted: (b) => b.isDeleted,
       );
 
-      // Migrate savings goals
-      await _migrateCollection<SavingsGoal>(
+      // 3. Reconcile savings goals
+      final reconciledGoals = await _migrateCollection<SavingsGoal>(
         collection: _savingsGoalsCol!,
         localRecords: localSavingsGoals,
         getId: (g) => g.id,
         toJson: (g) => g.toJson(),
         fromJson: (json) => SavingsGoal.fromJson(json),
         getUpdatedAt: (g) => g.updatedAt,
+        getIsDeleted: (g) => g.isDeleted,
       );
 
-      // Migrate debts
-      await _migrateCollection<LentBorrowedRecord>(
+      // 4. Reconcile debts with deep repayment merging
+      final reconciledDebts = await _migrateDebts(
         collection: _debtsCol!,
         localRecords: localDebts,
-        getId: (d) => d.id,
-        toJson: (d) => d.toJson(),
-        fromJson: (json) => LentBorrowedRecord.fromJson(json),
-        getUpdatedAt: (d) => d.updatedAt,
       );
 
-      // Migrate custom categories (only custom ones to avoid duplicating defaults)
+      // 5. Reconcile custom categories (only custom ones stored in Firestore)
       final customCats = localCategories.where((c) => c.isCustom).toList();
-      await _migrateCollection<CategoryItem>(
+      final reconciledCategories = await _migrateCollection<CategoryItem>(
         collection: _categoriesCol!,
         localRecords: customCats,
         getId: (c) => c.id,
         toJson: (c) => c.toJson(),
         fromJson: (json) => CategoryItem.fromJson(json),
         getUpdatedAt: (c) => c.updatedAt,
+        getIsDeleted: (c) => c.isDeleted,
       );
 
-      // Migrate profile
-      await _migrateProfile(localProfile);
+      // 6. Reconcile profile
+      final reconciledProfile = await _migrateProfile(localProfile);
 
       _migrationDone = true;
       debugPrint('[SyncService] Migration completed successfully');
+
+      // Un-suppress listeners before triggering callbacks
+      _suppressListeners = false;
+
+      // Dispatch reconciled data directly to callbacks for instantaneous local update
+      if (reconciledTxs.isNotEmpty || localTransactions.isNotEmpty) {
+        onTransactionsChanged?.call(reconciledTxs);
+      }
+      if (reconciledBudgets.isNotEmpty || localBudgets.isNotEmpty) {
+        onBudgetsChanged?.call(reconciledBudgets);
+      }
+      if (reconciledGoals.isNotEmpty || localSavingsGoals.isNotEmpty) {
+        onSavingsGoalsChanged?.call(reconciledGoals);
+      }
+      if (reconciledDebts.isNotEmpty || localDebts.isNotEmpty) {
+        onDebtsChanged?.call(reconciledDebts);
+      }
+      if (reconciledCategories.isNotEmpty || customCats.isNotEmpty) {
+        onCategoriesChanged?.call(reconciledCategories);
+      }
+      if (reconciledProfile != null) {
+        onProfileChanged?.call(reconciledProfile);
+      }
+
+      return MigrationResult(
+        transactions: reconciledTxs,
+        budgets: reconciledBudgets,
+        savingsGoals: reconciledGoals,
+        debts: reconciledDebts,
+        categories: reconciledCategories,
+        profile: reconciledProfile,
+      );
     } catch (e) {
       debugPrint('[SyncService] Migration error: $e');
+      return MigrationResult.empty;
     } finally {
       _suppressListeners = false;
     }
   }
 
-  /// Generic migration for a collection: upload local, merge with cloud.
+  /// Generic two-way collection reconciliation: uploads local, merges with cloud.
   Future<List<T>> _migrateCollection<T>({
     required CollectionReference collection,
     required List<T> localRecords,
@@ -174,25 +246,30 @@ class SyncService {
     required Map<String, dynamic> Function(T) toJson,
     required T Function(Map<String, dynamic>) fromJson,
     required DateTime Function(T) getUpdatedAt,
+    required bool Function(T) getIsDeleted,
   }) async {
-    final newFromCloud = <T>[];
+    final reconciledMap = <String, T>{};
 
     try {
-      // Get all existing cloud documents
+      // 1. Fetch all existing cloud documents
       final cloudSnapshot = await collection.get();
       final cloudDocs = <String, Map<String, dynamic>>{};
       for (final doc in cloudSnapshot.docs) {
         cloudDocs[doc.id] = doc.data() as Map<String, dynamic>;
       }
 
-      // Upload local records (set with merge to avoid overwriting newer cloud data)
+      // 2. Preload local records
+      for (final record in localRecords) {
+        reconciledMap[getId(record)] = record;
+      }
+
+      // 3. Compare local records against cloud documents
       for (final record in localRecords) {
         final id = getId(record);
         final localJson = toJson(record);
         final localUpdatedAt = getUpdatedAt(record);
 
         if (cloudDocs.containsKey(id)) {
-          // Record exists in cloud — compare timestamps
           final cloudJson = cloudDocs[id]!;
           final cloudUpdatedAtStr = cloudJson['updatedAt'] as String?;
           final cloudUpdatedAt = cloudUpdatedAtStr != null
@@ -202,11 +279,13 @@ class SyncService {
           if (localUpdatedAt.isAfter(cloudUpdatedAt)) {
             // Local is newer — update cloud
             await collection.doc(id).set(localJson);
+            reconciledMap[id] = record;
           } else if (cloudUpdatedAt.isAfter(localUpdatedAt)) {
-            // Cloud is newer — this will be picked up by the listener
-            newFromCloud.add(fromJson(cloudJson));
+            // Cloud is newer — update local state
+            final cloudRecord = fromJson(cloudJson);
+            reconciledMap[id] = cloudRecord;
           }
-          // Same timestamp — no-op
+          // Remove processed document from cloudDocs
           cloudDocs.remove(id);
         } else {
           // Record doesn't exist in cloud — upload it
@@ -214,31 +293,99 @@ class SyncService {
         }
       }
 
-      // Download cloud records that don't exist locally
+      // 4. Download cloud records that do not exist locally
       for (final entry in cloudDocs.entries) {
-        newFromCloud.add(fromJson(entry.value));
+        final cloudRecord = fromJson(entry.value);
+        reconciledMap[entry.key] = cloudRecord;
       }
     } catch (e) {
       debugPrint('[SyncService] Collection migration error: $e');
     }
 
-    return newFromCloud;
+    return reconciledMap.values.where((item) => !getIsDeleted(item)).toList();
   }
 
-  /// Migrate user profile to Firestore.
-  Future<void> _migrateProfile(Map<String, dynamic> localProfile) async {
+  /// Two-way debt reconciliation with deep repayment union.
+  Future<List<LentBorrowedRecord>> _migrateDebts({
+    required CollectionReference collection,
+    required List<LentBorrowedRecord> localRecords,
+  }) async {
+    final reconciledMap = <String, LentBorrowedRecord>{};
+
+    try {
+      final cloudSnapshot = await collection.get();
+      final cloudDocs = <String, Map<String, dynamic>>{};
+      for (final doc in cloudSnapshot.docs) {
+        cloudDocs[doc.id] = doc.data() as Map<String, dynamic>;
+      }
+
+      for (final local in localRecords) {
+        reconciledMap[local.id] = local;
+      }
+
+      for (final local in localRecords) {
+        final id = local.id;
+
+        if (cloudDocs.containsKey(id)) {
+          final cloudJson = cloudDocs[id]!;
+          final cloudRecord = LentBorrowedRecord.fromJson(cloudJson);
+          final cloudUpdatedAt = cloudRecord.updatedAt;
+
+          // Merge repayments by ID
+          final repMap = <String, RepaymentRecord>{};
+          for (final r in local.repayments) {
+            repMap[r.id] = r;
+          }
+          for (final r in cloudRecord.repayments) {
+            repMap[r.id] = r;
+          }
+          final mergedRepayments = repMap.values.toList()
+            ..sort((a, b) => b.date.compareTo(a.date));
+
+          final bool localIsNewer = local.updatedAt.isAfter(cloudUpdatedAt);
+          final baseRecord = localIsNewer ? local : cloudRecord;
+          final reconciledDebt = baseRecord.copyWith(repayments: mergedRepayments);
+
+          reconciledMap[id] = reconciledDebt;
+          await collection.doc(id).set(reconciledDebt.toJson());
+          cloudDocs.remove(id);
+        } else {
+          await collection.doc(id).set(local.toJson());
+        }
+      }
+
+      for (final entry in cloudDocs.entries) {
+        final cloudRecord = LentBorrowedRecord.fromJson(entry.value);
+        reconciledMap[entry.key] = cloudRecord;
+      }
+    } catch (e) {
+      debugPrint('[SyncService] Debts migration error: $e');
+    }
+
+    return reconciledMap.values.where((d) => !d.isDeleted).toList();
+  }
+
+  /// Migrate user profile to Firestore with two-way merging.
+  Future<Map<String, dynamic>?> _migrateProfile(Map<String, dynamic> localProfile) async {
     try {
       final profileDoc = _userDoc?.collection('settings').doc('profile');
-      if (profileDoc == null) return;
+      if (profileDoc == null) return localProfile;
 
       final cloudSnapshot = await profileDoc.get();
       if (!cloudSnapshot.exists) {
         // No cloud profile — upload local
         await profileDoc.set(localProfile);
+        return localProfile;
+      } else {
+        // Cloud profile exists — merge with local
+        final cloudData = cloudSnapshot.data() ?? {};
+        final mergedProfile = Map<String, dynamic>.from(localProfile)
+          ..addAll(cloudData);
+        return mergedProfile;
       }
-      // If cloud profile exists, keep it (don't overwrite user settings)
     } catch (e) {
       debugPrint('[SyncService] Profile migration error: $e');
+      return localProfile;
     }
   }
 
@@ -286,15 +433,11 @@ class SyncService {
       for (final doc in snapshot.docs) {
         try {
           final data = doc.data() as Map<String, dynamic>;
-          final tx = Transaction.fromJson(data);
-          if (!tx.isDeleted) {
-            transactions.add(tx);
-          }
+          transactions.add(Transaction.fromJson(data));
         } catch (e) {
           debugPrint('[SyncService] Error parsing transaction: $e');
         }
       }
-      // Sort newest first
       transactions.sort((a, b) => b.date.compareTo(a.date));
       onTransactionsChanged?.call(transactions);
     }, onError: (e) {
@@ -313,10 +456,7 @@ class SyncService {
       for (final doc in snapshot.docs) {
         try {
           final data = doc.data() as Map<String, dynamic>;
-          final budget = Budget.fromJson(data);
-          if (!budget.isDeleted) {
-            budgets.add(budget);
-          }
+          budgets.add(Budget.fromJson(data));
         } catch (e) {
           debugPrint('[SyncService] Error parsing budget: $e');
         }
@@ -338,10 +478,7 @@ class SyncService {
       for (final doc in snapshot.docs) {
         try {
           final data = doc.data() as Map<String, dynamic>;
-          final goal = SavingsGoal.fromJson(data);
-          if (!goal.isDeleted) {
-            goals.add(goal);
-          }
+          goals.add(SavingsGoal.fromJson(data));
         } catch (e) {
           debugPrint('[SyncService] Error parsing savings goal: $e');
         }
@@ -363,10 +500,7 @@ class SyncService {
       for (final doc in snapshot.docs) {
         try {
           final data = doc.data() as Map<String, dynamic>;
-          final debt = LentBorrowedRecord.fromJson(data);
-          if (!debt.isDeleted) {
-            debts.add(debt);
-          }
+          debts.add(LentBorrowedRecord.fromJson(data));
         } catch (e) {
           debugPrint('[SyncService] Error parsing debt record: $e');
         }
@@ -532,12 +666,16 @@ class SyncService {
     }
   }
 
-  /// Delete a category document from Firestore.
+  /// Delete a category document from Firestore (soft-delete).
   Future<void> deleteCategoryRemote(String id) async {
     try {
       final col = _categoriesCol;
       if (col == null) return;
-      await col.doc(id).delete();
+      await col.doc(id).set({
+        'id': id,
+        'isDeleted': true,
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[SyncService] Error deleting category $id: $e');
     }
@@ -586,4 +724,52 @@ class SyncService {
       debugPrint('[SyncService] Error bulk syncing transactions: $e');
     }
   }
+
+  /// Delete all remote Firestore data associated with a user UID:
+  /// queries and deletes all documents in all subcollections (transactions, budgets,
+  /// savings_goals, debts, categories, settings) and deletes the root user document.
+  Future<void> deleteAllUserData(String uid) async {
+    final firestore = _firestore;
+    if (firestore == null || uid.isEmpty) return;
+
+    final userDoc = firestore.collection('users').doc(uid);
+    final subcollections = [
+      'transactions',
+      'budgets',
+      'savings_goals',
+      'debts',
+      'categories',
+      'settings',
+    ];
+
+    for (final sub in subcollections) {
+      final col = userDoc.collection(sub);
+      final snapshot = await col.get();
+      if (snapshot.docs.isNotEmpty) {
+        final batches = <WriteBatch>[];
+        var batch = firestore.batch();
+        var count = 0;
+        for (final doc in snapshot.docs) {
+          batch.delete(doc.reference);
+          count++;
+          if (count >= 450) {
+            batches.add(batch);
+            batch = firestore.batch();
+            count = 0;
+          }
+        }
+        if (count > 0) {
+          batches.add(batch);
+        }
+        for (final b in batches) {
+          await b.commit();
+        }
+      }
+    }
+
+    // Finally delete the parent user document itself
+    await userDoc.delete();
+    debugPrint('[SyncService] Successfully wiped all Firestore records for user $uid');
+  }
 }
+

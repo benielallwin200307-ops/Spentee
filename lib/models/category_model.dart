@@ -1,3 +1,4 @@
+// ignore_for_file: non_const_argument_for_const_parameter
 import 'package:flutter/material.dart';
 import 'transaction.dart';
 
@@ -10,6 +11,7 @@ class CategoryItem {
   final IconData icon;
   final Color color;
   final DateTime updatedAt;
+  final bool isDeleted;
 
   CategoryItem({
     required this.id,
@@ -19,6 +21,7 @@ class CategoryItem {
     required this.icon,
     required this.color,
     DateTime? updatedAt,
+    this.isDeleted = false,
   }) : updatedAt = updatedAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
@@ -28,7 +31,11 @@ class CategoryItem {
       'isExpense': isExpense,
       'isCustom': isCustom,
       'colorValue': color.toARGB32(),
+      'iconCodePoint': icon.codePoint,
+      'iconFontFamily': icon.fontFamily,
+      'iconFontPackage': icon.fontPackage,
       'updatedAt': updatedAt.toIso8601String(),
+      'isDeleted': isDeleted,
     };
   }
 
@@ -37,17 +44,34 @@ class CategoryItem {
     final isExpense = json['isExpense'] as bool? ?? true;
     final isCustom = json['isCustom'] as bool? ?? false;
     final colorVal = json['colorValue'] as int?;
+    final iconCodePoint = json['iconCodePoint'] as int?;
+    final iconFontFamily = json['iconFontFamily'] as String?;
+    final iconFontPackage = json['iconFontPackage'] as String?;
+
+    final IconData icon;
+    if (iconCodePoint != null) {
+      icon = IconData(
+        iconCodePoint,
+        fontFamily: iconFontFamily ?? 'MaterialIcons',
+        fontPackage: iconFontPackage,
+      );
+    } else if (isCustom) {
+      icon = Icons.label_rounded;
+    } else {
+      icon = Transaction.iconForCategory(name);
+    }
 
     return CategoryItem(
       id: json['id'] as String? ?? 'cat_${DateTime.now().millisecondsSinceEpoch}',
       name: name,
       isExpense: isExpense,
       isCustom: isCustom,
-      icon: Transaction.iconForCategory(name),
+      icon: icon,
       color: colorVal != null ? Color(colorVal) : Transaction.colorForCategory(name),
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
           : DateTime.now(),
+      isDeleted: json['isDeleted'] as bool? ?? false,
     );
   }
 
@@ -59,6 +83,7 @@ class CategoryItem {
     IconData? icon,
     Color? color,
     DateTime? updatedAt,
+    bool? isDeleted,
   }) {
     return CategoryItem(
       id: id ?? this.id,
@@ -68,6 +93,7 @@ class CategoryItem {
       icon: icon ?? this.icon,
       color: color ?? this.color,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 }

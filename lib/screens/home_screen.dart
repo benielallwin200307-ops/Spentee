@@ -538,7 +538,9 @@ class HomeScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    tx.formattedTime,
+                                    tx.personName != null && tx.personName!.isNotEmpty
+                                        ? '${tx.personName} • ${tx.formattedTime}'
+                                        : tx.formattedTime,
                                     style: const TextStyle(
                                       color: AppTheme.textGrey,
                                       fontSize: 11,
@@ -548,15 +550,9 @@ class HomeScreen extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              tx.type == TransactionType.income
-                                  ? '+${tx.formattedAmount}'
-                                  : tx.formattedAmount,
+                              tx.displaySignedAmount,
                               style: TextStyle(
-                                color: tx.type == TransactionType.income
-                                    ? AppTheme.primaryMint
-                                    : tx.type == TransactionType.transfer
-                                        ? AppTheme.accentBlue
-                                        : Colors.white,
+                                color: tx.displayAmountColor,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                               ),

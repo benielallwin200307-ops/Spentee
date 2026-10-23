@@ -60,26 +60,71 @@ class AuthService {
   }
 
   /// Authenticate using Google account selection and Firebase credentials.
-  /// Returns null if the user cancelled the account selection.
+  /// Used for general sign in. Returns null if user cancelled.
   Future<UserCredential?> signInWithGoogle() async {
-    // 1. Trigger the native Google account selection
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) {
-      // User cancelled the prompt
-      return null;
-    }
+    if (googleUser == null) return null;
 
-    // 2. Obtain the auth details (tokens) from the Google account
     final GoogleSignInAuthentication googleAuth =
         await googleUser.authentication;
-
-    // 3. Create a credential for Firebase
     final OAuthCredential credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
-    // 4. Sign in to Firebase Authentication
+    return await _auth.signInWithCredential(credential);
+  }
+
+  /// Sign in an existing Google user from the Login screen.
+  /// If the Google account does not already exist in Firebase Authentication,
+  /// the transiently created auth record is immediately purged and a
+  /// `FirebaseAuthException` with code 'user-not-found' is thrown,
+  /// preventing unintended automatic account registration.
+  Future<UserCredential?> signInWithGoogleForLogin() async {
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null;
+
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final userCredential = await _auth.signInWithCredential(credential);
+
+    // Verify if this is an existing registered user or a brand new account
+    final isNew = userCredential.additionalUserInfo?.isNewUser ?? false;
+    if (isNew) {
+      // User tapped Login but has never registered on Sign Up: abort and purge transient user
+      try {
+        await userCredential.user?.delete();
+      } catch (e) {
+        debugPrint('Error deleting transient Google user on login: $e');
+      }
+      await signOut();
+      throw FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'No account found. Please sign up first.',
+      );
+    }
+
+    return userCredential;
+  }
+
+  /// Sign up a new user using Google credentials on the Sign Up screen.
+  /// If the account already exists, the user is signed in to their existing account.
+  Future<UserCredential?> signUpWithGoogle() async {
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null;
+
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
     return await _auth.signInWithCredential(credential);
   }
 
@@ -100,6 +145,58 @@ class AuthService {
     await _auth.signOut();
   }
 
+  /// Delete the current authenticated Firebase user account.
+  /// Handles reauthentication if required (`requires-recent-login`).
+  Future<void> deleteAccount({String? passwordForReauth}) async {
+    final user = currentUser;
+    if (user == null) return;
+
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        final providers = user.providerData.map((p) => p.providerId).toList();
+
+        if (providers.contains('google.com')) {
+          final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+          if (googleUser == null) {
+            throw FirebaseAuthException(
+              code: 'reauth-cancelled',
+              message: 'Google re-authentication was cancelled.',
+            );
+          }
+          final GoogleSignInAuthentication googleAuth =
+              await googleUser.authentication;
+          final OAuthCredential credential = GoogleAuthProvider.credential(
+            accessToken: googleAuth.accessToken,
+            idToken: googleAuth.idToken,
+          );
+          await user.reauthenticateWithCredential(credential);
+          await user.delete();
+        } else if (passwordForReauth != null &&
+            passwordForReauth.isNotEmpty &&
+            user.email != null) {
+          final credential = EmailAuthProvider.credential(
+            email: user.email!,
+            password: passwordForReauth,
+          );
+          await user.reauthenticateWithCredential(credential);
+          await user.delete();
+        } else {
+          rethrow;
+        }
+      } else {
+        rethrow;
+      }
+    }
+
+    try {
+      if (await _googleSignIn.isSignedIn()) {
+        await _googleSignIn.signOut();
+      }
+    } catch (_) {}
+  }
+
   /// Translate Firebase and auth errors into user-friendly error messages.
   static String getErrorMessage(dynamic error) {
     if (error is FirebaseAuthException) {
@@ -109,7 +206,7 @@ class AuthService {
         case 'user-disabled':
           return 'This account has been disabled. Please contact support.';
         case 'user-not-found':
-          return 'No account found with this email. Please sign up first.';
+          return 'No account found. Please sign up first.';
         case 'wrong-password':
           return 'Incorrect password. Please try again.';
         case 'invalid-credential':
@@ -124,6 +221,10 @@ class AuthService {
           return 'Network error. Please check your internet connection.';
         case 'too-many-requests':
           return 'Too many attempts. Please try again later.';
+        case 'requires-recent-login':
+          return 'Please verify your credentials before deleting your account.';
+        case 'reauth-cancelled':
+          return 'Re-authentication was cancelled.';
         default:
           return error.message ?? 'Authentication error (${error.code}).';
       }
@@ -138,3 +239,4 @@ class AuthService {
     return 'Authentication failed. Please try again.';
   }
 }
+

@@ -1,21 +1,11 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/transaction.dart';
+import '../models/category_model.dart';
 import '../state/app_state.dart';
 import 'lent_borrowed_screen.dart';
+import 'category_management_screen.dart';
 import '../utils/date_restriction.dart';
-
-class _CategoryItem {
-  final String name;
-  final IconData icon;
-  final Color color;
-
-  const _CategoryItem({
-    required this.name,
-    required this.icon,
-    required this.color,
-  });
-}
 
 /// Screen 8 — Redesigned Add Transaction Screen
 /// Matches the reference UI with custom numeric keypad, category/date/note cards,
@@ -36,102 +26,152 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   late TransactionType _selectedType;
   String _amountStr = '0';
   DateTime _selectedDate = DateTime.now();
-  late _CategoryItem _selectedCategory;
+  CategoryItem? _selectedCategory;
   String _note = '';
   bool _isSaving = false;
 
-  final List<_CategoryItem> _expenseCategories = const [
-    _CategoryItem(
-        name: 'Food & Drinks',
-        icon: Icons.restaurant_rounded,
-        color: AppTheme.accentPink),
-    _CategoryItem(
-        name: 'Transport',
-        icon: Icons.directions_car_rounded,
-        color: AppTheme.accentCyan),
-    _CategoryItem(
-        name: 'Shopping',
-        icon: Icons.shopping_bag_rounded,
-        color: AppTheme.accentPurple),
-    _CategoryItem(
-        name: 'Bills & Utilities',
-        icon: Icons.receipt_long_rounded,
-        color: AppTheme.accentOrange),
-    _CategoryItem(
-        name: 'Entertainment',
-        icon: Icons.sports_esports_rounded,
-        color: AppTheme.accentBlue),
-    _CategoryItem(
-        name: 'Groceries',
-        icon: Icons.local_grocery_store_rounded,
-        color: Color(0xFF10B981)),
-    _CategoryItem(
-        name: 'Health & Care',
-        icon: Icons.medical_services_rounded,
-        color: Color(0xFFEF4444)),
-    _CategoryItem(
-        name: 'Others',
-        icon: Icons.more_horiz_rounded,
-        color: AppTheme.textGrey),
+  static const List<String> _accountOptions = [
+    'Primary Bank Account',
+    'Savings Account',
+    'Cash / Wallet',
+    'Secondary Bank Account',
   ];
 
-  final List<_CategoryItem> _incomeCategories = const [
-    _CategoryItem(
-        name: 'Salary',
-        icon: Icons.account_balance_wallet_rounded,
-        color: AppTheme.primaryMint),
-    _CategoryItem(
-        name: 'Freelance',
-        icon: Icons.laptop_mac_rounded,
-        color: AppTheme.accentCyan),
-    _CategoryItem(
-        name: 'Investments',
-        icon: Icons.trending_up_rounded,
-        color: AppTheme.accentPurple),
-    _CategoryItem(
-        name: 'Gift / Bonus',
-        icon: Icons.card_giftcard_rounded,
-        color: AppTheme.accentOrange),
-  ];
+  String _sourceAccount = 'Primary Bank Account';
+  String _destinationAccount = 'Savings Account';
 
-  final List<_CategoryItem> _transferCategories = const [
-    _CategoryItem(
-        name: 'Bank Transfer',
-        icon: Icons.account_balance_rounded,
-        color: AppTheme.accentBlue),
-    _CategoryItem(
-        name: 'Savings Vault',
-        icon: Icons.lock_clock_rounded,
-        color: AppTheme.primaryMint),
-    _CategoryItem(
-        name: 'Wallet Transfer',
-        icon: Icons.wallet_rounded,
-        color: AppTheme.accentCyan),
+  static final List<CategoryItem> _transferCategories = [
+    CategoryItem(
+      id: 'cat_own_account_transfer',
+      name: 'Own Account Transfer',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.swap_horiz_rounded,
+      color: AppTheme.accentBlue,
+    ),
+    CategoryItem(
+      id: 'cat_gold_investment',
+      name: 'Gold Investment',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.monetization_on_rounded,
+      color: AppTheme.accentAmber,
+    ),
+    CategoryItem(
+      id: 'cat_mutual_fund_sip',
+      name: 'Mutual Fund / SIP',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.auto_graph_rounded,
+      color: AppTheme.accentCyan,
+    ),
+    CategoryItem(
+      id: 'cat_stocks_etfs',
+      name: 'Stocks & ETFs',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.trending_up_rounded,
+      color: AppTheme.primaryMint,
+    ),
+    CategoryItem(
+      id: 'cat_savings_deposits',
+      name: 'Savings & Deposits',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.savings_rounded,
+      color: AppTheme.primaryMint,
+    ),
+    CategoryItem(
+      id: 'cat_retirement_investments',
+      name: 'Retirement Investments',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.shield_rounded,
+      color: AppTheme.accentPurple,
+    ),
+    CategoryItem(
+      id: 'cat_other_investment',
+      name: 'Other Investment',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.account_balance_wallet_rounded,
+      color: AppTheme.textGrey,
+    ),
+    // Historical categories preserved for backward compatibility
+    CategoryItem(
+      id: 'cat_bank_transfer',
+      name: 'Bank Transfer',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.account_balance_rounded,
+      color: AppTheme.accentBlue,
+    ),
+    CategoryItem(
+      id: 'cat_savings_vault',
+      name: 'Savings Vault',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.lock_clock_rounded,
+      color: AppTheme.primaryMint,
+    ),
+    CategoryItem(
+      id: 'cat_wallet_transfer',
+      name: 'Wallet Transfer',
+      isExpense: false,
+      isCustom: false,
+      icon: Icons.wallet_rounded,
+      color: AppTheme.accentCyan,
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
     _selectedType = widget.initialType;
-    _selectedCategory = _categoriesForType.first;
   }
 
-  List<_CategoryItem> get _categoriesForType {
+  List<CategoryItem> _categoriesForType(AppState appState) {
     switch (_selectedType) {
       case TransactionType.expense:
-        return _expenseCategories;
+        return appState.customCategories.where((c) => c.isExpense).toList();
       case TransactionType.income:
-        return _incomeCategories;
+        return appState.customCategories.where((c) => !c.isExpense).toList();
       case TransactionType.transfer:
         return _transferCategories;
+      default:
+        return appState.customCategories.where((c) => c.isExpense).toList();
     }
+  }
+
+  CategoryItem _resolveCategory(AppState appState) {
+    final available = _categoriesForType(appState);
+    if (available.isEmpty) {
+      return CategoryItem(
+        id: 'cat_others',
+        name: 'Others',
+        isExpense: _selectedType == TransactionType.expense,
+        isCustom: false,
+        icon: Icons.more_horiz_rounded,
+        color: AppTheme.textGrey,
+      );
+    }
+    if (_selectedCategory != null) {
+      final match = available.firstWhere(
+        (c) =>
+            c.name.toLowerCase().trim() ==
+            _selectedCategory!.name.toLowerCase().trim(),
+        orElse: () => available.first,
+      );
+      return match;
+    }
+    return available.first;
   }
 
   void _onTypeSelected(TransactionType type) {
     if (_selectedType == type) return;
     setState(() {
       _selectedType = type;
-      _selectedCategory = _categoriesForType.first;
+      _selectedCategory = null;
     });
   }
 
@@ -174,7 +214,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     return '${d.day} ${months[d.month]} ${d.year}';
   }
 
-  void _showCategoryPicker() {
+  void _showCategoryPicker(AppState appState) {
+    final categories = _categoriesForType(appState);
+    final activeCat = _resolveCategory(appState);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0A181D),
@@ -213,27 +256,74 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF112A32),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: const Color(0xFF1B424E), width: 1),
-                      ),
-                      child: Text(
-                        _selectedType == TransactionType.expense
-                            ? 'Expense'
-                            : _selectedType == TransactionType.income
-                                ? 'Income'
-                                : 'Transfer',
-                        style: const TextStyle(
-                          color: AppTheme.primaryMint,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                    Row(
+                      children: [
+                        if (_selectedType != TransactionType.transfer)
+                          GestureDetector(
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const CategoryManagementScreen(),
+                                ),
+                              );
+                              if (mounted) setState(() {});
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryMint
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: AppTheme.primaryMint
+                                        .withValues(alpha: 0.4),
+                                    width: 1),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.add_rounded,
+                                      color: AppTheme.primaryMint, size: 14),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Manage',
+                                    style: TextStyle(
+                                      color: AppTheme.primaryMint,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF112A32),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: const Color(0xFF1B424E), width: 1),
+                          ),
+                          child: Text(
+                            _selectedType == TransactionType.expense
+                                ? 'Expense'
+                                : _selectedType == TransactionType.income
+                                    ? 'Income'
+                                    : 'Transfer',
+                            style: const TextStyle(
+                              color: AppTheme.primaryMint,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -252,10 +342,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
                     ),
-                    itemCount: _categoriesForType.length,
+                    itemCount: categories.length,
                     itemBuilder: (context, index) {
-                      final cat = _categoriesForType[index];
-                      final isSelected = cat.name == _selectedCategory.name;
+                      final cat = categories[index];
+                      final isSelected = cat.name.toLowerCase().trim() ==
+                          activeCat.name.toLowerCase().trim();
 
                       return GestureDetector(
                         onTap: () {
@@ -501,6 +592,116 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  void _showAccountPicker(bool isSource) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF071319),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3842),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  isSource ? 'Select Source Account' : 'Select Destination Account',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ..._accountOptions.map((acc) {
+                  final isSelected = isSource
+                      ? _sourceAccount == acc
+                      : _destinationAccount == acc;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        setState(() {
+                          if (isSource) {
+                            _sourceAccount = acc;
+                          } else {
+                            _destinationAccount = acc;
+                          }
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppTheme.primaryMint.withValues(alpha: 0.12)
+                              : const Color(0xFF0C1F26),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppTheme.primaryMint
+                                : const Color(0xFF14353F),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              acc.toLowerCase().contains('cash')
+                                  ? Icons.wallet_rounded
+                                  : Icons.account_balance_rounded,
+                              color: isSelected
+                                  ? AppTheme.primaryMint
+                                  : AppTheme.textGrey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                acc,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : const Color(0xFFCFDEE3),
+                                  fontSize: 14,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppTheme.primaryMint,
+                                size: 18,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _onSave() async {
     if (_isSaving) return;
 
@@ -557,22 +758,55 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    final appState = AppStateScope.of(context);
+    final activeCat = _resolveCategory(appState);
+    final isOwnAccount = _selectedType == TransactionType.transfer &&
+        !Transaction.isInvestmentCategory(activeCat.name);
+
+    if (isOwnAccount && _sourceAccount == _destinationAccount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF2A101C),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          content: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded,
+                  color: AppTheme.accentPink, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Source and destination accounts must be different!',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
 
     try {
-      final appState = AppStateScope.of(context);
       final newTx = Transaction(
         id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
-        title: _selectedCategory.name,
+        title: activeCat.name,
         amount: parsedAmount,
         type: _selectedType,
-        category: _selectedCategory.name,
-        icon: _selectedCategory.icon,
-        categoryColor: _selectedCategory.color,
+        category: activeCat.name,
+        icon: activeCat.icon,
+        categoryColor: activeCat.color,
         date: _selectedDate,
         note: _note.trim(),
+        sourceAccount:
+            _selectedType == TransactionType.transfer ? _sourceAccount : null,
+        destinationAccount: isOwnAccount ? _destinationAccount : null,
       );
 
       // Persist to database/storage
@@ -630,6 +864,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = MascotThemeData.of(context);
+    final appState = AppStateScope.of(context);
+    final activeCat = _resolveCategory(appState);
     return Scaffold(
       backgroundColor: const Color(0xFF040A0F),
       body: Stack(
@@ -945,14 +1181,39 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ─── Transaction Detail Rows (Category, Date, Note) ──────
                     // Row 1: Category
                     _buildDetailCard(
-                      icon: _selectedCategory.icon,
-                      iconColor: const Color(0xFFFF3377),
-                      badgeBgColor: const Color(0xFF2C1422),
-                      badgeBorderColor: const Color(0xFF5A1E3C),
+                      icon: activeCat.icon,
+                      iconColor: activeCat.color,
+                      badgeBgColor: activeCat.color.withValues(alpha: 0.16),
+                      badgeBorderColor: activeCat.color.withValues(alpha: 0.35),
                       label: 'Category',
-                      value: _selectedCategory.name,
-                      onTap: _showCategoryPicker,
+                      value: activeCat.name,
+                      onTap: () => _showCategoryPicker(appState),
                     ),
+
+                    if (_selectedType == TransactionType.transfer) ...[
+                      const SizedBox(height: 10),
+                      _buildDetailCard(
+                        icon: Icons.account_balance_wallet_rounded,
+                        iconColor: const Color(0xFF00E5FF),
+                        badgeBgColor: const Color(0xFF0F2B33),
+                        badgeBorderColor: const Color(0xFF144D59),
+                        label: 'From Account',
+                        value: _sourceAccount,
+                        onTap: () => _showAccountPicker(true),
+                      ),
+                      if (!Transaction.isInvestmentCategory(activeCat.name)) ...[
+                        const SizedBox(height: 10),
+                        _buildDetailCard(
+                          icon: Icons.account_balance_rounded,
+                          iconColor: const Color(0xFF2979FF),
+                          badgeBgColor: const Color(0xFF0B1F33),
+                          badgeBorderColor: const Color(0xFF173D66),
+                          label: 'To Account',
+                          value: _destinationAccount,
+                          onTap: () => _showAccountPicker(false),
+                        ),
+                      ],
+                    ],
 
                     const SizedBox(height: 10),
 

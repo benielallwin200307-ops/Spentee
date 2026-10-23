@@ -17,34 +17,17 @@ import '../utils/date_restriction.dart';
 
 /// Central state manager with persistent user profile and theme preferences.
 class AppState extends ChangeNotifier {
-  // Balance (starts strictly at 0.0 for new users)
-  // Balance (starts strictly at 0.0 for new users)
-  // _balance only reflects income/expense transactions.
-  // Use availableBalance for the true spendable cash position.
+  // Main Balance: reflects actual money available after income, expenses,
+  // investments, lending, borrowing, and repayments.
   double _balance = 0.0;
   double get balance => _balance;
 
-  /// Spendable cash in hand:
-  /// = income − expenses − money lent (net of repayments received)
-  ///                      + money borrowed (net of repayments made)
-  double get availableBalance {
-    double lentNet = 0.0;
-    double borrowedNet = 0.0;
-    for (final d in _debts) {
-      if (d.type == DebtType.lent) {
-        // Lent reduces available cash; repayments received restore it
-        lentNet += d.amount - d.repaidAmount;
-      } else {
-        // Borrowed increases available cash; repayments made reduce it
-        borrowedNet += d.amount - d.repaidAmount;
-      }
-    }
-    return _balance - lentNet + borrowedNet;
-  }
+  /// Spendable cash in hand (equals Main Balance, reflecting all debt inflows and outflows).
+  double get availableBalance => _balance;
 
-  /// Net Worth = Available Balance + Money to Collect − Money to Repay
+  /// Net Worth = Main Balance + Money to Collect − Money to Repay
   double get netWorth =>
-      availableBalance + totalLentOutstanding - totalBorrowedOutstanding;
+      _balance + totalLentOutstanding - totalBorrowedOutstanding;
 
 
   // User Profile
@@ -63,12 +46,11 @@ class AppState extends ChangeNotifier {
   bool _isAuthenticated = false;
   bool get isAuthenticated => _isAuthenticated;
 
-  // Selected mascot ('male' or 'female')
-  String _selectedMascot = 'male';
+  // Single unified Spentee theme (Neon Mint & Teal-Navy)
+  String _selectedMascot = 'default';
   String get selectedMascot => _selectedMascot;
   bool get isFemaleMascot => _selectedMascot == 'female';
-  MascotThemeData get mascotTheme =>
-      _selectedMascot == 'female' ? MascotThemeData.female : MascotThemeData.male;
+  MascotThemeData get mascotTheme => MascotThemeData.defaultTheme;
 
   // Isolated per-user profile mapping keyed by user UID
   final Map<String, dynamic> _userProfiles = {};
@@ -91,6 +73,7 @@ class AppState extends ChangeNotifier {
           _budgets.clear();
           _savingsGoals.clear();
           _debts.clear();
+          _resetCategoriesToDefaults();
           SyncService.instance.stopListening();
           refreshRoast();
           notifyListeners();
@@ -108,10 +91,12 @@ class AppState extends ChangeNotifier {
             _userGender = _selectedMascot;
           }
           if (isDifferentUser) {
+            await _promoteOfflineData(user.uid);
             await loadTransactionsFromStorage();
             await loadBudgetsFromStorage();
             await loadSavingsGoalsFromStorage();
             await loadDebtsFromStorage();
+            await loadCategoriesFromStorage();
             refreshRoast();
             notifyListeners();
           }
@@ -202,12 +187,70 @@ class AppState extends ChangeNotifier {
       }
       for (final remote in remoteDebts) {
         final local = debtMap[remote.id];
-        if (local == null || remote.updatedAt.isAfter(local.updatedAt) || remote.updatedAt.isAtSameMomentAs(local.updatedAt)) {
+        if (local == null) {
           debtMap[remote.id] = remote;
+        } else {
+          // Merge repayments additively by repayment ID
+          final repMap = <String, RepaymentRecord>{};
+          for (final r in local.repayments) {
+            repMap[r.id] = r;
+          }
+          for (final r in remote.repayments) {
+            repMap[r.id] = r;
+          }
+          final mergedRepayments = repMap.values.toList()
+            ..sort((a, b) => b.date.compareTo(a.date));
+
+          final newerRecord = (remote.updatedAt.isAfter(local.updatedAt) ||
+                  remote.updatedAt.isAtSameMomentAs(local.updatedAt))
+              ? remote
+              : local;
+
+          debtMap[remote.id] = newerRecord.copyWith(
+            repayments: mergedRepayments,
+          );
         }
       }
       _debts.clear();
       _debts.addAll(debtMap.values.where((d) => !d.isDeleted));
+
+      // Reflect debt and repayment transactions locally for deterministic balance sync
+      for (final debt in _debts) {
+        final dTxId = 'tx_debt_${debt.id}';
+        final existingDTxIdx = _transactions.indexWhere((t) => t.id == dTxId);
+        final dTx = _buildDebtTransaction(debt);
+        if (existingDTxIdx >= 0) {
+          _transactions[existingDTxIdx] = dTx;
+        } else {
+          _transactions.add(dTx);
+        }
+        for (final r in debt.repayments) {
+          final rTxId = 'tx_rep_${r.id}';
+          final existingRTxIdx = _transactions.indexWhere((t) => t.id == rTxId);
+          final rTx = _buildRepaymentTransaction(debt: debt, repayment: r);
+          if (existingRTxIdx >= 0) {
+            _transactions[existingRTxIdx] = rTx;
+          } else {
+            _transactions.add(rTx);
+          }
+        }
+      }
+      final activeDebtIds = _debts.map((d) => d.id).toSet();
+      final activeRepIds =
+          _debts.expand((d) => d.repayments.map((r) => r.id)).toSet();
+      _transactions.removeWhere((t) {
+        if (t.isLent || t.isBorrowed) {
+          return t.debtId != null && !activeDebtIds.contains(t.debtId);
+        }
+        if (t.isRepaymentReceived || t.isRepaymentMade) {
+          final repId = t.id.replaceFirst('tx_rep_', '');
+          return !activeRepIds.contains(repId);
+        }
+        return false;
+      });
+      _transactions.sort((a, b) => b.date.compareTo(a.date));
+      _recalculateBalance();
+      saveTransactionsToStorage();
       notifyListeners();
       saveDebtsToStorage();
     };
@@ -228,7 +271,7 @@ class AppState extends ChangeNotifier {
       final defaults = _customCategories.where((c) => !c.isCustom).toList();
       _customCategories.clear();
       _customCategories.addAll(defaults);
-      _customCategories.addAll(customMap.values);
+      _customCategories.addAll(customMap.values.where((c) => !c.isDeleted));
       notifyListeners();
       saveCategoriesToStorage();
     };
@@ -263,8 +306,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> _performMigrationAndListen() async {
     try {
+      await createLocalBackup();
       SyncService.instance.setActiveUid(_userUid);
-      await SyncService.instance.performMigration(
+      final result = await SyncService.instance.performMigration(
         localTransactions: List.from(_transactions),
         localBudgets: List.from(_budgets),
         localSavingsGoals: List.from(_savingsGoals),
@@ -281,6 +325,22 @@ class AppState extends ChangeNotifier {
           'updatedAt': DateTime.now().toIso8601String(),
         },
       );
+      // Persist reconciled records to local storage immediately
+      if (result.transactions.isNotEmpty) {
+        await saveTransactionsToStorage();
+      }
+      if (result.budgets.isNotEmpty) {
+        await saveBudgetsToStorage();
+      }
+      if (result.savingsGoals.isNotEmpty) {
+        await saveSavingsGoalsToStorage();
+      }
+      if (result.debts.isNotEmpty) {
+        await saveDebtsToStorage();
+      }
+      if (result.categories.isNotEmpty) {
+        await saveCategoriesToStorage();
+      }
       SyncService.instance.startListening();
     } catch (e) {
       debugPrint('Sync migration error: $e');
@@ -291,9 +351,9 @@ class AppState extends ChangeNotifier {
   void _recalculateBalance() {
     double bal = 0.0;
     for (final tx in _transactions) {
-      if (tx.type == TransactionType.expense) {
+      if (tx.isCashOutflow) {
         bal -= tx.amount;
-      } else if (tx.type == TransactionType.income) {
+      } else if (tx.isCashInflow) {
         bal += tx.amount;
       }
     }
@@ -333,7 +393,7 @@ class AppState extends ChangeNotifier {
   Future<void> setUserProfile({
     required String name,
     required String email,
-    required String gender,
+    String gender = 'default',
     String? uid,
   }) async {
     _userName = name;
@@ -343,6 +403,9 @@ class AppState extends ChangeNotifier {
     _isAuthenticated = true;
     final targetUid = uid ?? _userUid;
     if (targetUid.isNotEmpty) {
+      if (targetUid != _userUid) {
+        await _promoteOfflineData(targetUid);
+      }
       _userUid = targetUid;
       final existing = _userProfiles[targetUid] is Map
           ? Map<String, dynamic>.from(_userProfiles[targetUid])
@@ -357,6 +420,7 @@ class AppState extends ChangeNotifier {
     await loadBudgetsFromStorage();
     await loadSavingsGoalsFromStorage();
     await loadDebtsFromStorage();
+    await loadCategoriesFromStorage();
     refreshRoast();
     notifyListeners();
     await saveToStorage();
@@ -404,6 +468,86 @@ class AppState extends ChangeNotifier {
     refreshRoast();
     notifyListeners();
     await saveToStorage();
+  }
+
+  /// Permanently deletes the authenticated user's account and associated data:
+  /// 1. Remote Firestore subcollections and root document are deleted first while user is authenticated.
+  /// 2. Firebase Authentication user account is deleted (handling reauthentication).
+  /// 3. Local data files, backup files, and memory state for this user are completely wiped.
+  /// 4. Profile file is updated with this user removed, and state reset to clean unauthenticated state.
+  Future<void> deleteAccount({String? passwordForReauth}) async {
+    final uid = _userUid;
+
+    // 1. If user is authenticated with Firebase, delete remote cloud data first
+    if (uid.isNotEmpty && !uid.startsWith('local_')) {
+      await SyncService.instance.deleteAllUserData(uid);
+      await AuthService.instance.deleteAccount(passwordForReauth: passwordForReauth);
+    }
+
+    // 2. Stop real-time synchronization listeners
+    SyncService.instance.stopListening();
+
+    // 3. Delete local partitioned files and backups for this user
+    await _deleteLocalUserFiles(uid);
+
+    // 4. Clean user entry from userProfiles
+    if (uid.isNotEmpty) {
+      _userProfiles.remove(uid);
+      _legacyUserUids.remove(uid);
+    }
+
+    // 5. Reset in-memory state
+    _isAuthenticated = false;
+    _userUid = '';
+    _userName = 'User';
+    _userEmail = '';
+    _transactions.clear();
+    _balance = 0.0;
+    _budgets.clear();
+    _savingsGoals.clear();
+    _debts.clear();
+    _resetCategoriesToDefaults();
+    _recentRoastIds.clear();
+    refreshRoast();
+
+    // 6. Save unauthenticated clean state to disk
+    await saveToStorage();
+    notifyListeners();
+  }
+
+  /// Delete all local storage files and .bak backups associated with a user UID.
+  Future<void> _deleteLocalUserFiles(String uid) async {
+    if (uid.isEmpty) return;
+    try {
+      final dir = await _getAppStorageDirectory();
+      if (dir == null || !await dir.exists()) return;
+
+      final fileNames = [
+        'spentee_transactions_$uid.json',
+        'spentee_transactions_$uid.json.bak',
+        'spentee_budgets_$uid.json',
+        'spentee_budgets_$uid.json.bak',
+        'spentee_savings_goals_$uid.json',
+        'spentee_savings_goals_$uid.json.bak',
+        'spentee_debts_$uid.json',
+        'spentee_debts_$uid.json.bak',
+        'spentee_categories_$uid.json',
+        'spentee_categories_$uid.json.bak',
+      ];
+
+      for (final name in fileNames) {
+        final f = File('${dir.path}/$name');
+        if (await f.exists()) {
+          try {
+            await f.delete();
+          } catch (e) {
+            debugPrint('Error deleting local file $name: $e');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cleaning local files for $uid: $e');
+    }
   }
 
   Future<File?> _getStorageFile() async {
@@ -555,6 +699,9 @@ class AppState extends ChangeNotifier {
         _userUid = '';
       }
 
+      if (_isAuthenticated && _userUid.isNotEmpty && !_userUid.startsWith('local_')) {
+        await _promoteOfflineData(_userUid);
+      }
       await loadChatSessionsFromDisk();
       await loadTransactionsFromStorage();
       await loadBudgetsFromStorage();
@@ -666,6 +813,111 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Create local immutable backup copies of all JSON persistence files before sync operations.
+  Future<void> createLocalBackup() async {
+    try {
+      final dir = await _getAppStorageDirectory();
+      if (dir == null || !await dir.exists()) return;
+
+      final files = [
+        await _getTransactionsFile(),
+        await _getBudgetsFile(),
+        await _getSavingsGoalsFile(),
+        await _getDebtsFile(),
+        await _getCategoriesFile(),
+        await _getStorageFile(),
+      ];
+
+      for (final f in files) {
+        if (f != null && await f.exists()) {
+          final bak = File('${f.path}.bak');
+          final bytes = await f.readAsBytes();
+          await bak.writeAsBytes(bytes, flush: true);
+        }
+      }
+      debugPrint('[AppState] Local data backup created successfully');
+    } catch (e) {
+      debugPrint('[AppState] Error creating local backup: $e');
+    }
+  }
+
+  /// Promotes offline or unpartitioned data into a newly authenticated user UID.
+  Future<void> _promoteOfflineData(String newUid) async {
+    if (newUid.isEmpty || newUid.startsWith('local_')) return;
+    try {
+      final dir = await _getAppStorageDirectory();
+      if (dir == null || !await dir.exists()) return;
+
+      final newTxFile = File('${dir.path}/spentee_transactions_$newUid.json');
+      final newBudgetFile = File('${dir.path}/spentee_budgets_$newUid.json');
+      final newDebtFile = File('${dir.path}/spentee_debts_$newUid.json');
+      final newGoalFile = File('${dir.path}/spentee_savings_goals_$newUid.json');
+      final newCatFile = File('${dir.path}/spentee_categories_$newUid.json');
+
+      // 1. Locate source offline UID if any (e.g. local_...)
+      String? sourceUid;
+      if (_userUid.startsWith('local_')) {
+        sourceUid = _userUid;
+      } else {
+        for (final k in _userProfiles.keys) {
+          if (k.startsWith('local_')) {
+            sourceUid = k;
+            break;
+          }
+        }
+      }
+
+      if (sourceUid != null) {
+        final srcTx = File('${dir.path}/spentee_transactions_$sourceUid.json');
+        if (await srcTx.exists() && !await newTxFile.exists()) {
+          await srcTx.copy(newTxFile.path);
+        }
+        final srcBudget = File('${dir.path}/spentee_budgets_$sourceUid.json');
+        if (await srcBudget.exists() && !await newBudgetFile.exists()) {
+          await srcBudget.copy(newBudgetFile.path);
+        }
+        final srcDebt = File('${dir.path}/spentee_debts_$sourceUid.json');
+        if (await srcDebt.exists() && !await newDebtFile.exists()) {
+          await srcDebt.copy(newDebtFile.path);
+        }
+        final srcGoal = File('${dir.path}/spentee_savings_goals_$sourceUid.json');
+        if (await srcGoal.exists() && !await newGoalFile.exists()) {
+          await srcGoal.copy(newGoalFile.path);
+        }
+        final srcCat = File('${dir.path}/spentee_categories_$sourceUid.json');
+        if (await srcCat.exists() && !await newCatFile.exists()) {
+          await srcCat.copy(newCatFile.path);
+        }
+        debugPrint('[AppState] Promoted offline data from $sourceUid to $newUid');
+      }
+
+      // 2. Check legacy unpartitioned files
+      final legacyTx = File('${dir.path}/spentee_transactions.json');
+      if (await legacyTx.exists() && !await newTxFile.exists()) {
+        await legacyTx.copy(newTxFile.path);
+        debugPrint('[AppState] Promoted legacy transactions to $newUid');
+      }
+      final legacyBudget = File('${dir.path}/spentee_budgets.json');
+      if (await legacyBudget.exists() && !await newBudgetFile.exists()) {
+        await legacyBudget.copy(newBudgetFile.path);
+      }
+      final legacyDebt = File('${dir.path}/spentee_debts.json');
+      if (await legacyDebt.exists() && !await newDebtFile.exists()) {
+        await legacyDebt.copy(newDebtFile.path);
+      }
+      final legacyGoal = File('${dir.path}/spentee_savings_goals.json');
+      if (await legacyGoal.exists() && !await newGoalFile.exists()) {
+        await legacyGoal.copy(newGoalFile.path);
+      }
+      final legacyCat = File('${dir.path}/spentee_categories.json');
+      if (await legacyCat.exists() && !await newCatFile.exists()) {
+        await legacyCat.copy(newCatFile.path);
+      }
+    } catch (e) {
+      debugPrint('[AppState] Error promoting offline data: $e');
+    }
+  }
+
   Future<File?> _getTransactionsFile() async {
     try {
       final dir = await _getAppStorageDirectory();
@@ -680,6 +932,12 @@ class AppState extends ChangeNotifier {
         final legacyFile = File('${dir.path}/spentee_transactions.json');
         if (await legacyFile.exists()) {
           if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+          try {
+            await legacyFile.copy(userFile.path);
+            return userFile;
+          } catch (_) {
             return legacyFile;
           }
         }
@@ -752,12 +1010,12 @@ class AppState extends ChangeNotifier {
     }
     final syncedTx = tx.copyWith(updatedAt: DateTime.now());
     _transactions.insert(0, syncedTx);
-    if (syncedTx.type == TransactionType.expense) {
+    if (syncedTx.isCashOutflow) {
       _balance -= syncedTx.amount;
-    } else if (syncedTx.type == TransactionType.income) {
+    } else if (syncedTx.isCashInflow) {
       _balance += syncedTx.amount;
     }
-    // Note: Transfers do not count as purchases or earnings.
+    // Note: Own-account transfers do not alter the combined main balance.
     refreshRoast();
     notifyListeners();
     await saveTransactionsToStorage();
@@ -769,11 +1027,44 @@ class AppState extends ChangeNotifier {
     final idx = _transactions.indexWhere((t) => t.id == id);
     if (idx >= 0) {
       final tx = _transactions.removeAt(idx);
-      if (tx.type == TransactionType.expense) {
+      if (tx.isCashOutflow) {
         _balance += tx.amount;
-      } else if (tx.type == TransactionType.income) {
+      } else if (tx.isCashInflow) {
         _balance -= tx.amount;
       }
+
+      // If this transaction was linked to a debt or repayment, update debts state
+      if (tx.debtId != null) {
+        if (tx.isLent || tx.isBorrowed) {
+          final dIdx = _debts.indexWhere((d) => d.id == tx.debtId);
+          if (dIdx >= 0) {
+            final debt = _debts.removeAt(dIdx);
+            for (final r in debt.repayments) {
+              final rTxId = 'tx_rep_${r.id}';
+              _transactions.removeWhere((t) => t.id == rTxId);
+              SyncService.instance.deleteTransactionRemote(rTxId);
+            }
+            saveDebtsToStorage();
+            SyncService.instance.deleteDebtRemote(tx.debtId!);
+          }
+        } else if (tx.isRepaymentReceived || tx.isRepaymentMade) {
+          final repId = tx.id.replaceFirst('tx_rep_', '');
+          final dIdx = _debts.indexWhere((d) => d.id == tx.debtId);
+          if (dIdx >= 0) {
+            final d = _debts[dIdx];
+            final updatedReps =
+                d.repayments.where((r) => r.id != repId).toList();
+            final updatedD = d.copyWith(
+              repayments: updatedReps,
+              updatedAt: DateTime.now(),
+            );
+            _debts[dIdx] = updatedD;
+            saveDebtsToStorage();
+            SyncService.instance.syncDebt(updatedD);
+          }
+        }
+      }
+
       refreshRoast();
       notifyListeners();
       await saveTransactionsToStorage();
@@ -795,16 +1086,16 @@ class AppState extends ChangeNotifier {
     final oldTx = _transactions[idx];
 
     // Revert old transaction's balance effect
-    if (oldTx.type == TransactionType.expense) {
+    if (oldTx.isCashOutflow) {
       _balance += oldTx.amount;
-    } else if (oldTx.type == TransactionType.income) {
+    } else if (oldTx.isCashInflow) {
       _balance -= oldTx.amount;
     }
 
     // Apply updated transaction's balance effect
-    if (updatedTx.type == TransactionType.expense) {
+    if (updatedTx.isCashOutflow) {
       _balance -= updatedTx.amount;
-    } else if (updatedTx.type == TransactionType.income) {
+    } else if (updatedTx.isCashInflow) {
       _balance += updatedTx.amount;
     }
 
@@ -823,6 +1114,7 @@ class AppState extends ChangeNotifier {
     SyncService.instance.syncTransaction(syncedTx);
     return true;
   }
+
 
   /// Calculate today's spending total (excluding internal transfers).
   double get todaySpending {
@@ -889,6 +1181,58 @@ class AppState extends ChangeNotifier {
     return total;
   }
 
+  /// Calculate current month's investment contributions.
+  double get monthInvestments {
+    final now = DateTime.now();
+    double total = 0.0;
+    for (final tx in _transactions) {
+      if (tx.type == TransactionType.transfer &&
+          tx.isInvestment &&
+          tx.date.year == now.year &&
+          tx.date.month == now.month) {
+        total += tx.amount;
+      }
+    }
+    return total;
+  }
+
+  /// Calculate total lifetime investment contributions.
+  double get totalInvestments {
+    double total = 0.0;
+    for (final tx in _transactions) {
+      if (tx.type == TransactionType.transfer && tx.isInvestment) {
+        total += tx.amount;
+      }
+    }
+    return total;
+  }
+
+  /// Calculate the derived balance for a specific account name.
+  double getAccountBalance(String accountName) {
+    double bal = 0.0;
+    final normalized = accountName.trim().toLowerCase();
+    for (final tx in _transactions) {
+      final src = tx.sourceAccount?.trim().toLowerCase();
+      final dest = tx.destinationAccount?.trim().toLowerCase();
+
+      if (tx.type == TransactionType.expense) {
+        if (src == normalized) bal -= tx.amount;
+      } else if (tx.type == TransactionType.income) {
+        if (dest == normalized || (dest == null && src == normalized)) {
+          bal += tx.amount;
+        }
+      } else if (tx.type == TransactionType.transfer) {
+        if (src == normalized) {
+          bal -= tx.amount;
+        }
+        if (tx.isOwnAccountTransfer && dest == normalized) {
+          bal += tx.amount;
+        }
+      }
+    }
+    return bal;
+  }
+
   // ─── Budgets State & Persistence ───────────────────────────────────────────
   final List<Budget> _budgets = [];
 
@@ -907,6 +1251,12 @@ class AppState extends ChangeNotifier {
         final legacyFile = File('${dir.path}/spentee_budgets.json');
         if (await legacyFile.exists()) {
           if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+          try {
+            await legacyFile.copy(userFile.path);
+            return userFile;
+          } catch (_) {
             return legacyFile;
           }
         }
@@ -1012,6 +1362,12 @@ class AppState extends ChangeNotifier {
         final legacyFile = File('${dir.path}/spentee_savings_goals.json');
         if (await legacyFile.exists()) {
           if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+          try {
+            await legacyFile.copy(userFile.path);
+            return userFile;
+          } catch (_) {
             return legacyFile;
           }
         }
@@ -1161,6 +1517,12 @@ class AppState extends ChangeNotifier {
           if (_legacyUserUids.contains(_userUid)) {
             return legacyFile;
           }
+          try {
+            await legacyFile.copy(userFile.path);
+            return userFile;
+          } catch (_) {
+            return legacyFile;
+          }
         }
         return userFile;
       }
@@ -1181,6 +1543,58 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error saving debts to storage: $e');
     }
+  }
+
+  /// Builds a deterministic Transaction corresponding to a lending or borrowing record.
+  Transaction _buildDebtTransaction(LentBorrowedRecord record) {
+    final isLent = record.type == DebtType.lent;
+    final cat = isLent ? 'Money Lent' : 'Money Borrowed';
+    final note = record.note.isNotEmpty
+        ? '${record.personName} • ${record.note}'
+        : (isLent
+            ? 'Lent to ${record.personName}'
+            : 'Borrowed from ${record.personName}');
+    return Transaction(
+      id: 'tx_debt_${record.id}',
+      title: cat,
+      amount: record.amount,
+      type: isLent ? TransactionType.lent : TransactionType.borrowed,
+      category: cat,
+      icon: Transaction.iconForCategory(cat),
+      categoryColor: Transaction.colorForCategory(cat),
+      date: record.date,
+      note: note,
+      debtId: record.id,
+      personName: record.personName,
+      updatedAt: record.updatedAt,
+    );
+  }
+
+  /// Builds a deterministic Transaction corresponding to a repayment installment.
+  Transaction _buildRepaymentTransaction({
+    required LentBorrowedRecord debt,
+    required RepaymentRecord repayment,
+  }) {
+    final isLent = debt.type == DebtType.lent;
+    final cat = isLent ? 'Repayment Received' : 'Repayment Made';
+    final note = repayment.note.isNotEmpty
+        ? '${debt.personName} • ${repayment.note}'
+        : (isLent ? 'From ${debt.personName}' : 'To ${debt.personName}');
+    return Transaction(
+      id: 'tx_rep_${repayment.id}',
+      title: cat,
+      amount: repayment.amount,
+      type: isLent
+          ? TransactionType.repaymentReceived
+          : TransactionType.repaymentMade,
+      category: cat,
+      icon: Transaction.iconForCategory(cat),
+      categoryColor: Transaction.colorForCategory(cat),
+      date: repayment.date,
+      note: note,
+      debtId: debt.id,
+      personName: debt.personName,
+    );
   }
 
   Future<void> loadDebtsFromStorage() async {
@@ -1204,6 +1618,29 @@ class AppState extends ChangeNotifier {
       } else {
         _debts.clear();
       }
+
+      // Synchronize transactions for existing debts so historical records reflect in Main Balance
+      bool neededSync = false;
+      for (final debt in _debts) {
+        final dTxId = 'tx_debt_${debt.id}';
+        if (!_transactions.any((t) => t.id == dTxId)) {
+          _transactions.add(_buildDebtTransaction(debt));
+          neededSync = true;
+        }
+        for (final r in debt.repayments) {
+          final rTxId = 'tx_rep_${r.id}';
+          if (!_transactions.any((t) => t.id == rTxId)) {
+            _transactions
+                .add(_buildRepaymentTransaction(debt: debt, repayment: r));
+            neededSync = true;
+          }
+        }
+      }
+      if (neededSync) {
+        _transactions.sort((a, b) => b.date.compareTo(a.date));
+        _recalculateBalance();
+        await saveTransactionsToStorage();
+      }
     } catch (e) {
       debugPrint('Error loading debts from storage: $e');
     }
@@ -1221,9 +1658,38 @@ class AppState extends ChangeNotifier {
     } else {
       _debts.insert(0, syncedRecord);
     }
+
+    final debtTx = _buildDebtTransaction(syncedRecord);
+    final txIdx = _transactions.indexWhere((t) => t.id == debtTx.id);
+    if (txIdx >= 0) {
+      final oldTx = _transactions[txIdx];
+      if (oldTx.isCashOutflow) _balance += oldTx.amount;
+      if (oldTx.isCashInflow) _balance -= oldTx.amount;
+      _transactions[txIdx] = debtTx;
+    } else {
+      _transactions.add(debtTx);
+    }
+    if (debtTx.isCashOutflow) _balance -= debtTx.amount;
+    if (debtTx.isCashInflow) _balance += debtTx.amount;
+
+    for (final r in syncedRecord.repayments) {
+      final repTx =
+          _buildRepaymentTransaction(debt: syncedRecord, repayment: r);
+      final rIdx = _transactions.indexWhere((t) => t.id == repTx.id);
+      if (rIdx < 0) {
+        _transactions.add(repTx);
+        if (repTx.isCashOutflow) _balance -= repTx.amount;
+        if (repTx.isCashInflow) _balance += repTx.amount;
+        SyncService.instance.syncTransaction(repTx);
+      }
+    }
+
+    _transactions.sort((a, b) => b.date.compareTo(a.date));
     notifyListeners();
     await saveDebtsToStorage();
+    await saveTransactionsToStorage();
     SyncService.instance.syncDebt(syncedRecord);
+    SyncService.instance.syncTransaction(debtTx);
   }
 
   Future<void> updateDebt(LentBorrowedRecord record) async {
@@ -1235,17 +1701,71 @@ class AppState extends ChangeNotifier {
     if (idx >= 0) {
       final syncedRecord = record.copyWith(updatedAt: DateTime.now());
       _debts[idx] = syncedRecord;
+
+      final debtTx = _buildDebtTransaction(syncedRecord);
+      final txIdx = _transactions.indexWhere((t) => t.id == debtTx.id);
+      if (txIdx >= 0) {
+        final oldTx = _transactions[txIdx];
+        if (oldTx.isCashOutflow) _balance += oldTx.amount;
+        if (oldTx.isCashInflow) _balance -= oldTx.amount;
+        _transactions[txIdx] = debtTx;
+      } else {
+        _transactions.add(debtTx);
+      }
+      if (debtTx.isCashOutflow) _balance -= debtTx.amount;
+      if (debtTx.isCashInflow) _balance += debtTx.amount;
+
+      _transactions.sort((a, b) => b.date.compareTo(a.date));
       notifyListeners();
       await saveDebtsToStorage();
+      await saveTransactionsToStorage();
       SyncService.instance.syncDebt(syncedRecord);
+      SyncService.instance.syncTransaction(debtTx);
     }
   }
 
   Future<void> deleteDebt(String id) async {
-    _debts.removeWhere((d) => d.id == id);
-    notifyListeners();
-    await saveDebtsToStorage();
-    SyncService.instance.deleteDebtRemote(id);
+    final idx = _debts.indexWhere((d) => d.id == id);
+    if (idx >= 0) {
+      final debt = _debts.removeAt(idx);
+
+      final debtTxId = 'tx_debt_$id';
+      final txIdx = _transactions.indexWhere((t) => t.id == debtTxId);
+      if (txIdx >= 0) {
+        final tx = _transactions.removeAt(txIdx);
+        if (tx.isCashOutflow) _balance += tx.amount;
+        if (tx.isCashInflow) _balance -= tx.amount;
+        SyncService.instance.deleteTransactionRemote(debtTxId);
+      } else {
+        if (debt.type == DebtType.lent) {
+          _balance += debt.amount;
+        } else {
+          _balance -= debt.amount;
+        }
+      }
+
+      for (final r in debt.repayments) {
+        final repTxId = 'tx_rep_${r.id}';
+        final rIdx = _transactions.indexWhere((t) => t.id == repTxId);
+        if (rIdx >= 0) {
+          final rTx = _transactions.removeAt(rIdx);
+          if (rTx.isCashOutflow) _balance += rTx.amount;
+          if (rTx.isCashInflow) _balance -= rTx.amount;
+          SyncService.instance.deleteTransactionRemote(repTxId);
+        } else {
+          if (debt.type == DebtType.lent) {
+            _balance -= r.amount;
+          } else {
+            _balance += r.amount;
+          }
+        }
+      }
+
+      notifyListeners();
+      await saveDebtsToStorage();
+      await saveTransactionsToStorage();
+      SyncService.instance.deleteDebtRemote(id);
+    }
   }
 
   /// Records a repayment for a debt record safely.
@@ -1285,14 +1805,69 @@ class AppState extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     _debts[idx] = syncedRecord;
+
+    final repTx =
+        _buildRepaymentTransaction(debt: syncedRecord, repayment: newRepayment);
+    _transactions.insert(0, repTx);
+    if (repTx.isCashOutflow) _balance -= repTx.amount;
+    if (repTx.isCashInflow) _balance += repTx.amount;
+
+    _transactions.sort((a, b) => b.date.compareTo(a.date));
     notifyListeners();
     await saveDebtsToStorage();
+    await saveTransactionsToStorage();
+    SyncService.instance.syncDebt(syncedRecord);
+    SyncService.instance.syncTransaction(repTx);
+    return true;
+  }
+
+  /// Deletes a specific repayment installment safely, reversing its balance effect.
+  Future<bool> deleteRepayment({
+    required String debtId,
+    required String repaymentId,
+  }) async {
+    final idx = _debts.indexWhere((d) => d.id == debtId);
+    if (idx < 0) return false;
+
+    final record = _debts[idx];
+    final repIdx = record.repayments.indexWhere((r) => r.id == repaymentId);
+    if (repIdx < 0) return false;
+
+    final removedRep = record.repayments[repIdx];
+    final updatedRepayments = List<RepaymentRecord>.from(record.repayments)
+      ..removeAt(repIdx);
+
+    final syncedRecord = record.copyWith(
+      repayments: updatedRepayments,
+      updatedAt: DateTime.now(),
+    );
+    _debts[idx] = syncedRecord;
+
+    final repTxId = 'tx_rep_$repaymentId';
+    final txIdx = _transactions.indexWhere((t) => t.id == repTxId);
+    if (txIdx >= 0) {
+      final tx = _transactions.removeAt(txIdx);
+      if (tx.isCashOutflow) _balance += tx.amount;
+      if (tx.isCashInflow) _balance -= tx.amount;
+      SyncService.instance.deleteTransactionRemote(repTxId);
+    } else {
+      if (record.type == DebtType.lent) {
+        _balance -= removedRep.amount;
+      } else {
+        _balance += removedRep.amount;
+      }
+    }
+
+    notifyListeners();
+    await saveDebtsToStorage();
+    await saveTransactionsToStorage();
     SyncService.instance.syncDebt(syncedRecord);
     return true;
   }
 
+
   // ─── Categories State & Persistence ────────────────────────────────────────
-  final List<CategoryItem> _customCategories = [
+  static List<CategoryItem> get defaultCategories => [
     // Default Expense
     CategoryItem(
       id: 'cat_food',
@@ -1393,24 +1968,49 @@ class AppState extends ChangeNotifier {
     ),
   ];
 
+  late final List<CategoryItem> _customCategories = List.from(defaultCategories);
+
+  void _resetCategoriesToDefaults() {
+    _customCategories.clear();
+    _customCategories.addAll(defaultCategories);
+  }
+
   List<CategoryItem> get customCategories => List.unmodifiable(_customCategories);
 
   Future<File?> _getCategoriesFile() async {
     try {
-      final androidFiles = Directory('/data/user/0/com.spentee.spentee/files');
-      if (await androidFiles.exists()) {
-        return File('${androidFiles.path}/spentee_categories.json');
+      final dir = await _getAppStorageDirectory();
+      if (dir == null) return null;
+
+      if (_userUid.isNotEmpty) {
+        final userFile = File('${dir.path}/spentee_categories_$_userUid.json');
+        if (await userFile.exists()) {
+          return userFile;
+        }
+        final legacyFile = File('${dir.path}/spentee_categories.json');
+        if (await legacyFile.exists()) {
+          if (_legacyUserUids.contains(_userUid)) {
+            return legacyFile;
+          }
+          try {
+            await legacyFile.copy(userFile.path);
+            return userFile;
+          } catch (_) {
+            return legacyFile;
+          }
+        }
+        return userFile;
       }
-      final androidAppFlutter =
-          Directory('/data/user/0/com.spentee.spentee/app_flutter');
-      if (await androidAppFlutter.exists()) {
-        return File('${androidAppFlutter.path}/spentee_categories.json');
+
+      final guestFile = File('${dir.path}/spentee_categories_guest.json');
+      if (await guestFile.exists()) {
+        return guestFile;
       }
-      final localDir = Directory('.spentee_storage');
-      if (!await localDir.exists()) {
-        await localDir.create(recursive: true);
+      final legacyFile = File('${dir.path}/spentee_categories.json');
+      if (await legacyFile.exists()) {
+        return legacyFile;
       }
-      return File('${localDir.path}/spentee_categories.json');
+      return guestFile;
     } catch (e) {
       debugPrint('Categories storage lookup error: $e');
       return null;
@@ -1443,8 +2043,18 @@ class AppState extends ChangeNotifier {
               }
             }
             if (loaded.isNotEmpty) {
+              final loadedMap = <String, CategoryItem>{for (final c in loaded) c.id: c};
+              final merged = <CategoryItem>[];
+              for (final def in defaultCategories) {
+                if (loadedMap.containsKey(def.id)) {
+                  merged.add(loadedMap.remove(def.id)!);
+                } else {
+                  merged.add(def);
+                }
+              }
+              merged.addAll(loadedMap.values);
               _customCategories.clear();
-              _customCategories.addAll(loaded);
+              _customCategories.addAll(merged);
             }
           }
         }
@@ -1457,6 +2067,14 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addCustomCategory(CategoryItem cat) async {
+    // Avoid duplicate names (case-insensitive) for the same transaction type
+    final exists = _customCategories.any(
+      (c) =>
+          c.name.toLowerCase().trim() == cat.name.toLowerCase().trim() &&
+          c.isExpense == cat.isExpense,
+    );
+    if (exists) return;
+
     final syncedCat = cat.copyWith(updatedAt: DateTime.now());
     _customCategories.add(syncedCat);
     notifyListeners();

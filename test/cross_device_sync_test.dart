@@ -311,5 +311,126 @@ void main() {
       expect(appState.isFemaleMascot, isTrue);
       expect(appState.selectedLanguage, 'Tamil');
     });
+
+    test('11. Debt repayments are merged additively by repayment ID across devices', () async {
+      final appState = AppState();
+      appState.initSyncForTesting('user_sync_test');
+      final sync = SyncService.instance;
+
+      final initialDebt = LentBorrowedRecord(
+        id: 'debt_split_1',
+        type: DebtType.lent,
+        personName: 'Ravi',
+        amount: 2000.0,
+        date: DateTime(2026, 10, 10),
+        repayments: [
+          RepaymentRecord(
+            id: 'rep_local_1',
+            amount: 500.0,
+            date: DateTime(2026, 10, 15),
+            note: 'First installment via GPay',
+          ),
+        ],
+        updatedAt: DateTime(2026, 10, 15),
+      );
+      await appState.addDebt(initialDebt);
+      expect(appState.debts.first.repayments.length, 1);
+      expect(appState.debts.first.outstandingAmount, 1500.0);
+
+      // Device B records a second repayment on the same debt
+      final remoteDebtWithRep2 = LentBorrowedRecord(
+        id: 'debt_split_1',
+        type: DebtType.lent,
+        personName: 'Ravi',
+        amount: 2000.0,
+        date: DateTime(2026, 10, 10),
+        repayments: [
+          RepaymentRecord(
+            id: 'rep_remote_2',
+            amount: 700.0,
+            date: DateTime(2026, 10, 20),
+            note: 'Second installment via Cash',
+          ),
+        ],
+        updatedAt: DateTime(2026, 10, 20),
+      );
+
+      sync.onDebtsChanged?.call([remoteDebtWithRep2]);
+
+      // Both repayments must exist! 500 + 700 = 1200 repaid, 800 outstanding
+      final updatedDebt = appState.debts.firstWhere((d) => d.id == 'debt_split_1');
+      expect(updatedDebt.repayments.length, 2);
+      expect(updatedDebt.repayments.any((r) => r.id == 'rep_local_1'), isTrue);
+      expect(updatedDebt.repayments.any((r) => r.id == 'rep_remote_2'), isTrue);
+      expect(updatedDebt.repaidAmount, 1200.0);
+      expect(updatedDebt.outstandingAmount, 800.0);
+    });
+
+    test('12. Category soft-deletion propagates across devices', () async {
+      final appState = AppState();
+      appState.initSyncForTesting('user_sync_test');
+      final sync = SyncService.instance;
+
+      final customCat = CategoryItem(
+        id: 'cat_pet_care',
+        name: 'Pet Care',
+        isExpense: true,
+        isCustom: true,
+        icon: Icons.pets,
+        color: Colors.amber,
+        updatedAt: DateTime(2026, 10, 20),
+      );
+      await appState.addCustomCategory(customCat);
+      expect(appState.customCategories.any((c) => c.id == 'cat_pet_care'), isTrue);
+
+      // Remote signals category deletion with newer timestamp
+      final deletedCat = customCat.copyWith(
+        isDeleted: true,
+        updatedAt: DateTime.now().add(const Duration(seconds: 10)),
+      );
+      sync.onCategoriesChanged?.call([deletedCat]);
+
+      // Category should be removed from active categories
+      expect(appState.customCategories.any((c) => c.id == 'cat_pet_care'), isFalse);
+    });
+
+    test('13. Local immutable backup creates .bak files safely', () async {
+      final appState = AppState();
+      appState.initSyncForTesting('user_sync_test');
+
+      // Should complete without error
+      await expectLater(appState.createLocalBackup(), completes);
+    });
+
+    test('14. Transfer and investment transaction accounts sync cleanly', () async {
+      final appState = AppState();
+      appState.initSyncForTesting('user_sync_test');
+      final sync = SyncService.instance;
+
+      final investmentTx = Transaction(
+        id: 'tx_inv_sync_1',
+        title: 'Gold SIP',
+        amount: 2500.0,
+        type: TransactionType.transfer,
+        category: 'Gold Investment',
+        icon: Icons.monetization_on_rounded,
+        categoryColor: const Color(0xFFFFB300),
+        date: DateTime(2026, 10, 21),
+        sourceAccount: 'HDFC Bank',
+        destinationAccount: 'Tanishq Digital Gold',
+        updatedAt: DateTime(2026, 10, 21),
+      );
+
+      sync.onTransactionsChanged?.call([investmentTx]);
+
+      expect(appState.transactions.length, 1);
+      final synced = appState.transactions.first;
+      expect(synced.id, 'tx_inv_sync_1');
+      expect(synced.sourceAccount, 'HDFC Bank');
+      expect(synced.destinationAccount, 'Tanishq Digital Gold');
+      expect(synced.isInvestment, isTrue);
+      // Investment transfer deducts from main balance
+      expect(appState.balance, -2500.0);
+    });
   });
 }

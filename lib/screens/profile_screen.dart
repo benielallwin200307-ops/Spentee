@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
@@ -17,7 +19,6 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
     final theme = MascotThemeData.of(context);
-    final mascotLabel = theme.isFemale ? 'Radiant Pink' : 'Neon Mint';
 
     return Scaffold(
       backgroundColor: const Color(0xFF030D11),
@@ -64,9 +65,7 @@ class ProfileScreen extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.isFemale
-                            ? const Color(0xFF260D1E)
-                            : const Color(0xFF041E1C),
+                        color: const Color(0xFF041E1C),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: theme.primaryAccent,
@@ -275,19 +274,6 @@ class ProfileScreen extends StatelessWidget {
               _GroupCard(
                 children: [
                   _ProfileOptionTile(
-                    icon: Icons.palette_rounded,
-                    iconBg: theme.isFemale
-                        ? const Color(0xFF2D1022)
-                        : const Color(0xFF08332A),
-                    iconColor: theme.primaryAccent,
-                    title: 'Theme Accent',
-                    subtitle: 'Choose your color accent',
-                    trailingText: mascotLabel,
-                    trailingTextColor: theme.primaryAccent,
-                    onTap: () => _showMascotSwitchSheet(context, appState),
-                  ),
-                  const _CardDivider(),
-                  _ProfileOptionTile(
                     icon: Icons.notifications_rounded,
                     iconBg: const Color(0xFF33220A),
                     iconColor: const Color(0xFFFFB300),
@@ -389,6 +375,44 @@ class ProfileScreen extends StatelessWidget {
                         'Log Out',
                         style: TextStyle(
                           color: Color(0xFFFF4D6D),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 7. Section 5: Delete Account
+              InkWell(
+                onTap: () => _confirmDeleteAccount(context, appState),
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1F080D),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFFF2E56).withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.delete_forever_rounded,
+                        color: Color(0xFFFF2E56),
+                        size: 19,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Delete Account',
+                        style: TextStyle(
+                          color: Color(0xFFFF2E56),
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
@@ -579,217 +603,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  // --- MODAL: Mascot Switch ---
-  void _showMascotSwitchSheet(BuildContext context, AppState appState) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0A181D),
-      barrierColor: Colors.black.withValues(alpha: 0.7),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        final currentMascot = appState.selectedMascot;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E3842),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Theme Accent',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Personalize your color palette. All your financial data remains completely safe.',
-                  style: TextStyle(color: Color(0xFF7E9DAA), fontSize: 13),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    // Mint Option
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          appState.setSelectedMascot('male');
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Switched to Neon Mint Theme ✨'),
-                              backgroundColor: Color(0xFF092E27),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: currentMascot == 'male'
-                                ? const Color(0xFF062B25)
-                                : const Color(0xFF06151B),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: currentMascot == 'male'
-                                  ? AppTheme.primaryMint
-                                  : const Color(0xFF14333F),
-                              width: currentMascot == 'male' ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AppTheme.primaryMint.withValues(alpha: 0.15),
-                                  border: Border.all(
-                                    color: currentMascot == 'male'
-                                        ? AppTheme.primaryMint
-                                        : AppTheme.primaryMint.withValues(alpha: 0.4),
-                                    width: 2,
-                                  ),
-                                ),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.eco_rounded,
-                                    color: AppTheme.primaryMint,
-                                    size: 26,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Neon Mint',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                currentMascot == 'male' ? 'Active' : 'Select',
-                                style: TextStyle(
-                                  color: currentMascot == 'male'
-                                      ? AppTheme.primaryMint
-                                      : const Color(0xFF6B8B97),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    // Pink Option
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          appState.setSelectedMascot('female');
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Switched to Radiant Pink Theme 💖'),
-                              backgroundColor: Color(0xFF092E27),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: currentMascot == 'female'
-                                ? const Color(0xFF260D1E)
-                                : const Color(0xFF06151B),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: currentMascot == 'female'
-                                  ? const Color(0xFFFF528E)
-                                  : const Color(0xFF14333F),
-                              width: currentMascot == 'female' ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFFFF528E).withValues(alpha: 0.15),
-                                  border: Border.all(
-                                    color: currentMascot == 'female'
-                                        ? const Color(0xFFFF528E)
-                                        : const Color(0xFFFF528E).withValues(alpha: 0.4),
-                                    width: 2,
-                                  ),
-                                ),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.favorite_rounded,
-                                    color: Color(0xFFFF528E),
-                                    size: 26,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Radiant Pink',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                currentMascot == 'female' ? 'Active' : 'Select',
-                                style: TextStyle(
-                                  color: currentMascot == 'female'
-                                      ? const Color(0xFFFF528E)
-                                      : const Color(0xFF6B8B97),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   // --- MODAL: Language ---
   void _showLanguageSheet(BuildContext context, AppState appState) {
     final languages = [
@@ -949,6 +762,290 @@ class ProfileScreen extends StatelessWidget {
               'Log Out',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DELETE ACCOUNT CONFIRMATION (STEP 1) ---
+  void _confirmDeleteAccount(BuildContext context, AppState appState) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B22),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFFF2E56), size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Delete Account?',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Account deletion permanently removes your Spentee profile and all associated financial records (transactions, budgets, debts, savings goals, and categories) from Firebase Cloud and local storage.\n\nThis action cannot be undone.',
+          style: TextStyle(color: Color(0xFF88A8B6), fontSize: 13, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF88A8B6), fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmDeleteAccountStepTwo(context, appState);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF260D14),
+              foregroundColor: const Color(0xFFFF4D6D),
+              side: BorderSide(color: const Color(0xFFFF4D6D).withValues(alpha: 0.5)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Continue',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DELETE ACCOUNT EXPLICIT CONFIRMATION (STEP 2) ---
+  void _confirmDeleteAccountStepTwo(BuildContext context, AppState appState) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F151B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: Color(0xFFFF2E56), size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Final Confirmation',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Are you absolutely sure you want to permanently delete your account?\n\nAll your recorded data will be irreversibly erased immediately. You will not be able to recover this data.',
+          style: TextStyle(color: Color(0xFFBAC7CE), fontSize: 13, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Go Back',
+              style: TextStyle(color: Color(0xFF88A8B6), fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _executeAccountDeletion(context, appState);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF2E56),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Permanently Delete Account',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- EXECUTE ACCOUNT DELETION ---
+  Future<void> _executeAccountDeletion(
+    BuildContext context,
+    AppState appState, {
+    String? passwordForReauth,
+  }) async {
+    // Show blocking progress indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF091C24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              children: [
+                CircularProgressIndicator(
+                  color: Color(0xFFFF2E56),
+                ),
+                SizedBox(width: 20),
+                Expanded(
+                  child: Text(
+                    'Deleting account & data permanently...',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await appState.deleteAccount(passwordForReauth: passwordForReauth);
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account and data deleted successfully.'),
+            backgroundColor: Color(0xFF1E3842),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (e is FirebaseAuthException && e.code == 'requires-recent-login') {
+          final currentUser = AuthService.instance.currentUser;
+          final providers = currentUser?.providerData.map((p) => p.providerId).toList() ?? [];
+
+          if (providers.contains('password')) {
+            _showPasswordReauthDialog(context, appState);
+            return;
+          }
+        }
+
+        // Display error dialog and allow retry
+        _showDeletionErrorDialog(context, appState, e);
+      }
+    }
+  }
+
+  void _showPasswordReauthDialog(BuildContext context, AppState appState) {
+    final passwordController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF091C24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Confirm Password',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'For your security, please re-enter your password to confirm account deletion:',
+              style: TextStyle(color: Color(0xFF88A8B6), fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Password',
+                hintStyle: const TextStyle(color: Color(0xFF5A7582)),
+                filled: true,
+                fillColor: const Color(0xFF041217),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF1E3842)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFFF2E56)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF88A8B6))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final pwd = passwordController.text.trim();
+              if (pwd.isEmpty) return;
+              Navigator.pop(ctx);
+              _executeAccountDeletion(context, appState, passwordForReauth: pwd);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF2E56),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Confirm & Delete', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeletionErrorDialog(BuildContext context, AppState appState, dynamic error) {
+    final errorMessage = AuthService.getErrorMessage(error);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF091C24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline_rounded, color: Color(0xFFFF4D6D), size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Deletion Failed',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+        content: Text(
+          errorMessage.isNotEmpty ? errorMessage : 'An error occurred while deleting your account and data. Your local data has not been modified.',
+          style: const TextStyle(color: Color(0xFF88A8B6), fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF88A8B6))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _executeAccountDeletion(context, appState);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF4D6D),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),

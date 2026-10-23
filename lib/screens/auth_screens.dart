@@ -61,14 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
         password: pass,
       );
       final user = credential.user!;
-      final savedMascot = appState.getSavedMascotForUser(user.uid) ?? 'male';
 
       await appState.setUserProfile(
         name: user.displayName?.isNotEmpty == true
             ? user.displayName!
             : (email.split('@')[0]),
         email: user.email ?? email,
-        gender: savedMascot,
         uid: user.uid,
       );
 
@@ -97,11 +95,9 @@ class _LoginScreenState extends State<LoginScreen> {
         final targetUid = matchingUid.isNotEmpty
             ? matchingUid
             : 'local_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}';
-        final savedMascot = appState.getSavedMascotForUser(targetUid) ?? 'male';
         await appState.setUserProfile(
           name: existingName,
           email: email,
-          gender: savedMascot,
           uid: targetUid,
         );
         if (!mounted) return;
@@ -124,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final appState = AppStateScope.of(context);
 
     try {
-      final credential = await AuthService.instance.signInWithGoogle();
+      final credential = await AuthService.instance.signInWithGoogleForLogin();
       if (credential == null) {
         // User cancelled selection
         if (mounted) setState(() => _isLoading = false);
@@ -132,25 +128,24 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final user = credential.user!;
-      if (appState.hasSavedMascotForUser(user.uid)) {
-        final savedMascot = appState.getSavedMascotForUser(user.uid)!;
-        await appState.setUserProfile(
-          name: user.displayName?.isNotEmpty == true
-              ? user.displayName!
-              : (user.email?.split('@')[0] ?? 'User'),
-          email: user.email ?? '',
-          gender: savedMascot,
-          uid: user.uid,
-        );
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
-        );
+      await appState.setUserProfile(
+        name: user.displayName?.isNotEmpty == true
+            ? user.displayName!
+            : (user.email?.split('@')[0] ?? 'User'),
+        email: user.email ?? '',
+        uid: user.uid,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainShell()),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'user-not-found') {
+        _showNoAccountFoundDialog();
       } else {
-        // No saved mascot selection: ask user to choose Male or Female
-        if (!mounted) return;
-        _showMascotThemePickerForGoogle(user);
+        _showError(AuthService.getErrorMessage(e));
       }
     } catch (e) {
       if (!mounted) return;
@@ -160,106 +155,44 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showMascotThemePickerForGoogle(User user) {
-    String tempGender = 'male';
-    showModalBottomSheet(
+  void _showNoAccountFoundDialog() {
+    showDialog(
       context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: const Color(0xFF00151B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Choose Your Mascot Theme',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Google sign-in does not infer your gender. Please pick your preferred mascot companion.',
-                  style: TextStyle(
-                    color: Color(0xFFB8CBD8),
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _GenderCard(
-                        label: 'Male',
-                        symbol: Icons.male_rounded,
-                        symbolColor: const Color(0xFF2997FF),
-                        isSelected: tempGender == 'male',
-                        onTap: () => setModalState(() => tempGender = 'male'),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _GenderCard(
-                        label: 'Female',
-                        symbol: Icons.female_rounded,
-                        symbolColor: const Color(0xFFFF528E),
-                        isSelected: tempGender == 'female',
-                        onTap: () => setModalState(() => tempGender = 'female'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF65FFA7),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
-                      ),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      final appState = AppStateScope.of(context);
-                      await appState.setUserProfile(
-                        name: user.displayName?.isNotEmpty == true
-                            ? user.displayName!
-                            : (user.email?.split('@')[0] ?? 'User'),
-                        email: user.email ?? '',
-                        gender: tempGender,
-                        uid: user.uid,
-                      );
-                      if (!mounted) return;
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const MainShell()),
-                        (route) => false,
-                      );
-                    },
-                    child: const Text(
-                      'Continue to Spentee',
-                      style: TextStyle(
-                        color: Color(0xFF00241D),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF091C24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline_rounded, color: Color(0xFF65FFA7), size: 22),
+            SizedBox(width: 8),
+            Text(
+              'No Account Found',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
             ),
-          ),
+          ],
         ),
+        content: const Text(
+          'No account found. Please sign up first.',
+          style: TextStyle(color: Color(0xFF88A8B6), fontSize: 13.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF88A8B6))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _onSignUp();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF65FFA7),
+              foregroundColor: const Color(0xFF00241D),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Go to Sign Up', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
       ),
     );
   }
@@ -735,7 +668,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _isPasswordVisible = false;
-  String? _selectedGender;
   bool _isLoading = false;
 
   @override
@@ -777,11 +709,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    if (_selectedGender == null) {
-      _showError('Please select your gender (Male or Female).');
-      return;
-    }
-
     setState(() => _isLoading = true);
     final appState = AppStateScope.of(context);
 
@@ -793,11 +720,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       final user = credential.user!;
 
-      // Successfully authenticated: save profile and switch mascot theme
       await appState.setUserProfile(
         name: name,
         email: email,
-        gender: _selectedGender!,
         uid: user.uid,
       );
 
@@ -813,7 +738,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         await appState.setUserProfile(
           name: name,
           email: email,
-          gender: _selectedGender!,
           uid: localUid,
         );
         if (!mounted) return;
@@ -836,7 +760,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final appState = AppStateScope.of(context);
 
     try {
-      final credential = await AuthService.instance.signInWithGoogle();
+      final credential = await AuthService.instance.signUpWithGoogle();
       if (credential == null) {
         // User cancelled account selection
         if (mounted) setState(() => _isLoading = false);
@@ -844,158 +768,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
 
       final user = credential.user!;
-      if (_selectedGender != null) {
-        // Apply the mascot selected on this screen
-        await appState.setUserProfile(
-          name: user.displayName?.isNotEmpty == true
-              ? user.displayName!
-              : (_nameCtrl.text.trim().isNotEmpty
-                  ? _nameCtrl.text.trim()
-                  : 'User'),
-          email: user.email ?? _emailCtrl.text.trim(),
-          gender: _selectedGender!,
-          uid: user.uid,
-        );
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
-        );
-      } else if (appState.hasSavedMascotForUser(user.uid)) {
-        final savedMascot = appState.getSavedMascotForUser(user.uid)!;
-        await appState.setUserProfile(
-          name: user.displayName?.isNotEmpty == true
-              ? user.displayName!
-              : (_nameCtrl.text.trim().isNotEmpty
-                  ? _nameCtrl.text.trim()
-                  : 'User'),
-          email: user.email ?? _emailCtrl.text.trim(),
-          gender: savedMascot,
-          uid: user.uid,
-        );
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
-        );
-      } else {
-        // Prompt user to choose Male or Female without inferring
-        if (!mounted) return;
-        _showMascotThemePickerForGoogle(user);
-      }
+      await appState.setUserProfile(
+        name: user.displayName?.isNotEmpty == true
+            ? user.displayName!
+            : (_nameCtrl.text.trim().isNotEmpty
+                ? _nameCtrl.text.trim()
+                : 'User'),
+        email: user.email ?? _emailCtrl.text.trim(),
+        uid: user.uid,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainShell()),
+        (route) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       _showError(AuthService.getErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _showMascotThemePickerForGoogle(User user) {
-    String tempGender = 'male';
-    showModalBottomSheet(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: const Color(0xFF00151B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Choose Your Mascot Theme',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Google sign-in does not infer your gender. Please pick your preferred mascot companion.',
-                  style: TextStyle(
-                    color: Color(0xFFB8CBD8),
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _GenderCard(
-                        label: 'Male',
-                        symbol: Icons.male_rounded,
-                        symbolColor: const Color(0xFF2997FF),
-                        isSelected: tempGender == 'male',
-                        onTap: () => setModalState(() => tempGender = 'male'),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _GenderCard(
-                        label: 'Female',
-                        symbol: Icons.female_rounded,
-                        symbolColor: const Color(0xFFFF528E),
-                        isSelected: tempGender == 'female',
-                        onTap: () => setModalState(() => tempGender = 'female'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF65FFA7),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
-                      ),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      setState(() => _selectedGender = tempGender);
-                      final appState = AppStateScope.of(context);
-                      await appState.setUserProfile(
-                        name: user.displayName?.isNotEmpty == true
-                            ? user.displayName!
-                            : (_nameCtrl.text.trim().isNotEmpty
-                                ? _nameCtrl.text.trim()
-                                : 'User'),
-                        email: user.email ?? _emailCtrl.text.trim(),
-                        gender: tempGender,
-                        uid: user.uid,
-                      );
-                      if (!mounted) return;
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const MainShell()),
-                        (route) => false,
-                      );
-                    },
-                    child: const Text(
-                      'Continue to Spentee',
-                      style: TextStyle(
-                        color: Color(0xFF00241D),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   void _showError(String message) {
@@ -1171,38 +963,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               () => _isPasswordVisible = !_isPasswordVisible,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 14),
-
-                        // Gender Selection Section
-                        _buildLabel('Gender'),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _GenderCard(
-                                label: 'Male',
-                                symbol: Icons.male_rounded,
-                                symbolColor: const Color(0xFF2997FF),
-                                isSelected: _selectedGender == 'male',
-                                onTap: () {
-                                  setState(() => _selectedGender = 'male');
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: _GenderCard(
-                                label: 'Female',
-                                symbol: Icons.female_rounded,
-                                symbolColor: const Color(0xFFFF528E),
-                                isSelected: _selectedGender == 'female',
-                                onTap: () {
-                                  setState(() => _selectedGender = 'female');
-                                },
-                              ),
-                            ),
-                          ],
                         ),
                         const SizedBox(height: 20),
 
@@ -1514,89 +1274,3 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 }
 
-/// Gender Selection Card matching reference design
-class _GenderCard extends StatelessWidget {
-  final String label;
-  final IconData symbol;
-  final Color symbolColor;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _GenderCard({
-    required this.label,
-    required this.symbol,
-    required this.symbolColor,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: const Color(0xFF031F32),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isSelected ? const Color(0xFF65FFA7) : const Color(0xFF17465A),
-          width: isSelected ? 1.6 : 1.2,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: [
-                Icon(
-                  symbol,
-                  color: symbolColor,
-                  size: 24,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                // Circular Radio Indicator
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF65FFA7)
-                          : const Color(0xFF235565),
-                      width: isSelected ? 2.0 : 1.5,
-                    ),
-                  ),
-                  child: isSelected
-                      ? Center(
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF65FFA7),
-                            ),
-                          ),
-                        )
-                      : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

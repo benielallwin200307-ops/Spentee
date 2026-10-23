@@ -78,7 +78,7 @@ void main() {
       }
     });
 
-    test('4. AppState switching updates mascotTheme reactively and preserves data', () {
+    test('4. AppState maintains consistent canonical Spentee theme across states and preserves data', () {
       final state = AppState();
       int notifyCount = 0;
       state.addListener(() => notifyCount++);
@@ -86,18 +86,21 @@ void main() {
       final initialBalance = state.balance;
       final initialTxCount = state.transactions.length;
 
-      // Default should be male or loaded
+      // Canonical theme default
+      expect(state.mascotTheme.primaryAccent, const Color(0xFF00E676));
+
       state.setSelectedMascot('female', uid: 'test_user_123');
       expect(state.selectedMascot, 'female');
       expect(state.isFemaleMascot, isTrue);
-      expect(state.mascotTheme.primaryAccent, const Color(0xFFFF528E));
+      // Theme remains standardized on canonical Spentee neon mint
+      expect(state.mascotTheme.primaryAccent, const Color(0xFF00E676));
       expect(notifyCount, greaterThan(0));
 
       // Financial data untouched
       expect(state.balance, equals(initialBalance));
       expect(state.transactions.length, equals(initialTxCount));
 
-      // Switch back to male
+      // Switch to male
       state.setSelectedMascot('male', uid: 'test_user_123');
       expect(state.selectedMascot, 'male');
       expect(state.isFemaleMascot, isFalse);

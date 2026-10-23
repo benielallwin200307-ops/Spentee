@@ -243,11 +243,12 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen>
                               return;
                             }
 
-                            // Duplicate check
+                            // Duplicate check for this type
                             final isDuplicate = appState.customCategories.any(
                                 (c) =>
+                                    c.isExpense == isExpense &&
                                     c.name.toLowerCase().trim() ==
-                                    name.toLowerCase().trim());
+                                        name.toLowerCase().trim());
                             if (isDuplicate) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(

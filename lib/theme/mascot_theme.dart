@@ -49,6 +49,9 @@ class MascotThemeData {
   bool get isFemale => type == MascotType.female;
   bool get isMale => type == MascotType.male;
 
+  /// Unified Canonical Spentee Theme (Neon Mint & Teal-Navy)
+  static const MascotThemeData defaultTheme = male;
+
   /// Default Male Mascot Theme (Original Neon Mint & Teal-Navy)
   static const MascotThemeData male = MascotThemeData(
     type: MascotType.male,

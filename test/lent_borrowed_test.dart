@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spentee/models/budget.dart';
 import 'package:spentee/models/lent_borrowed_record.dart';
+import 'package:spentee/models/transaction.dart';
 import 'package:spentee/screens/lent_borrowed_screen.dart';
 import 'package:spentee/services/debt_reminder_library.dart';
 import 'package:spentee/state/app_state.dart';
@@ -471,6 +472,269 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('Loan Details'), findsNothing);
+    });
+
+    test('15. Money Lent: immediately subtracts amount from Main Balance, adds "Money Lent" transaction, increases Money to Collect', () async {
+      final appState = AppState();
+      await appState.addTransaction(Transaction(
+        id: 'tx_init_15',
+        title: 'Salary',
+        amount: 50000.0,
+        type: TransactionType.income,
+        category: 'Salary',
+        icon: Icons.account_balance_wallet_rounded,
+        categoryColor: Colors.green,
+        date: now,
+      ));
+      expect(appState.balance, 50000.0);
+      expect(appState.availableBalance, 50000.0);
+      expect(appState.totalLentOutstanding, 0.0);
+
+      // Lend ₹10,000 to Friend
+      await appState.addDebt(LentBorrowedRecord(
+        id: 'debt_lent_15',
+        type: DebtType.lent,
+        personName: 'Rohan',
+        amount: 10000.0,
+        date: now,
+        note: 'Weekend trip share',
+      ));
+
+      // Main Balance reduced immediately
+      expect(appState.balance, 40000.0);
+      expect(appState.availableBalance, 40000.0);
+      // Money to Collect increased
+      expect(appState.totalLentOutstanding, 10000.0);
+      // Not counted as ordinary expense
+      expect(appState.monthExpense, 0.0);
+      expect(appState.todaySpending, 0.0);
+
+      // Transaction history entry exists
+      final lentTx = appState.transactions.firstWhere((t) => t.id == 'tx_debt_debt_lent_15');
+      expect(lentTx.title, 'Money Lent');
+      expect(lentTx.type, TransactionType.lent);
+      expect(lentTx.amount, 10000.0);
+      expect(lentTx.personName, 'Rohan');
+      expect(lentTx.displaySignedAmount, '-₹10000');
+    });
+
+    test('16. Money Borrowed: immediately adds amount to Main Balance, adds "Money Borrowed" transaction, increases Money to Repay', () async {
+      final appState = AppState();
+      await appState.addTransaction(Transaction(
+        id: 'tx_init_16',
+        title: 'Salary',
+        amount: 20000.0,
+        type: TransactionType.income,
+        category: 'Salary',
+        icon: Icons.account_balance_wallet_rounded,
+        categoryColor: Colors.green,
+        date: now,
+      ));
+      expect(appState.balance, 20000.0);
+
+      // Borrow ₹15,000 from Vikram
+      await appState.addDebt(LentBorrowedRecord(
+        id: 'debt_borrow_16',
+        type: DebtType.borrowed,
+        personName: 'Vikram',
+        amount: 15000.0,
+        date: now,
+        note: 'Emergency loan',
+      ));
+
+      // Main Balance increased immediately
+      expect(appState.balance, 35000.0);
+      expect(appState.availableBalance, 35000.0);
+      // Money to Repay increased
+      expect(appState.totalBorrowedOutstanding, 15000.0);
+      // Not counted as ordinary income
+      expect(appState.monthIncome, 20000.0);
+
+      // Transaction history entry exists
+      final borrowTx = appState.transactions.firstWhere((t) => t.id == 'tx_debt_debt_borrow_16');
+      expect(borrowTx.title, 'Money Borrowed');
+      expect(borrowTx.type, TransactionType.borrowed);
+      expect(borrowTx.amount, 15000.0);
+      expect(borrowTx.personName, 'Vikram');
+      expect(borrowTx.displaySignedAmount, '+₹15000');
+    });
+
+    test('17. Repayment Received on money lent: increases Main Balance, reduces Money to Collect, adds Repayment Received transaction', () async {
+      final appState = AppState();
+      await appState.addTransaction(Transaction(
+        id: 'tx_init_17',
+        title: 'Salary',
+        amount: 30000.0,
+        type: TransactionType.income,
+        category: 'Salary',
+        icon: Icons.account_balance_wallet_rounded,
+        categoryColor: Colors.green,
+        date: now,
+      ));
+
+      await appState.addDebt(LentBorrowedRecord(
+        id: 'debt_lent_17',
+        type: DebtType.lent,
+        personName: 'Pooja',
+        amount: 8000.0,
+        date: now,
+      ));
+      expect(appState.balance, 22000.0);
+      expect(appState.totalLentOutstanding, 8000.0);
+
+      // Partial repayment of 3,000 received
+      final repSuccess = await appState.recordRepayment(
+        debtId: 'debt_lent_17',
+        amount: 3000.0,
+        note: 'GPay payment',
+      );
+      expect(repSuccess, isTrue);
+
+      // Balance increases by 3,000; Money to Collect reduces by 3,000
+      expect(appState.balance, 25000.0);
+      expect(appState.totalLentOutstanding, 5000.0);
+      // Does not count as ordinary income
+      expect(appState.monthIncome, 30000.0);
+
+      // Transaction history entry exists
+      final repTx = appState.transactions.firstWhere((t) => t.type == TransactionType.repaymentReceived);
+      expect(repTx.title, 'Repayment Received');
+      expect(repTx.amount, 3000.0);
+      expect(repTx.personName, 'Pooja');
+      expect(repTx.displaySignedAmount, '+₹3000');
+    });
+
+    test('18. Repayment Made on money borrowed: decreases Main Balance, reduces Money to Repay, adds Repayment Made transaction', () async {
+      final appState = AppState();
+      await appState.addTransaction(Transaction(
+        id: 'tx_init_18',
+        title: 'Salary',
+        amount: 10000.0,
+        type: TransactionType.income,
+        category: 'Salary',
+        icon: Icons.account_balance_wallet_rounded,
+        categoryColor: Colors.green,
+        date: now,
+      ));
+
+      await appState.addDebt(LentBorrowedRecord(
+        id: 'debt_borrow_18',
+        type: DebtType.borrowed,
+        personName: 'Samir',
+        amount: 5000.0,
+        date: now,
+      ));
+      expect(appState.balance, 15000.0);
+      expect(appState.totalBorrowedOutstanding, 5000.0);
+
+      // Repayment made of 2,000
+      final repSuccess = await appState.recordRepayment(
+        debtId: 'debt_borrow_18',
+        amount: 2000.0,
+        note: 'Cash return',
+      );
+      expect(repSuccess, isTrue);
+
+      // Balance decreases by 2,000; Money to Repay reduces by 2,000
+      expect(appState.balance, 13000.0);
+      expect(appState.totalBorrowedOutstanding, 3000.0);
+      // Does not count as ordinary expense
+      expect(appState.monthExpense, 0.0);
+
+      // Transaction history entry exists
+      final repTx = appState.transactions.firstWhere((t) => t.type == TransactionType.repaymentMade);
+      expect(repTx.title, 'Repayment Made');
+      expect(repTx.amount, 2000.0);
+      expect(repTx.personName, 'Samir');
+      expect(repTx.displaySignedAmount, '-₹2000');
+    });
+
+    test('19. Editing and deleting debts & repayments: reverses and recalculates balance deterministically without duplicates', () async {
+      final appState = AppState();
+      await appState.addTransaction(Transaction(
+        id: 'tx_init_19',
+        title: 'Initial',
+        amount: 10000.0,
+        type: TransactionType.income,
+        category: 'Salary',
+        icon: Icons.account_balance_wallet_rounded,
+        categoryColor: Colors.green,
+        date: now,
+      ));
+      expect(appState.balance, 10000.0);
+
+      // Lend ₹4,000
+      await appState.addDebt(LentBorrowedRecord(
+        id: 'debt_19',
+        type: DebtType.lent,
+        personName: 'Kunal',
+        amount: 4000.0,
+        date: now,
+      ));
+      expect(appState.balance, 6000.0);
+
+      // Edit debt amount from 4,000 to 5,000
+      await appState.updateDebt(LentBorrowedRecord(
+        id: 'debt_19',
+        type: DebtType.lent,
+        personName: 'Kunal',
+        amount: 5000.0,
+        date: now,
+      ));
+      expect(appState.balance, 5000.0);
+      expect(appState.totalLentOutstanding, 5000.0);
+
+      // Record repayment of 1,500
+      await appState.recordRepayment(debtId: 'debt_19', amount: 1500.0);
+      expect(appState.balance, 6500.0);
+      expect(appState.totalLentOutstanding, 3500.0);
+
+      // Delete the repayment installment
+      final repId = appState.debts.first.repayments.first.id;
+      final delRepSuccess = await appState.deleteRepayment(debtId: 'debt_19', repaymentId: repId);
+      expect(delRepSuccess, isTrue);
+      // Balance restored back to 5000.0
+      expect(appState.balance, 5000.0);
+      expect(appState.totalLentOutstanding, 5000.0);
+
+      // Delete the entire debt
+      await appState.deleteDebt('debt_19');
+      // Balance restored completely back to initial 10,000.0
+      expect(appState.balance, 10000.0);
+      expect(appState.totalLentOutstanding, 0.0);
+      expect(appState.debts, isEmpty);
+      expect(appState.transactions.where((t) => t.debtId == 'debt_19'), isEmpty);
+    });
+
+    test('20. Deleting a debt transaction from Transactions Screen reverses balance and removes debt', () async {
+      final appState = AppState();
+      await appState.addTransaction(Transaction(
+        id: 'tx_init_20',
+        title: 'Initial',
+        amount: 20000.0,
+        type: TransactionType.income,
+        category: 'Salary',
+        icon: Icons.account_balance_wallet_rounded,
+        categoryColor: Colors.green,
+        date: now,
+      ));
+
+      await appState.addDebt(LentBorrowedRecord(
+        id: 'debt_20',
+        type: DebtType.borrowed,
+        personName: 'Dev',
+        amount: 7000.0,
+        date: now,
+      ));
+      expect(appState.balance, 27000.0);
+
+      // User deletes the "Money Borrowed" transaction directly
+      await appState.deleteTransaction('tx_debt_debt_20');
+
+      // Balance decreases by 7,000 back to 20,000
+      expect(appState.balance, 20000.0);
+      expect(appState.totalBorrowedOutstanding, 0.0);
+      expect(appState.debts, isEmpty);
     });
   });
 }

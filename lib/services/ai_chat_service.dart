@@ -354,39 +354,5 @@ class AiChatService {
     ];
     return personalTriggers.any((trigger) => lower.contains(trigger));
   }
-  /// Returns a friendly message when a personal‑finance query cannot be answered locally and the backend is unavailable.
-  ChatMessage _offlineUnsupportedResponse(DateTime now) {
-    const supported = [
-      'How much did I spend today?',
-      'How much did I earn this month?',
-      'Where did most of my money go?',
-      'How much budget do I have left?',
-      'Compare this month with last month',
-      'What was my spending on Food?',
-      'Show me my transfers',
-      'Show me my refunds',
-      'How much money have I lent or borrowed?',
-    ];
-    final buffer = StringBuffer();
-    buffer.writeln('🤖 **I’m sorry, I can’t answer that right now.**');
-    buffer.writeln('\nI can help with the following personal‑finance questions while offline:');
-    for (final q in supported) {
-      buffer.writeln('• $q');
-    }
-    buffer.writeln('\nIf you need a general‑purpose answer, please ensure the Spentee AI backend is running and connected to the internet.');
-    return ChatMessage(
-      id: 'ai_${now.millisecondsSinceEpoch}',
-      isUser: false,
-      timestamp: now,
-      isError: true,
-      text: buffer.toString().trim(),
-      actionButtons: const [
-        'Retry Connection',
-        'How much did I spend today?',
-        'How much did I earn this month?',
-        'Where did most of my money go?',
-        'How much budget do I have left?',
-      ],
-    );
-  }
 }
+

@@ -240,8 +240,14 @@ class _TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isIncome = tx.type == TransactionType.income;
-    final isTransfer = tx.type == TransactionType.transfer;
+    String subtitle = tx.category;
+    if (tx.personName != null && tx.personName!.isNotEmpty) {
+      subtitle = '${tx.category} • ${tx.personName}';
+    } else if (tx.isOwnAccountTransfer && tx.sourceAccount != null && tx.destinationAccount != null) {
+      subtitle = '${tx.sourceAccount} → ${tx.destinationAccount}';
+    } else if (tx.sourceAccount != null && tx.sourceAccount!.isNotEmpty) {
+      subtitle = '${tx.category} • ${tx.sourceAccount}';
+    }
 
     return SpenteeCard(
       onTap: () => TransactionDetailsModal.show(context, tx),
@@ -271,7 +277,9 @@ class _TransactionTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  tx.category,
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppTheme.textGrey,
                     fontSize: 11,
@@ -296,17 +304,9 @@ class _TransactionTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                isIncome
-                    ? '+${tx.formattedAmount}'
-                    : isTransfer
-                        ? tx.formattedAmount
-                        : tx.formattedAmount,
+                tx.displaySignedAmount,
                 style: TextStyle(
-                  color: isIncome
-                      ? AppTheme.primaryMint
-                      : isTransfer
-                          ? AppTheme.accentBlue
-                          : AppTheme.accentPink,
+                  color: tx.displayAmountColor,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),

@@ -137,26 +137,35 @@ class TransactionDetailsModal extends StatelessWidget {
     final tx = transaction;
     final isIncome = tx.type == TransactionType.income;
     final isTransfer = tx.type == TransactionType.transfer;
+    final isInvestment = tx.isInvestment;
 
     final typeLabel = isIncome
         ? 'Income'
-        : isTransfer
-            ? 'Transfer'
-            : 'Expense';
+        : isInvestment
+            ? 'Investment'
+            : isTransfer
+                ? 'Transfer'
+                : tx.isLent
+                    ? 'Money Lent'
+                    : tx.isBorrowed
+                        ? 'Money Borrowed'
+                        : tx.isRepaymentReceived
+                            ? 'Repayment Received'
+                            : tx.isRepaymentMade
+                                ? 'Repayment Made'
+                                : 'Expense';
 
-    final typeColor = isIncome
-        ? AppTheme.primaryMint
-        : isTransfer
-            ? AppTheme.accentBlue
-            : AppTheme.accentPink;
-
-    final amountColor = isIncome
-        ? AppTheme.primaryMint
-        : isTransfer
-            ? AppTheme.accentBlue
-            : Colors.white;
-
-    final prefix = isIncome ? '+' : '';
+    final typeColor = tx.displayAmountColor;
+    final amountColor = tx.displayAmountColor;
+    final prefix = (isIncome ||
+            tx.type == TransactionType.borrowed ||
+            tx.type == TransactionType.repaymentReceived)
+        ? '+'
+        : (tx.type == TransactionType.lent ||
+                tx.type == TransactionType.repaymentMade)
+            ? '-'
+            : '';
+    final displayAmount = '$prefix${tx.formattedAmount}';
 
     return SafeArea(
       child: Padding(
@@ -252,7 +261,7 @@ class TransactionDetailsModal extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '$prefix${tx.formattedAmount}',
+                    displayAmount,
                     style: TextStyle(
                       color: amountColor,
                       fontSize: 28,
@@ -296,11 +305,41 @@ class TransactionDetailsModal extends StatelessWidget {
               ),
               child: Column(
                 children: [
+                  if (tx.personName != null && tx.personName!.isNotEmpty) ...[
+                    _buildDetailRow(
+                      icon: Icons.person_rounded,
+                      label: tx.isLent
+                          ? 'Lent To'
+                          : tx.isBorrowed
+                              ? 'Borrowed From'
+                              : tx.isRepaymentReceived
+                                  ? 'Received From'
+                                  : 'Repaid To',
+                      value: tx.personName!,
+                    ),
+                    const Divider(color: Color(0xFF142F38), height: 20),
+                  ],
                   _buildDetailRow(
                     icon: Icons.category_rounded,
                     label: 'Category',
                     value: tx.category,
                   ),
+                  if (tx.sourceAccount != null && tx.sourceAccount!.isNotEmpty) ...[
+                    const Divider(color: Color(0xFF142F38), height: 20),
+                    _buildDetailRow(
+                      icon: Icons.account_balance_wallet_rounded,
+                      label: 'From Account',
+                      value: tx.sourceAccount!,
+                    ),
+                  ],
+                  if (tx.destinationAccount != null && tx.destinationAccount!.isNotEmpty) ...[
+                    const Divider(color: Color(0xFF142F38), height: 20),
+                    _buildDetailRow(
+                      icon: Icons.account_balance_rounded,
+                      label: 'To Account',
+                      value: tx.destinationAccount!,
+                    ),
+                  ],
                   const Divider(color: Color(0xFF142F38), height: 20),
                   _buildDetailRow(
                     icon: Icons.calendar_today_rounded,

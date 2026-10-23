@@ -4,7 +4,6 @@ import 'package:spentee/main.dart';
 import 'package:spentee/screens/auth_screens.dart';
 import 'package:spentee/screens/onboarding_screens.dart';
 import 'package:spentee/screens/home_screen.dart';
-import 'package:spentee/screens/budget_management_screen.dart';
 import 'package:spentee/screens/lent_borrowed_screen.dart';
 import 'package:spentee/state/app_state.dart';
 

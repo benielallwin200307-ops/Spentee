@@ -1322,9 +1322,71 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                                           fontSize: 11)),
                               ],
                             ),
-                            Text(_formatDate(rep.date),
-                                style: const TextStyle(
-                                    color: Color(0xFF769AA5), fontSize: 11)),
+                            Row(
+                              children: [
+                                Text(_formatDate(rep.date),
+                                    style: const TextStyle(
+                                        color: Color(0xFF769AA5), fontSize: 11)),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (dCtx) => AlertDialog(
+                                        backgroundColor: const Color(0xFF0A222B),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(18)),
+                                        title: const Text('Delete Repayment?',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w800)),
+                                        content: Text(
+                                          'Remove ${_formatCurrency(rep.amount)} repayment installment? This will adjust your balance.',
+                                          style: const TextStyle(
+                                              color: Color(0xFFBDE0EA)),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(dCtx, false),
+                                            child: const Text('Cancel',
+                                                style: TextStyle(
+                                                    color: Color(0xFF88A6B2))),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xFFFF3366),
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.pop(dCtx, true),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true && context.mounted) {
+                                      Navigator.of(ctx).pop();
+                                      await appState.deleteRepayment(
+                                        debtId: record.id,
+                                        repaymentId: rep.id,
+                                      );
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(4.0),
+                                    child: Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 16,
+                                      color: Color(0xFFFF6B81),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       );
