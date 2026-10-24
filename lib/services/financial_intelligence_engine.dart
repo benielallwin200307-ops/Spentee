@@ -2,11 +2,14 @@ import 'dart:math';
 import '../models/transaction.dart';
 import '../models/budget.dart';
 import '../models/savings_goal.dart';
+import '../models/lent_borrowed_record.dart';
+import 'roast_engine.dart';
 
 /// Represents a deterministic financial calculation result over a specific dataset and period.
 class FinancialAuditSummary {
   final DateTime startDate;
   final DateTime endDate;
+  final double grossExpense;
   final double totalIncome;
   final double totalExpense;
   final double netSavings;
@@ -25,6 +28,7 @@ class FinancialAuditSummary {
   const FinancialAuditSummary({
     required this.startDate,
     required this.endDate,
+    this.grossExpense = 0.0,
     required this.totalIncome,
     required this.totalExpense,
     required this.netSavings,
@@ -69,7 +73,7 @@ class FinancialEngineResponse {
 
 /// A high-performance, deterministic Financial Intelligence Engine for Spentee.
 /// Guarantees exact arithmetic, prevents double counting, strictly excludes transfers
-/// from income/expense totals, handles debt/refund boundaries, and respects user consent.
+/// from income/expense totals, handles debt/refund boundaries, and respects user privacy.
 class FinancialIntelligenceEngine {
   FinancialIntelligenceEngine._();
   static final FinancialIntelligenceEngine instance =
@@ -83,12 +87,14 @@ class FinancialIntelligenceEngine {
   /// Transfers MUST NOT count as consumption expenses or earned income.
   static bool isTransfer(Transaction tx) {
     if (tx.type == TransactionType.transfer) return true;
+    if (tx.isInvestment) return true;
     final cat = tx.category.toLowerCase().trim();
     final title = tx.title.toLowerCase().trim();
     return cat == 'bank transfer' ||
         cat == 'sent to friend' ||
         cat == 'savings vault' ||
         cat == 'wallet transfer' ||
+        cat == 'own account transfer' ||
         title.contains('transfer') ||
         title.contains('vault deposit');
   }
@@ -108,9 +114,12 @@ class FinancialIntelligenceEngine {
 
   /// Checks if an entry is money lent out to someone (a receivable asset).
   static bool isMoneyLent(Transaction tx) {
+    if (tx.type == TransactionType.lent || tx.isLent) return true;
     final note = tx.note.toLowerCase();
     final title = tx.title.toLowerCase();
-    return note.contains('lent') ||
+    final cat = tx.category.toLowerCase();
+    return cat == 'money lent' ||
+        note.contains('lent') ||
         note.contains('loan given') ||
         note.contains('lend') ||
         title.contains('lent to') ||
@@ -119,9 +128,12 @@ class FinancialIntelligenceEngine {
 
   /// Checks if an entry is money borrowed from someone (a liability).
   static bool isMoneyBorrowed(Transaction tx) {
+    if (tx.type == TransactionType.borrowed || tx.isBorrowed) return true;
     final note = tx.note.toLowerCase();
     final title = tx.title.toLowerCase();
-    return note.contains('borrowed') ||
+    final cat = tx.category.toLowerCase();
+    return cat == 'money borrowed' ||
+        note.contains('borrowed') ||
         note.contains('loan taken') ||
         title.contains('borrowed from') ||
         title.contains('loan from');
@@ -129,9 +141,18 @@ class FinancialIntelligenceEngine {
 
   /// Checks if an entry is a repayment for lent/borrowed money.
   static bool isRepayment(Transaction tx) {
+    if (tx.type == TransactionType.repaymentReceived ||
+        tx.type == TransactionType.repaymentMade ||
+        tx.isRepaymentReceived ||
+        tx.isRepaymentMade) {
+      return true;
+    }
     final note = tx.note.toLowerCase();
     final title = tx.title.toLowerCase();
-    return note.contains('repaid') ||
+    final cat = tx.category.toLowerCase();
+    return cat == 'repayment received' ||
+        cat == 'repayment made' ||
+        note.contains('repaid') ||
         note.contains('repayment') ||
         note.contains('returned money') ||
         title.contains('repayment') ||
@@ -171,7 +192,6 @@ class FinancialIntelligenceEngine {
       // 1. Refunds: Netting out against expenses to prevent double-counting
       if (isRefund(tx)) {
         totalRefunds += tx.amount;
-        // If logged as income, treat as refund offset, do not inflate earned income
         continue;
       }
 
@@ -189,7 +209,9 @@ class FinancialIntelligenceEngine {
 
       // 4. Repayments
       if (isRepayment(tx)) {
-        if (tx.type == TransactionType.income) {
+        if (tx.type == TransactionType.repaymentReceived ||
+            tx.isRepaymentReceived ||
+            tx.type == TransactionType.income) {
           repaymentsReceived += tx.amount;
         } else {
           repaymentsMade += tx.amount;
@@ -197,7 +219,7 @@ class FinancialIntelligenceEngine {
         continue;
       }
 
-      // 5. Transfers: Excluded from income and expense
+      // 5. Transfers & Investments: Excluded from income and expense
       if (isTransfer(tx)) {
         totalTransfers += tx.amount;
         continue;
@@ -234,6 +256,7 @@ class FinancialIntelligenceEngine {
     return FinancialAuditSummary(
       startDate: startDate,
       endDate: endDate,
+      grossExpense: grossExpense,
       totalIncome: grossIncome,
       totalExpense: netExpense,
       netSavings: netSavings,
@@ -263,12 +286,357 @@ class FinancialIntelligenceEngine {
     required List<Budget> budgets,
     required List<SavingsGoal> savingsGoals,
     required bool userConsented,
+    List<LentBorrowedRecord> debts = const [],
+    double? availableBalance,
+    List<String> recentRoastIds = const [],
+    String language = 'English',
     DateTime? referenceDate,
   }) {
     final now = referenceDate ?? DateTime.now();
     final q = query.trim().toLowerCase();
 
-    // ── A. "How much did I spend today?" / Today's spending ────────────────
+    // ── 0. Roast Requests ("Roast me", "Roast my spending") ────────────────
+    if (_matchesRoastQuery(q)) {
+      final roast = DynamicRoastEngine.generateRoast(
+        transactions: transactions,
+        budgets: budgets,
+        savingsGoals: savingsGoals,
+        recentRoastIds: recentRoastIds,
+        language: language,
+        referenceDate: now,
+      );
+      return FinancialEngineResponse(
+        text: '🔥 **Spentee Roast:**\n\n${roast.text}',
+        actionButtons: const [
+          'Where did most of my money go?',
+          'How much did I spend this month?',
+          'How can I save ₹800 this month?',
+          'Another roast please 🔥',
+        ],
+      );
+    }
+
+    // ── 2. "Who owes me money?" / Detailed Pending Debt Collections ────────
+    if (_matchesWhoOwesMe(q)) {
+      final activeLent = debts
+          .where((d) => d.type == DebtType.lent && d.outstandingAmount > 0)
+          .toList();
+
+      if (activeLent.isEmpty) {
+        return const FinancialEngineResponse(
+          text: '🤝 **Lending & Receivables Status:**\n\n'
+              'Nobody currently owes you money! All lent loans have been fully settled, or no active loans are recorded.',
+          actionButtons: [
+            'How much money have I lent?',
+            'How much did I spend this month?',
+            'Where did most of my money go?',
+          ],
+        );
+      }
+
+      double totalPending = 0.0;
+      final buffer = StringBuffer();
+      buffer.writeln('🤝 **People Who Owe You Money (Active Receivables):**\n');
+
+      for (final d in activeLent) {
+        totalPending += d.outstandingAmount;
+        final dueDateStr = d.dueDate != null ? ' (Due: ${_formatDate(d.dueDate!)})' : '';
+        final isOverdue = d.dueDate != null && d.dueDate!.isBefore(now);
+        final statusTag = isOverdue ? ' ⚠️ *Overdue*' : '';
+        buffer.writeln(
+            '• **${d.personName}**: **₹${_formatCurrency(d.outstandingAmount)}** remaining (out of ₹${_formatCurrency(d.amount)} lent)$dueDateStr$statusTag');
+      }
+
+      buffer.writeln(
+          '\n📊 **Total Money to Collect:** **₹${_formatCurrency(totalPending)}** across ${activeLent.length} person(s).');
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'How much money have I lent?',
+          'How much did I spend this month?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    // ── 3. Lending & Borrowing Questions ──────────────────────────────────
+    if (_matchesHowMuchLent(q)) {
+      final lentDebts = debts.where((d) => d.type == DebtType.lent).toList();
+      double totalPrincipal = lentDebts.fold(0.0, (sum, d) => sum + d.amount);
+      double totalOutstanding =
+          lentDebts.fold(0.0, (sum, d) => sum + d.outstandingAmount);
+      double totalCollected = totalPrincipal - totalOutstanding;
+
+      if (lentDebts.isEmpty) {
+        final audit = computeAudit(
+          transactions: transactions,
+          startDate: DateTime(2020, 1, 1),
+          endDate: DateTime(now.year + 1, 12, 31),
+        );
+        totalPrincipal = audit.totalMoneyLent;
+        totalCollected = audit.totalRepaymentsReceived;
+        totalOutstanding = max(0.0, totalPrincipal - totalCollected);
+      }
+
+      return FinancialEngineResponse(
+        text: '🤝 **Money Lent Summary:**\n\n'
+            '• Total Money Lent: **₹${_formatCurrency(totalPrincipal)}**\n'
+            '• **Repayments Collected:** ₹${_formatCurrency(totalCollected)}\n'
+            '• Money Still to Collect: **₹${_formatCurrency(totalOutstanding)}**\n\n'
+            '*Note: Money lent is tracked as a receivable asset and is strictly excluded from your living expenses.*',
+        actionButtons: const [
+          'Who owes me money?',
+          'How much have I borrowed?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    if (_matchesHowMuchToCollect(q)) {
+      final lentDebts = debts.where((d) => d.type == DebtType.lent).toList();
+      double totalOutstanding =
+          lentDebts.fold(0.0, (sum, d) => sum + d.outstandingAmount);
+
+      if (lentDebts.isEmpty) {
+        final audit = computeAudit(
+          transactions: transactions,
+          startDate: DateTime(2020, 1, 1),
+          endDate: DateTime(now.year + 1, 12, 31),
+        );
+        totalOutstanding =
+            max(0.0, audit.totalMoneyLent - audit.totalRepaymentsReceived);
+      }
+
+      return FinancialEngineResponse(
+        text: '📥 **Money to Collect:**\n\n'
+            'You still need to collect **₹${_formatCurrency(totalOutstanding)}** in outstanding receivables.\n\n'
+            'Ask *"Who owes me money?"* to see individual borrowers.',
+        actionButtons: const [
+          'Who owes me money?',
+          'How much money have I lent?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    if (_matchesHowMuchBorrowed(q)) {
+      final borrowedDebts =
+          debts.where((d) => d.type == DebtType.borrowed).toList();
+      double totalPrincipal = borrowedDebts.fold(0.0, (sum, d) => sum + d.amount);
+      double totalOutstanding =
+          borrowedDebts.fold(0.0, (sum, d) => sum + d.outstandingAmount);
+      double totalRepaid = totalPrincipal - totalOutstanding;
+
+      if (borrowedDebts.isEmpty) {
+        final audit = computeAudit(
+          transactions: transactions,
+          startDate: DateTime(2020, 1, 1),
+          endDate: DateTime(now.year + 1, 12, 31),
+        );
+        totalPrincipal = audit.totalMoneyBorrowed;
+        totalRepaid = audit.totalRepaymentsMade;
+        totalOutstanding = max(0.0, totalPrincipal - totalRepaid);
+      }
+
+      return FinancialEngineResponse(
+        text: '📤 **Money Borrowed Summary:**\n\n'
+            '• Total Money Borrowed: **₹${_formatCurrency(totalPrincipal)}**\n'
+            '• **Repayments Made:** ₹${_formatCurrency(totalRepaid)}\n'
+            '• Money Still to Repay: **₹${_formatCurrency(totalOutstanding)}**\n\n'
+            '*Note: Borrowed funds are tracked as liabilities and are strictly excluded from your earned income.*',
+        actionButtons: const [
+          'How much do I still need to repay?',
+          'How much money have I lent?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    if (_matchesHowMuchToRepay(q)) {
+      final borrowedDebts =
+          debts.where((d) => d.type == DebtType.borrowed).toList();
+      double totalOutstanding =
+          borrowedDebts.fold(0.0, (sum, d) => sum + d.outstandingAmount);
+
+      if (borrowedDebts.isEmpty) {
+        final audit = computeAudit(
+          transactions: transactions,
+          startDate: DateTime(2020, 1, 1),
+          endDate: DateTime(now.year + 1, 12, 31),
+        );
+        totalOutstanding =
+            max(0.0, audit.totalMoneyBorrowed - audit.totalRepaymentsMade);
+      }
+
+      final active = borrowedDebts.where((d) => d.outstandingAmount > 0).toList();
+      final buffer = StringBuffer();
+      buffer.writeln('📤 **Money to Repay:**\n');
+      buffer.writeln(
+          'You currently owe **₹${_formatCurrency(totalOutstanding)}** in liabilities.\n');
+
+      if (active.isNotEmpty) {
+        buffer.writeln('**Pending Repayments:**');
+        for (final d in active) {
+          buffer.writeln(
+              '• To **${d.personName}**: ₹${_formatCurrency(d.outstandingAmount)}');
+        }
+      }
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'How much have I borrowed?',
+          'How much money have I lent?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    if (_matchesRepaidOrCollected(q)) {
+      final lentDebts = debts.where((d) => d.type == DebtType.lent).toList();
+      final borrowedDebts =
+          debts.where((d) => d.type == DebtType.borrowed).toList();
+
+      double totalCollected = lentDebts.fold(0.0, (sum, d) => sum + d.repaidAmount);
+      double totalRepaid =
+          borrowedDebts.fold(0.0, (sum, d) => sum + d.repaidAmount);
+
+      if (debts.isEmpty) {
+        final audit = computeAudit(
+          transactions: transactions,
+          startDate: DateTime(2020, 1, 1),
+          endDate: DateTime(now.year + 1, 12, 31),
+        );
+        totalCollected = audit.totalRepaymentsReceived;
+        totalRepaid = audit.totalRepaymentsMade;
+      }
+
+      return FinancialEngineResponse(
+        text: '🔄 **Repayment & Collection Ledger:**\n\n'
+            '• **Repayments Collected (from money lent):** **₹${_formatCurrency(totalCollected)}**\n'
+            '• **Repayments Made (for money borrowed):** **₹${_formatCurrency(totalRepaid)}**\n\n'
+            '*Note: Repayments are settlement transfers that restore your balance without being double-counted as income or expenses.*',
+        actionButtons: const [
+          'How much money have I lent?',
+          'How much have I borrowed?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    // ── 4. "What is my current available balance?" ─────────────────────────
+    if (_matchesAvailableBalance(q)) {
+      double bal = availableBalance ?? 0.0;
+      if (availableBalance == null) {
+        for (final tx in transactions) {
+          if (tx.isCashOutflow) bal -= tx.amount;
+          if (tx.isCashInflow) bal += tx.amount;
+        }
+      }
+
+      final sign = bal < 0 ? '-' : '';
+      final absBal = bal.abs();
+
+      return FinancialEngineResponse(
+        text: '💳 **Current Available Balance:**\n\n'
+            '• **Spendable Cash Balance:** **$sign₹${_formatCurrency(absBal)}**\n\n'
+            'This reflects your spendable cash after earned income, living expenses, investments, loans, and debt repayments.',
+        actionButtons: const [
+          'How much did I spend today?',
+          'How much did I earn this month?',
+          'Where did most of my money go?',
+        ],
+      );
+    }
+
+    // ── 5. "What was my biggest expense?" ──────────────────────────────────
+    if (_matchesBiggestExpense(q)) {
+      final isThisMonth =
+          q.contains('this month') || q.contains('current month');
+      final validExpenses = transactions
+          .where((tx) {
+            if (tx.type != TransactionType.expense ||
+                isTransfer(tx) ||
+                isRefund(tx) ||
+                isMoneyLent(tx)) {
+              return false;
+            }
+            if (isThisMonth) {
+              return tx.date.year == now.year && tx.date.month == now.month;
+            }
+            return true;
+          })
+          .toList();
+
+      if (validExpenses.isEmpty) {
+        return const FinancialEngineResponse(
+          text: '📊 **Biggest Expense:**\n\n'
+              'No expense transactions have been recorded yet.',
+          actionButtons: [
+            'How much did I spend today?',
+            'How much did I earn this month?',
+          ],
+        );
+      }
+
+      validExpenses.sort((a, b) => b.amount.compareTo(a.amount));
+      final topTx = validExpenses.first;
+
+      return FinancialEngineResponse(
+        text: '🏆 **Biggest Expense Recorded:**\n\n'
+            '• **Purchase:** **${topTx.title}**\n'
+            '• **Amount:** **₹${_formatCurrency(topTx.amount)}**\n'
+            '• **Category:** ${topTx.category}\n'
+            '• **Date:** ${_formatDate(topTx.date)}\n'
+            '${topTx.note.isNotEmpty ? '• **Note:** ${topTx.note}\n' : ''}',
+        actionButtons: const [
+          'Where did most of my money go?',
+          'How much did I spend this month?',
+          'Show my recent transactions',
+        ],
+      );
+    }
+
+    // ── 6. "Show my recent transactions" ──────────────────────────────────
+    if (_matchesRecentTransactions(q)) {
+      final validTxs = transactions.where((tx) => !tx.isDeleted).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+
+      if (validTxs.isEmpty) {
+        return const FinancialEngineResponse(
+          text: '📋 **Recent Transactions:**\n\n'
+              'No transactions recorded yet in your account.',
+          actionButtons: [
+            'How much did I spend today?',
+            'What is my current available balance?',
+          ],
+        );
+      }
+
+      final recent = validTxs.take(5).toList();
+      final buffer = StringBuffer();
+      buffer.writeln('📋 **Your 5 Most Recent Transactions:**\n');
+
+      for (final tx in recent) {
+        final signAmount = tx.displaySignedAmount;
+        final extra = tx.personName != null && tx.personName!.isNotEmpty
+            ? ' • ${tx.personName}'
+            : '';
+        buffer.writeln('• **${tx.title}**: **$signAmount** (${tx.category}$extra • ${_formatDate(tx.date)})');
+      }
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'What was my biggest expense?',
+          'How much did I spend today?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    // ── 7. "How much did I spend today?" ───────────────────────────────────
     if (_matchesTodaySpend(q)) {
       final start = DateTime(now.year, now.month, now.day, 0, 0, 0);
       final end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
@@ -318,14 +686,312 @@ class FinancialIntelligenceEngine {
       return FinancialEngineResponse(
         text: buffer.toString().trim(),
         actionButtons: const [
+          'How much did I spend yesterday?',
           'How much did I earn this month?',
           'Where did most of my money go?',
+        ],
+      );
+    }
+
+    // ── 8. "How much did I spend yesterday?" ───────────────────────────────
+    if (_matchesYesterdaySpend(q)) {
+      final yesterday = now.subtract(const Duration(days: 1));
+      final start = DateTime(yesterday.year, yesterday.month, yesterday.day, 0, 0, 0);
+      final end =
+          DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59, 999);
+      final audit = computeAudit(
+        transactions: transactions,
+        startDate: start,
+        endDate: end,
+      );
+
+      final buffer = StringBuffer();
+      buffer.writeln('📅 **Spending Summary for Yesterday (${_formatDate(yesterday)}):**\n');
+      buffer.writeln('• **Total Spent:** ₹${_formatCurrency(audit.totalExpense)}');
+
+      if (audit.totalRefunds > 0) {
+        buffer.writeln(
+            '• **Refunds Credited:** ₹${_formatCurrency(audit.totalRefunds)} *(deducted)*');
+      }
+
+      final yExpenses = transactions.where((tx) =>
+          tx.type == TransactionType.expense &&
+          !isTransfer(tx) &&
+          !isRefund(tx) &&
+          !isMoneyLent(tx) &&
+          !tx.date.isBefore(start) &&
+          !tx.date.isAfter(end)).toList();
+
+      if (yExpenses.isNotEmpty) {
+        buffer.writeln('\n**Transactions Yesterday:**');
+        for (final tx in yExpenses) {
+          buffer.writeln('• ${tx.title}: ₹${_formatCurrency(tx.amount)} (${tx.category})');
+        }
+      } else {
+        buffer.writeln('\n*No expenses recorded for yesterday.*');
+      }
+
+      if (audit.categoryExpenses.isNotEmpty) {
+        buffer.writeln('\n**Category Breakdown:**');
+        audit.categoryExpenses.forEach((cat, amt) {
+          buffer.writeln('  - $cat: ₹${_formatCurrency(amt)}');
+        });
+      }
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'How much did I spend today?',
+          'How much did I spend this week?',
+          'Where did most of my money go?',
+        ],
+      );
+    }
+
+    // ── 9. "How much did I spend this week?" ───────────────────────────────
+    if (_matchesWeekSpend(q)) {
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final start = todayStart.subtract(const Duration(days: 6));
+      final end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      final audit = computeAudit(
+        transactions: transactions,
+        startDate: start,
+        endDate: end,
+      );
+
+      final spendAmount = audit.grossExpense > 0 ? audit.grossExpense : audit.totalExpense;
+      final dailyAvg = spendAmount / 7.0;
+
+      final buffer = StringBuffer();
+      buffer.writeln('📅 **Weekly Spending Summary (Last 7 Days):**\n');
+      buffer.writeln('• **Total Spent:** **₹${_formatCurrency(spendAmount)}**');
+      if (audit.totalRefunds > 0) {
+        buffer.writeln(
+            '• **Net Spending (after ₹${_formatCurrency(audit.totalRefunds)} refunds):** ₹${_formatCurrency(audit.totalExpense)}');
+      }
+      buffer.writeln('• **Daily Average:** ₹${_formatCurrency(dailyAvg)}/day');
+
+      if (audit.topCategory != 'None') {
+        buffer.writeln(
+            '• **Top Spending Area:** ${audit.topCategory} (₹${_formatCurrency(audit.topCategoryAmount)})');
+      }
+
+      if (audit.categoryExpenses.isNotEmpty) {
+        buffer.writeln('\n**Category Breakdown:**');
+        audit.categoryExpenses.forEach((cat, amt) {
+          buffer.writeln('  - $cat: ₹${_formatCurrency(amt)}');
+        });
+      } else {
+        buffer.writeln('\n*No expenses recorded in the last 7 days.*');
+      }
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'How much did I spend this month?',
+          'Am I spending more than usual?',
+          'Where did most of my money go?',
+        ],
+      );
+    }
+
+    // ── 10. "How much did I spend this month?" ─────────────────────────────
+    if (_matchesMonthSpend(q)) {
+      final start = DateTime(now.year, now.month, 1, 0, 0, 0);
+      final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+      final audit = computeAudit(
+        transactions: transactions,
+        startDate: start,
+        endDate: end,
+      );
+
+      final monthName = _monthName(now.month);
+      final dailyPace = audit.totalExpense / max(1, now.day);
+
+      final buffer = StringBuffer();
+      buffer.writeln('📊 **Spending Report for $monthName ${now.year}:**\n');
+      buffer.writeln('• **Total Spending (Month-to-Date):** **₹${_formatCurrency(audit.totalExpense)}**');
+      buffer.writeln('• **Current Spending Pace:** ₹${_formatCurrency(dailyPace)}/day');
+
+      if (audit.topCategory != 'None') {
+        final pct = audit.totalExpense > 0
+            ? ((audit.topCategoryAmount / audit.totalExpense) * 100).toStringAsFixed(1)
+            : '0';
+        buffer.writeln(
+            '• **Top Category:** ${audit.topCategory} (₹${_formatCurrency(audit.topCategoryAmount)}, $pct%)');
+      }
+
+      if (audit.categoryExpenses.isNotEmpty) {
+        buffer.writeln('\n**Category Breakdown:**');
+        audit.categoryExpenses.forEach((cat, amt) {
+          buffer.writeln('  - $cat: ₹${_formatCurrency(amt)}');
+        });
+      }
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'How much did I earn this month?',
+          'Compare this month with last month',
           'How much budget do I have left?',
         ],
       );
     }
 
-    // ── B. "How much did I earn this month?" / Monthly income ─────────────
+    // ── 11. "How much have I spent this year?" ─────────────────────────────
+    if (_matchesYearSpend(q)) {
+      final start = DateTime(now.year, 1, 1, 0, 0, 0);
+      final end = DateTime(now.year, 12, 31, 23, 59, 59, 999);
+      final audit = computeAudit(
+        transactions: transactions,
+        startDate: start,
+        endDate: end,
+      );
+
+      final elapsedMonths = max(1, now.month);
+      final monthlyAvg = audit.totalExpense / elapsedMonths;
+
+      final buffer = StringBuffer();
+      buffer.writeln('🗓️ **Annual Spending Summary (${now.year} Year-to-Date):**\n');
+      buffer.writeln('• **Total Spent in ${now.year}:** **₹${_formatCurrency(audit.totalExpense)}**');
+      buffer.writeln('• **Monthly Average Spending:** ₹${_formatCurrency(monthlyAvg)}/month');
+
+      if (audit.topCategory != 'None') {
+        buffer.writeln(
+            '• **Highest Spending Category:** ${audit.topCategory} (₹${_formatCurrency(audit.topCategoryAmount)})');
+      }
+
+      if (audit.categoryExpenses.isNotEmpty) {
+        buffer.writeln('\n**Category Breakdown:**');
+        audit.categoryExpenses.forEach((cat, amt) {
+          buffer.writeln('  - $cat: ₹${_formatCurrency(amt)}');
+        });
+      }
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'How much did I spend this month?',
+          'What is my total income and total spending?',
+          'Where did most of my money go?',
+        ],
+      );
+    }
+
+    // ── 12. "What is my total income and total spending?" ──────────────────
+    if (_matchesTotalIncomeAndSpend(q)) {
+      final start = DateTime(2020, 1, 1);
+      final end = DateTime(now.year + 1, 12, 31, 23, 59, 59, 999);
+      final audit = computeAudit(
+        transactions: transactions,
+        startDate: start,
+        endDate: end,
+      );
+
+      return FinancialEngineResponse(
+        text: '📈 **Total Income & Spending Audit (Tracked History):**\n\n'
+            '• Total Earned Income: **₹${_formatCurrency(audit.totalIncome)}**\n'
+            '• Total Consumption Spending: **₹${_formatCurrency(audit.totalExpense)}**\n'
+            '• Net Cumulative Savings: **₹${_formatCurrency(audit.netSavings)}**\n\n'
+            '• Internal Transfers: ₹${_formatCurrency(audit.totalTransfers)} *(excluded from expenses & income)*\n'
+            '• Money Lent Out: ₹${_formatCurrency(audit.totalMoneyLent)}\n'
+            '• Money Borrowed: ₹${_formatCurrency(audit.totalMoneyBorrowed)}',
+        actionButtons: const [
+          'What is my current available balance?',
+          'Where did most of my money go?',
+          'Compare this month with last month',
+        ],
+      );
+    }
+
+    // ── 13. "Am I spending more than usual?" / Spending Pace ────────────────
+    if (_matchesSpendingPace(q)) {
+      final curStart = DateTime(now.year, now.month, 1, 0, 0, 0);
+      final curEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+      final curAudit = computeAudit(
+        transactions: transactions,
+        startDate: curStart,
+        endDate: curEnd,
+      );
+
+      final prevDate = DateTime(now.year, now.month - 1, 1);
+      final prevStart = DateTime(prevDate.year, prevDate.month, 1, 0, 0, 0);
+      final prevEnd =
+          DateTime(prevDate.year, prevDate.month + 1, 0, 23, 59, 59, 999);
+      final prevAudit = computeAudit(
+        transactions: transactions,
+        startDate: prevStart,
+        endDate: prevEnd,
+      );
+
+      final curDailyPace = curAudit.totalExpense / max(1, now.day);
+      final daysInPrev = DateTime(prevDate.year, prevDate.month + 1, 0).day;
+      final prevDailyPace = prevAudit.totalExpense / max(1, daysInPrev);
+
+      final buffer = StringBuffer();
+      buffer.writeln('📈 **Spending Pace Analysis:**\n');
+
+      if (prevAudit.totalExpense == 0) {
+        buffer.writeln(
+            'There are no recorded expenses from last month to establish a prior baseline.\n'
+            '• Current pace this month: **₹${_formatCurrency(curDailyPace)}/day** (₹${_formatCurrency(curAudit.totalExpense)} total so far).');
+      } else {
+        final diff = curDailyPace - prevDailyPace;
+        final pct = ((diff / prevDailyPace) * 100).toStringAsFixed(1);
+        if (diff > 0) {
+          buffer.writeln(
+              '🔺 **Spending Faster Than Last Month:**\n'
+              'You are spending an average of **₹${_formatCurrency(curDailyPace)}/day** this month, compared to **₹${_formatCurrency(prevDailyPace)}/day** last month (+**$pct%** pace increase).\n\n'
+              'Primary driver: **${curAudit.topCategory}** (₹${_formatCurrency(curAudit.topCategoryAmount)}).');
+        } else if (diff < 0) {
+          buffer.writeln(
+              '🔻 **Pacing Lower Than Last Month:**\n'
+              'Good news! You are spending an average of **₹${_formatCurrency(curDailyPace)}/day** this month, compared to **₹${_formatCurrency(prevDailyPace)}/day** last month (**$pct%** pace decrease).');
+        } else {
+          buffer.writeln(
+              'Your daily spending pace (**₹${_formatCurrency(curDailyPace)}/day**) matches last month exactly.');
+        }
+      }
+
+      return FinancialEngineResponse(
+        text: buffer.toString().trim(),
+        actionButtons: const [
+          'Where did most of my money go?',
+          'How can I save ₹800 this month?',
+          'How much budget do I have left?',
+        ],
+      );
+    }
+
+    // ── 14. "How much did I save this month?" ──────────────────────────────
+    if (_matchesMonthSavings(q)) {
+      final start = DateTime(now.year, now.month, 1, 0, 0, 0);
+      final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+      final audit = computeAudit(
+        transactions: transactions,
+        startDate: start,
+        endDate: end,
+      );
+
+      final monthName = _monthName(now.month);
+      final savingsRate = audit.totalIncome > 0
+          ? ((audit.netSavings / audit.totalIncome) * 100).toStringAsFixed(1)
+          : '0';
+
+      return FinancialEngineResponse(
+        text: '💰 **Savings Report for $monthName ${now.year}:**\n\n'
+            '• **Earned Income:** ₹${_formatCurrency(audit.totalIncome)}\n'
+            '• **Total Living Expenses:** ₹${_formatCurrency(audit.totalExpense)}\n'
+            '• **Net Savings Saved:** **₹${_formatCurrency(audit.netSavings)}** ($savingsRate% savings rate)',
+        actionButtons: const [
+          'Where did most of my money go?',
+          'How can I save ₹800 this month?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    // ── 15. "How much did I earn this month?" ──────────────────────────────
     if (_matchesMonthEarn(q)) {
       final start = DateTime(now.year, now.month, 1, 0, 0, 0);
       final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
@@ -369,7 +1035,7 @@ class FinancialIntelligenceEngine {
       );
     }
 
-    // ── C. "Where did most of my money go?" / Top expense area ────────────
+    // ── 16. "Where did most of my money go?" / Top expense area ───────────
     if (_matchesTopSpending(q)) {
       final start = DateTime(now.year, now.month, 1, 0, 0, 0);
       final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
@@ -391,7 +1057,6 @@ class FinancialIntelligenceEngine {
         );
       }
 
-      // Sort categories descending
       final sorted = audit.categoryExpenses.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -419,7 +1084,7 @@ class FinancialIntelligenceEngine {
       );
     }
 
-    // ── D. "How much budget do I have left?" / Budget remaining ────────────
+    // ── 17. "How much budget do I have left?" ──────────────────────────────
     if (_matchesBudgetRemaining(q)) {
       final currentYear = now.year;
       final currentMonth = now.month;
@@ -477,9 +1142,8 @@ class FinancialIntelligenceEngine {
       );
     }
 
-    // ── E. "Compare this month with last month" / Month-over-month ─────────
+    // ── 18. "Compare this month with last month" ───────────────────────────
     if (_matchesMonthComparison(q)) {
-      // Current Month
       final curStart = DateTime(now.year, now.month, 1, 0, 0, 0);
       final curEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
       final curAudit = computeAudit(
@@ -488,7 +1152,6 @@ class FinancialIntelligenceEngine {
         endDate: curEnd,
       );
 
-      // Previous Month
       final prevDate = DateTime(now.year, now.month - 1, 1);
       final prevStart = DateTime(prevDate.year, prevDate.month, 1, 0, 0, 0);
       final prevEnd =
@@ -547,7 +1210,7 @@ class FinancialIntelligenceEngine {
       );
     }
 
-    // ── F. Specific Category Spend Queries (e.g. "How much did I spend on Food?") ─
+    // ── 19. Category Spend Queries (Food, Shopping, Travel, Bills, etc.) ───
     final catQuery = _matchCategorySpend(q, transactions);
     if (catQuery != null) {
       final categoryName = catQuery['category'] as String;
@@ -566,87 +1229,20 @@ class FinancialIntelligenceEngine {
         text: '🛍️ **$categoryName Spending in $monthName ${now.year}:**\n\n'
             '• Total Recorded: **₹${_formatCurrency(catSpent)}**\n'
             '• Share of Monthly Spending: ${audit.totalExpense > 0 ? ((catSpent / audit.totalExpense) * 100).toStringAsFixed(1) : 0}%',
-        actionButtons: [
+        actionButtons: const [
           'Where did most of my money go?',
           'How much budget do I have left?',
         ],
       );
     }
 
-    // ── G. Transfers, Refunds, Lent/Borrowed Specific Inquiries ─────────────
-    if (q.contains('transfer') && (q.contains('how much') || q.contains('total') || q.contains('my'))) {
-      final start = DateTime(now.year, now.month, 1, 0, 0, 0);
-      final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
-      final audit = computeAudit(
-        transactions: transactions,
-        startDate: start,
-        endDate: end,
-      );
-
-      return FinancialEngineResponse(
-        text: '🔄 **Transfers Audit for ${_monthName(now.month)} ${now.year}:**\n\n'
-            '• **Total Transfers:** ₹${_formatCurrency(audit.totalTransfers)}\n\n'
-            '*Note: In compliance with strict financial accounting, transfers represent reallocations between accounts or vaults and are excluded from expense and income totals.*',
-        actionButtons: const [
-          'How much did I spend today?',
-          'How much did I earn this month?',
-        ],
-      );
-    }
-
-    if (q.contains('refund') && (q.contains('how much') || q.contains('any') || q.contains('total'))) {
-      final start = DateTime(now.year, now.month, 1, 0, 0, 0);
-      final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
-      final audit = computeAudit(
-        transactions: transactions,
-        startDate: start,
-        endDate: end,
-      );
-
-      return FinancialEngineResponse(
-        text: '💳 **Refunds Audit for ${_monthName(now.month)} ${now.year}:**\n\n'
-            '• **Refunds Credited:** ₹${_formatCurrency(audit.totalRefunds)}\n\n'
-            '*Note: Refunds are applied directly against expenses to prevent double-counting income or inflating your living expenses.*',
-        actionButtons: const [
-          'How much did I spend today?',
-          'Where did most of my money go?',
-        ],
-      );
-    }
-
-    if ((q.contains('lent') || q.contains('borrowed') || q.contains('loan')) &&
-        (q.contains('how much') || q.contains('track') || q.contains('total') || q.contains('money'))) {
-      final start = DateTime(2020, 1, 1);
-      final end = DateTime(now.year, 12, 31, 23, 59, 59);
-      final audit = computeAudit(
-        transactions: transactions,
-        startDate: start,
-        endDate: end,
-      );
-
-      return FinancialEngineResponse(
-        text: '🤝 **Personal Debt & Receivables Audit:**\n\n'
-            '• **Money Lent Out (Receivables):** ₹${_formatCurrency(audit.totalMoneyLent)}\n'
-            '• **Repayments Received:** ₹${_formatCurrency(audit.totalRepaymentsReceived)}\n'
-            '• **Net Outstanding to Receive:** ₹${_formatCurrency(max(0.0, audit.totalMoneyLent - audit.totalRepaymentsReceived))}\n\n'
-            '• **Money Borrowed (Liabilities):** ₹${_formatCurrency(audit.totalMoneyBorrowed)}\n'
-            '• **Repayments Made:** ₹${_formatCurrency(audit.totalRepaymentsMade)}\n'
-            '• **Net Outstanding to Pay:** ₹${_formatCurrency(max(0.0, audit.totalMoneyBorrowed - audit.totalRepaymentsMade))}',
-        actionButtons: const [
-          'How much did I earn this month?',
-          'How much did I spend today?',
-        ],
-      );
-    }
-
-    // ── H. Ambiguous Period or Missing Historical Data Detection ─────────
+    // ── 20. Missing Data / Ambiguity Guards ────────────────────────────────
     final ambiguousResponse = _checkAmbiguity(q, transactions, now);
     if (ambiguousResponse != null) {
       return ambiguousResponse;
     }
 
-    // ── I. Personalized Advice & Savings Goal Requests ─────────────────────
-    // e.g. "How can I save ₹800 this month?"
+    // ── 21. Personalized Savings Plan ("Where can I reduce my spending?") ─
     final savingsMatch = _matchSavingsGoalQuery(q);
     if (savingsMatch != null) {
       final targetAmount = savingsMatch['target'] as double;
@@ -660,12 +1256,224 @@ class FinancialIntelligenceEngine {
       );
     }
 
-    // Not handled deterministically; eligible for general-purpose AI
     return null;
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 4. PERSONALIZED SAVINGS PLAN ENGINE
+  // 4. FINANCIAL EDUCATION ENGINE (OFFLINE DETERMINISTIC)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  static FinancialEngineResponse? evaluateFinancialEducation(String q) {
+    // 1. SIP
+    if (q.contains('what is an sip') ||
+        q.contains('what is a sip') ||
+        q.contains('what is sip') ||
+        q.contains('explain sip') ||
+        q.contains('explain sips') ||
+        q.contains('systematic investment plan')) {
+      return const FinancialEngineResponse(
+        text: '📈 **What is an SIP (Systematic Investment Plan)?**\n\n'
+            'An **SIP** is an investment strategy where you invest a fixed amount of money at regular intervals (typically monthly or weekly) into a mutual fund rather than investing a lump sum.\n\n'
+            '**Key Advantages:**\n'
+            '1. **Rupee-Cost Averaging**: You buy more mutual fund units when market prices are low and fewer units when prices are high, smoothing out market volatility.\n'
+            '2. **Power of Compounding**: Regular earnings generate their own earnings over long horizons.\n'
+            '3. **Disciplined Habit**: Automates investing so you save before spending.\n\n'
+            '💡 **Hypothetical Illustration:**\n'
+            '*If you invest a hypothetical ₹1,000 every month for 10 years (total deposited: ₹1,20,000), compounding at an illustrative 12% annual return would accumulate to approximately ₹2,32,000.*\n\n'
+            '⚠️ *Disclaimer: Hypothetical illustration for financial education only. Mutual fund investments are subject to market risks.*',
+        actionButtons: [
+          'What are mutual funds, stocks, and ETFs?',
+          'What is compound interest?',
+          'How can I save ₹800 this month?',
+        ],
+      );
+    }
+
+    // 2. Mutual Funds, Stocks, and ETFs
+    if ((q.contains('mutual fund') ||
+            q.contains('stocks and etf') ||
+            q.contains('stock and etf') ||
+            (q.contains('stock') && q.contains('etf'))) &&
+        (q.contains('what') || q.contains('explain') || q.contains('difference'))) {
+      return const FinancialEngineResponse(
+        text: '🏛️ **Stocks, Mutual Funds & ETFs Explained:**\n\n'
+            '• **Individual Stocks**: Direct ownership of a share in a single company. Offers highest growth potential but carries company-specific risk and volatility.\n\n'
+            '• **Mutual Funds**: A pool of money collected from many investors and managed by professional fund managers across hundreds of companies and bonds.\n\n'
+            '• **ETFs (Exchange-Traded Funds)**: Similar to mutual funds in diversification, but trade directly on stock exchanges throughout the trading day like regular stocks, typically with lower expense ratios.\n\n'
+            '💡 **Hypothetical Illustration:**\n'
+            '*Buying ₹5,000 of one stock ties your fate to one company. Putting ₹5,000 into an index ETF distributes your ₹5,000 across the top 50 companies.*\n\n'
+            '⚠️ *Disclaimer: Illustrative comparison for financial literacy.*',
+        actionButtons: [
+          'What is an SIP?',
+          'What is compound interest?',
+          'What is inflation?',
+        ],
+      );
+    }
+
+    // 3. Compound Interest
+    if (q.contains('compound interest')) {
+      return const FinancialEngineResponse(
+        text: '🌱 **What is Compound Interest?**\n\n'
+            'Compound interest is interest earned on your initial principal **plus** the accumulated interest from previous periods—commonly referred to as **"interest on interest"**.\n\n'
+            '**How it Works:**\n'
+            'Unlike simple interest (which only pays interest on the principal), compound interest accelerates growth exponentially over time.\n\n'
+            '💡 **Hypothetical Illustration:**\n'
+            '*If you deposit ₹10,000 at an 8% annual compound interest rate:*\n'
+            '• Year 1: Earns ₹800 ➔ Balance: ₹10,800\n'
+            '• Year 2: Earns 8% on ₹10,800 = ₹864 ➔ Balance: ₹11,664\n'
+            '• Year 10: Balance grows to ~₹21,589 without adding any extra deposits!\n\n'
+            '⚠️ *Disclaimer: Illustrative mathematical example for educational purposes.*',
+        actionButtons: [
+          'What is inflation?',
+          'What is an emergency fund?',
+          'What is an SIP?',
+        ],
+      );
+    }
+
+    // 4. Inflation
+    if (q.contains('what is inflation') ||
+        q.contains('explain inflation') ||
+        q.contains('how does inflation work')) {
+      return const FinancialEngineResponse(
+        text: '📉 **What is Inflation?**\n\n'
+            '**Inflation** is the rate at which the general level of prices for goods and services rises, resulting in a gradual decrease in the purchasing power of your money.\n\n'
+            '**Why it Matters:**\n'
+            'If your savings earn 3% interest in a traditional account while inflation runs at 6%, your real purchasing power shrinks by 3% every year.\n\n'
+            '💡 **Hypothetical Illustration:**\n'
+            '*A basket of groceries that costs ₹1,000 today would cost ₹1,060 next year at a 6% annual inflation rate. Keeping cash hidden under a mattress quietly erodes its real value over time.*\n\n'
+            '⚠️ *Disclaimer: General financial educational explanation.*',
+        actionButtons: [
+          'What is an emergency fund?',
+          'Difference between saving and investing',
+          'What is compound interest?',
+        ],
+      );
+    }
+
+    // 5. Emergency Fund
+    if (q.contains('emergency fund')) {
+      return const FinancialEngineResponse(
+        text: '🛡️ **What is an Emergency Fund?**\n\n'
+            'An **Emergency Fund** is a liquid financial safety cushion reserved strictly for unexpected life events, such as medical emergencies, car/home repairs, or sudden job loss.\n\n'
+            '**Standard Rule of Thumb:**\n'
+            'Save **3 to 6 months** of essential living expenses (rent, groceries, utilities, EMIs, insurance).\n\n'
+            '💡 **Hypothetical Illustration:**\n'
+            '*If your monthly non-negotiable living expenses total ₹25,000, your target emergency cushion should be between ₹75,000 and ₹1,50,000, kept in a high-yield savings account or liquid fund for immediate withdrawal.*\n\n'
+            '⚠️ *Disclaimer: Guidelines are illustrative and depend on personal circumstances.*',
+        actionButtons: [
+          'How much money do I have left in my budget?',
+          'Difference between saving and investing',
+          'What is an SIP?',
+        ],
+      );
+    }
+
+    // 6. Difference between Saving and Investing
+    if ((q.contains('saving') && q.contains('investing')) &&
+        (q.contains('difference') || q.contains('vs') || q.contains('between'))) {
+      return const FinancialEngineResponse(
+        text: '⚖️ **Saving vs. Investing: What is the Difference?**\n\n'
+            '• **Saving**:\n'
+            '  - Purpose: Short-term goals and emergency protection (0 to 3 years).\n'
+            '  - Risk: Very low / capital preservation.\n'
+            '  - Liquidity: Instant access (savings accounts, liquid vaults).\n'
+            '  - Limitation: Rarely beats inflation long-term.\n\n'
+            '• **Investing**:\n'
+            '  - Purpose: Long-term wealth generation (3+ years).\n'
+            '  - Risk: Moderate to high (subject to market fluctuations).\n'
+            '  - Return: Seeks to outpace inflation and build compounding growth (mutual funds, stocks, real estate).\n\n'
+            '💡 *Rule of thumb: Save for peace of mind today; invest for freedom tomorrow.*',
+        actionButtons: [
+          'What is an SIP?',
+          'What is an emergency fund?',
+          'How can I save ₹800 this month?',
+        ],
+      );
+    }
+
+    // 7. Budgets and Interest Rates
+    if (q.contains('50/30/20') ||
+        q.contains('how do budgets') ||
+        q.contains('how does budget work') ||
+        q.contains('how do interest rates work') ||
+        q.contains('how does interest rate work')) {
+      return const FinancialEngineResponse(
+        text: '📊 **How Budgets & Interest Rates Work:**\n\n'
+            '**The 50/30/20 Budget Framework:**\n'
+            '• **50% Needs**: Housing, groceries, utilities, transit, medicine.\n'
+            '• **30% Wants**: Dining out, shopping, streaming, vacations.\n'
+            '• **20% Savings & Debt Repayment**: Emergency buffer, SIPs, paying down loans.\n\n'
+            '**How Interest Rates Work:**\n'
+            '• **On Borrowing (APR)**: The fee you pay a lender to use their money.\n'
+            '• **On Savings (APY)**: The yield you earn for lending your deposits to a bank or fund.\n\n'
+            '💡 *Prioritize paying off high-interest debt first to protect your cash flow.*',
+        actionButtons: [
+          'How much budget do I have left?',
+          'Where did most of my money go?',
+          'How can I save ₹800 this month?',
+        ],
+      );
+    }
+
+    return null;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 5. LOCAL PRE-SCREENING: IS FINANCIAL QUERY CLASSIFIER
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Classifies whether a user question is finance-related or an unrelated prompt.
+  /// Used locally before making any network calls to block unsupported topics cleanly.
+  static bool isFinancialQuery(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return false;
+
+    // Explicit non-financial topics block (jokes, code, trivia, weather, games, etc.)
+    final nonFinancial = RegExp(
+      r'\b(joke|jokes|riddle|riddles|funny|quicksort|algorithm|python|javascript|coding|code|compile|programming|weather|forecast|horoscope|recipe|recipes|cook|cooking|bake|baking|movie|movies|song|songs|lyrics|translate|translation|chess|poem|poetry|story|stories)\b',
+    );
+    if (nonFinancial.hasMatch(q)) return false;
+
+    // Financial keywords with word boundaries to prevent substring collisions (e.g. 'rs' in 'retrievers')
+    final financialWordRegex = RegExp(
+      r'\b(spend|spent|spending|spends|expense|expenses|cost|costs|costing|'
+      r'income|incomes|earn|earned|earns|earning|salary|salaries|wage|wages|revenue|'
+      r'money|cash|fund|funds|rupee|rupees|dollar|dollars|rs|inr|'
+      r'balance|balances|net worth|networth|wallet|wallets|vault|vaults|'
+      r'budget|budgets|budgeting|limit|limits|saving|savings|save|saved|saves|'
+      r'debt|debts|lend|lent|borrow|borrowed|loan|loans|'
+      r'owe|owes|owed|repay|repaid|repayment|repayments|repaying|'
+      r'collect|collected|collecting|collection|refund|refunds|refunded|reimbursement|'
+      r'transaction|transactions|receipt|receipts|purchase|purchases|purchased|'
+      r'buy|bought|pay|paid|payment|payments|paying|bill|bills|'
+      r'afford|wealth|invest|invests|invested|investing|investment|investments|'
+      r'sip|sips|mutual fund|mutual funds|stock|stocks|etf|etfs|'
+      r'share market|equity|equities|compound interest|inflation|'
+      r'emergency fund|interest rate|interest rates|apr|apy|'
+      r'dividend|dividends|portfolio|portfolios|crypto|bitcoin|asset|assets|'
+      r'liability|liabilities|50/30/20|snowball|avalanche|'
+      r'roast|audit|trim|cut spending|reduce spending|'
+      r'groceries|grocery|dining|shopping|transport|travel|finance|financial)\b',
+    );
+
+    if (financialWordRegex.hasMatch(q)) return true;
+
+    // Common greeting or capability queries in chat
+    final politeTriggers = [
+      'hi', 'hello', 'hey', 'who are you', 'what can you do', 'help',
+      'start', 'welcome', 'guide'
+    ];
+    for (final p in politeTriggers) {
+      if (q == p || q.startsWith('$p ') || q.endsWith(' $p')) return true;
+    }
+
+    return false;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 6. PERSONALIZED SAVINGS PLAN ENGINE
   // ───────────────────────────────────────────────────────────────────────────
 
   FinancialEngineResponse _generatePersonalizedSavingsPlan({
@@ -695,7 +1503,6 @@ class FinancialIntelligenceEngine {
       );
     }
 
-    // Audit current month's spending patterns
     final start = DateTime(now.year, now.month, 1, 0, 0, 0);
     final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
     final audit = computeAudit(
@@ -704,7 +1511,6 @@ class FinancialIntelligenceEngine {
       endDate: end,
     );
 
-    // Identify discretionary categories (Food & Dining, Shopping, Entertainment, etc.)
     final discretionary = <String, double>{};
     audit.categoryExpenses.forEach((cat, amt) {
       final lower = cat.toLowerCase();
@@ -724,7 +1530,6 @@ class FinancialIntelligenceEngine {
     buffer.writeln(
         '🎯 **Personalized Plan to Save ₹${_formatCurrency(targetAmount)} in $monthName ${now.year}:**\n');
 
-    // Realistic itemized plan
     final itemizedPlans = <Map<String, dynamic>>[];
 
     if (totalDiscretionary > 0 && totalDiscretionary >= targetAmount) {
@@ -741,7 +1546,6 @@ class FinancialIntelligenceEngine {
         if (accumulated >= targetAmount) break;
 
         final remainingToCut = targetAmount - accumulated;
-        // Allocate up to 35% of this category's spend or remaining target
         final cutCandidate = min(entry.value * 0.35, remainingToCut);
         final cut = (cutCandidate < 100 && remainingToCut >= 100)
             ? min(remainingToCut, entry.value * 0.5)
@@ -761,7 +1565,6 @@ class FinancialIntelligenceEngine {
         }
       }
     } else {
-      // If current recorded spend is low, distribute target across standard categories
       buffer.writeln(
           'Here is an itemized allocation guideline to set aside ₹${_formatCurrency(targetAmount)}:\n');
       final cut1 = (targetAmount * 0.50).roundToDouble();
@@ -777,7 +1580,6 @@ class FinancialIntelligenceEngine {
         '\n⚠️ *Important: These are proposed budget reduction targets, not realized savings. '
         'Savings only materialize when you follow the plan and record less spending.*');
 
-    // Check if goal is already created
     SavingsGoal? existingGoal;
     for (final g in savingsGoals) {
       if (g.targetAmount == targetAmount &&
@@ -834,7 +1636,7 @@ class FinancialIntelligenceEngine {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 5. PRIVACY SUMMARY BUILDER (FOR SECURE BACKEND INTEGRATION)
+  // 7. PRIVACY SUMMARY BUILDER (FOR SECURE BACKEND INTEGRATION)
   // ───────────────────────────────────────────────────────────────────────────
 
   /// Generates a strictly minimal, aggregated summary to provide high-level context
@@ -859,7 +1661,6 @@ class FinancialIntelligenceEngine {
       endDate: end,
     );
 
-    // Extract top 3 category percentages only
     final topCategories = audit.categoryExpenses.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -884,17 +1685,174 @@ class FinancialIntelligenceEngine {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 6. INTERNAL PARSING & AMBIGUITY HELPERS
+  // 8. QUERY MATCHING HELPERS
   // ───────────────────────────────────────────────────────────────────────────
+
+  static bool _matchesRoastQuery(String q) {
+    return q == 'roast me' ||
+        q.contains('roast me') ||
+        q.contains('roast my spending') ||
+        q.contains('roast my habits') ||
+        q.contains('give me a roast') ||
+        q.contains('spending roast') ||
+        q.contains('roast my money') ||
+        q.contains('witty spending roast');
+  }
+
+  static bool _matchesWhoOwesMe(String q) {
+    return q.contains('who owes me') ||
+        q.contains('who owes') ||
+        q.contains('people who owe me') ||
+        q.contains('who do i need to collect from') ||
+        q.contains('pending collections');
+  }
+
+  static bool _matchesHowMuchLent(String q) {
+    return q.contains('lent') &&
+        (q.contains('how much') || q.contains('total') || q.contains('money')) &&
+        !q.contains('collect') &&
+        !q.contains('repay');
+  }
+
+  static bool _matchesHowMuchToCollect(String q) {
+    if (q.contains('repaid') || q.contains('repayment') || q.contains('collected')) {
+      return false;
+    }
+    return (q.contains('to collect') || q.contains('need to collect')) ||
+        (q.contains('collect') &&
+            (q.contains('how much') ||
+                q.contains('still') ||
+                q.contains('need to') ||
+                q.contains('pending') ||
+                q.contains('outstanding')));
+  }
+
+  static bool _matchesHowMuchBorrowed(String q) {
+    return q.contains('borrowed') &&
+        (q.contains('how much') || q.contains('total') || q.contains('money')) &&
+        !q.contains('repay');
+  }
+
+  static bool _matchesHowMuchToRepay(String q) {
+    return (q.contains('repay') || q.contains('pay back')) &&
+        (q.contains('how much') ||
+            q.contains('still') ||
+            q.contains('need to') ||
+            q.contains('pending') ||
+            q.contains('left to') ||
+            q.contains('do i have to'));
+  }
+
+  static bool _matchesRepaidOrCollected(String q) {
+    return (q.contains('repaid') ||
+            q.contains('repayment') ||
+            q.contains('collected') ||
+            q.contains('repaid or collected') ||
+            q.contains('repay or collect')) &&
+        (q.contains('how much') ||
+            q.contains('total') ||
+            q.contains('track') ||
+            q.contains('summary') ||
+            q.contains('ledger'));
+  }
+
+  static bool _matchesAvailableBalance(String q) {
+    return q.contains('available balance') ||
+        (q.contains('balance') &&
+            (q.contains('current') ||
+                q.contains('my') ||
+                q.contains('what is') ||
+                q.contains('check'))) ||
+        q.contains('how much money do i have') ||
+        q.contains('how much cash do i have');
+  }
+
+  static bool _matchesBiggestExpense(String q) {
+    return q.contains('biggest expense') ||
+        q.contains('highest expense') ||
+        q.contains('largest expense') ||
+        q.contains('most expensive') ||
+        q.contains('biggest purchase') ||
+        q.contains('largest purchase') ||
+        q.contains('largest transaction');
+  }
+
+  static bool _matchesRecentTransactions(String q) {
+    return q.contains('recent transaction') ||
+        q.contains('recent transactions') ||
+        q.contains('last transactions') ||
+        q.contains('latest transaction') ||
+        q.contains('latest transactions') ||
+        q.contains('show my transactions') ||
+        q.contains('show recent') ||
+        q.contains('recent purchases') ||
+        q.contains('recent activity');
+  }
 
   static bool _matchesTodaySpend(String q) {
     return (q.contains('spend') || q.contains('spent')) &&
         (q.contains('today') || q.contains('so far today'));
   }
 
+  static bool _matchesYesterdaySpend(String q) {
+    return (q.contains('spend') || q.contains('spent')) && q.contains('yesterday');
+  }
+
+  static bool _matchesWeekSpend(String q) {
+    return (q.contains('spend') || q.contains('spent')) &&
+        (q.contains('this week') || q.contains('weekly') || q.contains('last 7 days') || q.contains('past 7 days'));
+  }
+
+  static bool _matchesMonthSpend(String q) {
+    return (q.contains('spend') || q.contains('spent')) &&
+        (q.contains('this month') ||
+            q.contains('monthly spending') ||
+            q.contains('how much did i spend this month') ||
+            q.contains('my spending this month')) &&
+        !q.contains('last month') &&
+        !q.contains('compare') &&
+        !q.contains('usual');
+  }
+
+  static bool _matchesYearSpend(String q) {
+    return (q.contains('spend') || q.contains('spent')) &&
+        (q.contains('this year') ||
+            q.contains('annual') ||
+            q.contains('year to date') ||
+            q.contains('spent this year'));
+  }
+
+  static bool _matchesTotalIncomeAndSpend(String q) {
+    return (q.contains('total income') && (q.contains('spend') || q.contains('expense'))) ||
+        q.contains('total spending and income') ||
+        q.contains('total income and total spending') ||
+        q.contains('all time income') ||
+        q.contains('lifetime income') ||
+        (q.contains('total income') && q.contains('total')) ||
+        q.contains('what is my total income');
+  }
+
+  static bool _matchesSpendingPace(String q) {
+    return q.contains('spending more than usual') ||
+        q.contains('spending more than normal') ||
+        q.contains('am i overspending') ||
+        q.contains('spending pace') ||
+        q.contains('spending trend');
+  }
+
+  static bool _matchesMonthSavings(String q) {
+    return (q.contains('how much did i save') ||
+            q.contains('how much have i saved') ||
+            q.contains('my savings this month') ||
+            q.contains('save this month')) &&
+        !q.contains('how can i save') &&
+        !q.contains('how to save');
+  }
+
   static bool _matchesMonthEarn(String q) {
     return (q.contains('earn') || q.contains('earned') || q.contains('income')) &&
-        (q.contains('month') || q.contains('this month'));
+        (q.contains('month') || q.contains('this month')) &&
+        !q.contains('total income');
   }
 
   static bool _matchesTopSpending(String q) {
@@ -902,12 +1860,13 @@ class FinancialIntelligenceEngine {
         q.contains('most of my money') ||
         q.contains('top expense') ||
         q.contains('top category') ||
+        q.contains('which category did i spend the most') ||
         (q.contains('what') && q.contains('spent most'));
   }
 
   static bool _matchesBudgetRemaining(String q) {
     return q.contains('budget') &&
-        (q.contains('left') || q.contains('remain') || q.contains('how much'));
+        (q.contains('left') || q.contains('remain') || q.contains('how much') || q.contains('have left'));
   }
 
   static bool _matchesMonthComparison(String q) {
@@ -919,31 +1878,34 @@ class FinancialIntelligenceEngine {
 
   static Map<String, dynamic>? _matchCategorySpend(
       String q, List<Transaction> transactions) {
-    if (!q.contains('how much') && !q.contains('spent on') && !q.contains('spend on')) {
+    if (!q.contains('how much') && !q.contains('spent on') && !q.contains('spend on') && !q.contains('spending on')) {
       return null;
     }
 
-    final knownCategories = [
-      'Food & Dining',
-      'Food & Drinks',
-      'Shopping',
-      'Transport',
-      'Bills & Utilities',
-      'Entertainment',
-      'Groceries',
-      'Health & Care',
-      'Others',
-      'Salary',
-      'Freelance',
-      'Investments',
-    ];
+    final categoryMap = {
+      'food & dining': ['food', 'dining', 'dinner', 'lunch', 'coffee', 'restaurant', 'cafe'],
+      'food & drinks': ['drinks', 'beverage', 'bar'],
+      'shopping': ['shopping', 'clothes', 'apparel', 'retail', 'amazon'],
+      'transport': ['transport', 'travel', 'commute', 'fuel', 'cab', 'metro', 'transit', 'uber', 'taxi'],
+      'bills & utilities': ['bills', 'utilities', 'electricity', 'water', 'recharge', 'wifi', 'internet'],
+      'entertainment': ['entertainment', 'movie', 'gaming', 'streaming', 'netflix'],
+      'groceries': ['groceries', 'grocery', 'supermarket'],
+      'health & care': ['health', 'care', 'medicine', 'medical', 'doctor', 'pharmacy'],
+      'salary': ['salary'],
+      'freelance': ['freelance'],
+      'investments': ['investments', 'investment'],
+    };
 
-    for (final cat in knownCategories) {
-      final name = cat.toLowerCase();
-      final tokens = name.split('&').map((t) => t.trim()).toList();
-      for (final t in tokens) {
-        if (q.contains(t) && t.length > 3) {
-          return {'category': cat};
+    for (final entry in categoryMap.entries) {
+      for (final keyword in entry.value) {
+        if (q.contains(keyword)) {
+          final matchingCat = transactions
+              .map((tx) => tx.category)
+              .firstWhere(
+                (c) => c.toLowerCase().trim() == entry.key,
+                orElse: () => entry.key.split(' ').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
+              );
+          return {'category': matchingCat};
         }
       }
     }
@@ -951,11 +1913,10 @@ class FinancialIntelligenceEngine {
   }
 
   static Map<String, dynamic>? _matchSavingsGoalQuery(String q) {
-    if (!q.contains('save') || (!q.contains('how') && !q.contains('can i') && !q.contains('want to'))) {
+    if (!q.contains('save') || (!q.contains('how') && !q.contains('can i') && !q.contains('want to') && !q.contains('reduce'))) {
       return null;
     }
 
-    // Look for currency amounts e.g. "800", "₹800", "5000", "rs 800", etc.
     final match = RegExp(r'(?:₹|rs\.?|inr\s*)?(\d{2,7})').firstMatch(q);
     if (match != null) {
       final amt = double.tryParse(match.group(1) ?? '');
@@ -964,7 +1925,7 @@ class FinancialIntelligenceEngine {
       }
     }
 
-    if (q.contains('save more money') || q.contains('how to save')) {
+    if (q.contains('save more money') || q.contains('how to save') || q.contains('reduce my spending')) {
       return {'target': 1000.0};
     }
 
@@ -973,7 +1934,6 @@ class FinancialIntelligenceEngine {
 
   static FinancialEngineResponse? _checkAmbiguity(
       String q, List<Transaction> transactions, DateTime now) {
-    // If the query asks for an unknown year/period e.g. "how much did I spend in 2021" or "July 2022"
     final yearMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(q);
     if (yearMatch != null) {
       final year = int.tryParse(yearMatch.group(1)!);
@@ -992,7 +1952,6 @@ class FinancialIntelligenceEngine {
       }
     }
 
-    // If query asks about an ambiguous category not in transactions e.g. "vacation", "crypto"
     if (q.contains('how much did i spend on') || q.contains('my spending on')) {
       final tokens = q.replaceAll(RegExp(r'[^a-zA-Z\s]'), '').split(' ');
       final hasSpecificTarget = tokens.length > 5;

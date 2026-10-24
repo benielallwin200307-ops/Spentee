@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/budget.dart';
+import '../models/lent_borrowed_record.dart';
 import '../models/roast.dart';
 import '../models/savings_goal.dart';
 import '../models/transaction.dart';
@@ -120,13 +121,18 @@ class AiChatService {
 
   /// Generate a contextual response from Spentee AI.
   /// 1. Tries deterministic personal finance calculation first (100% accurate, local).
-  /// 2. If general question, connects to secure proxy backend (no raw data leaked).
-  /// 3. If backend is offline or unconfigured, explains setup cleanly.
+  /// 2. If unrelated question, blocks locally with friendly guidance (no backend call).
+  /// 3. If general financial question, connects to secure proxy backend (no raw data leaked).
+  /// 4. If backend is offline or unconfigured, explains setup cleanly.
   Future<ChatMessage> generateResponse({
     required String query,
     required List<Transaction> transactions,
     List<Budget> budgets = const [],
     List<SavingsGoal> savingsGoals = const [],
+    List<LentBorrowedRecord> debts = const [],
+    double? availableBalance,
+    List<String> recentRoastIds = const [],
+    String language = 'English',
     required bool userConsentedToDataAnalysis,
     required String userMascot,
     List<ChatMessage> conversationHistory = const [],
@@ -142,6 +148,10 @@ class AiChatService {
       transactions: transactions,
       budgets: budgets,
       savingsGoals: savingsGoals,
+      debts: debts,
+      availableBalance: availableBalance,
+      recentRoastIds: recentRoastIds,
+      language: language,
       userConsented: userConsentedToDataAnalysis,
     );
 
@@ -154,6 +164,25 @@ class AiChatService {
         actionButtons: engineResult.actionButtons,
         hasPlanCard: engineResult.hasPlanCard,
         planData: engineResult.planData,
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1.5: Pre-Screening: Block Unrelated Questions Locally
+    // ─────────────────────────────────────────────────────────────────────────
+    if (!FinancialIntelligenceEngine.isFinancialQuery(query)) {
+      return ChatMessage(
+        id: 'ai_${now.millisecondsSinceEpoch}',
+        isUser: false,
+        timestamp: now,
+        text:
+            "I'm Spentee AI 💚 I can help you understand your money, analyse your spending, track budgets, explain financial concepts, and roast your spending habits. Ask me something finance-related!",
+        actionButtons: const [
+          'How much did I spend this month?',
+          'Where did most of my money go?',
+          'How much budget do I have left?',
+          'What is an SIP?',
+        ],
       );
     }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spentee/models/budget.dart';
+import 'package:spentee/models/lent_borrowed_record.dart';
 import 'package:spentee/models/savings_goal.dart';
 import 'package:spentee/models/transaction.dart';
 import 'package:spentee/services/ai_chat_service.dart';
@@ -236,6 +237,39 @@ void main() {
         targetAmount: 25000.0,
         currentAmount: 8500.0,
         createdAt: DateTime(2026, 9, 15),
+      ),
+    ];
+
+    final testDebts = [
+      LentBorrowedRecord(
+        id: 'debt_alex',
+        type: DebtType.lent,
+        personName: 'Alex',
+        amount: 2000.0,
+        date: DateTime(2026, 10, 9),
+        dueDate: DateTime(2026, 10, 25),
+        repayments: [
+          RepaymentRecord(
+            id: 'rep_alex_1',
+            amount: 500.0,
+            date: DateTime(2026, 10, 16),
+          ),
+        ],
+      ),
+      LentBorrowedRecord(
+        id: 'debt_sam',
+        type: DebtType.borrowed,
+        personName: 'Sam',
+        amount: 3000.0,
+        date: DateTime(2026, 10, 5),
+        dueDate: DateTime(2026, 10, 30),
+        repayments: [
+          RepaymentRecord(
+            id: 'rep_sam_1',
+            amount: 1000.0,
+            date: DateTime(2026, 10, 12),
+          ),
+        ],
       ),
     ];
 
@@ -501,6 +535,336 @@ void main() {
           expect(lower.contains('core principles of financial habits'), isFalse);
         }
       }
+    });
+
+    test('13. Spending across multiple periods: Yesterday, This Week, This Month, and This Year', () {
+      // Yesterday spend (Oct 18, 2026: no expenses in fixture)
+      final yRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much did I spend yesterday?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(yRes, isNotNull);
+      expect(yRes!.text, contains('Yesterday'));
+      expect(yRes.text, contains('₹0'));
+
+      // This week spend (Oct 13 - Oct 19: Morning Espresso 150 + Metro 60 = 210)
+      final wRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much did I spend this week?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(wRes, isNotNull);
+      expect(wRes!.text, contains('Weekly Spending Summary'));
+      expect(wRes.text, contains('₹210'));
+
+      // This month spend (October 2026: 17,000 net)
+      final mRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much did I spend this month?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(mRes, isNotNull);
+      expect(mRes!.text, contains('₹17,000'));
+      expect(mRes.text, contains('October 2026'));
+
+      // This year spend (2026: Sept 10,000 + Oct 17,000 = 27,000)
+      final yrRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much have I spent this year?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(yrRes, isNotNull);
+      expect(yrRes!.text, contains('Annual Spending Summary'));
+      expect(yrRes.text, contains('₹27,000'));
+    });
+
+    test('14. Total income and total spending & Available balance', () {
+      final totalRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'What is my total income and total spending?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(totalRes, isNotNull);
+      // Sept 50,000 + Oct 50,000 = 100,000 income
+      expect(totalRes!.text, contains('Total Earned Income: **₹100,000**'));
+      // Sept 10,000 + Oct 17,000 = 27,000 expense
+      expect(totalRes.text, contains('Total Consumption Spending: **₹27,000**'));
+      expect(totalRes.text, contains('Internal Transfers: ₹23,000'));
+
+      final balRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'What is my current available balance?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        availableBalance: 42500.0,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(balRes, isNotNull);
+      expect(balRes!.text, contains('Current Available Balance'));
+      expect(balRes.text, contains('₹42,500'));
+    });
+
+    test('15. Biggest expense identification & Recent transactions list', () {
+      // Monthly biggest expense: Family Dinner (₹5,270)
+      final monthBigRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'What was my biggest expense this month?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(monthBigRes, isNotNull);
+      expect(monthBigRes!.text, contains('Family Dinner'));
+      expect(monthBigRes.text, contains('₹5,270'));
+      expect(monthBigRes.text, contains('Food & Dining'));
+
+      // All-time biggest expense: Dining Out (₹6,000 in September)
+      final bigRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'What was my biggest expense?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(bigRes, isNotNull);
+      expect(bigRes!.text, contains('Dining Out'));
+      expect(bigRes.text, contains('₹6,000'));
+      expect(bigRes.text, contains('Food & Dining'));
+
+      final recRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'Show my recent transactions',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(recRes, isNotNull);
+      expect(recRes!.text, contains('Recent Transactions'));
+      expect(recRes.text, contains('Morning Espresso'));
+      expect(recRes.text, contains('Metro Commute'));
+    });
+
+    test('16. "Am I spending more than usual?" spending pace analysis', () {
+      final paceRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'Am I spending more than usual?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(paceRes, isNotNull);
+      expect(paceRes!.text, contains('Spending Pace Analysis'));
+      expect(paceRes.text, anyOf(contains('Spending Faster'), contains('Pacing Lower'), contains('matches')));
+    });
+
+    test('17. Lending, borrowing, repayments, and "Who owes me money?"', () {
+      // Who owes me money
+      final whoRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'Who owes me money?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        debts: testDebts,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(whoRes, isNotNull);
+      expect(whoRes!.text, contains('People Who Owe You Money'));
+      expect(whoRes.text, contains('Alex'));
+      expect(whoRes.text, contains('₹1,500'));
+
+      // How much money have I lent
+      final lentRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much money have I lent?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        debts: testDebts,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(lentRes, isNotNull);
+      expect(lentRes!.text, contains('Total Money Lent: **₹2,000**'));
+      expect(lentRes.text, contains('Money Still to Collect: **₹1,500**'));
+
+      // How much money do I still need to collect
+      final collectRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much money do I still need to collect?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        debts: testDebts,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(collectRes, isNotNull);
+      expect(collectRes!.text, contains('₹1,500'));
+
+      // How much have I borrowed
+      final borrowRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much have I borrowed?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        debts: testDebts,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(borrowRes, isNotNull);
+      expect(borrowRes!.text, contains('Total Money Borrowed: **₹3,000**'));
+      expect(borrowRes.text, contains('Money Still to Repay: **₹2,000**'));
+
+      // How much do I still need to repay
+      final repayRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much do I still need to repay?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        debts: testDebts,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(repayRes, isNotNull);
+      expect(repayRes!.text, contains('₹2,000'));
+      expect(repayRes.text, contains('Sam'));
+
+      // How much have I repaid or collected
+      final sumRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much have I repaid or collected?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        debts: testDebts,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(sumRes, isNotNull);
+      expect(sumRes!.text, contains('Repayment & Collection Ledger'));
+      expect(sumRes.text, contains('Repayments Collected'));
+      expect(sumRes.text, contains('Repayments Made'));
+    });
+
+    test('18. Category spending with flexible synonyms (transport/travel, dining/food)', () {
+      final travelRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much did I spend on travel?',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(travelRes, isNotNull);
+      expect(travelRes!.text, contains('Transport Spending'));
+      // Metro 60 + Fuel 2740 = 2800
+      expect(travelRes.text, contains('₹2,800'));
+    });
+
+    test('19. Personalised spending roasts using actual spending records in chat', () {
+      final roastRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'Roast my spending habits',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(roastRes, isNotNull);
+      expect(roastRes!.text, contains('Spentee Roast'));
+      expect(roastRes.handled, isTrue);
+      expect(roastRes.actionButtons, contains('Where did most of my money go?'));
+    });
+
+    test('20. Blocking unrelated questions locally (zero backend network call)', () async {
+      // Unrelated prompt 1: Random joke
+      final jokeResponse = await AiChatService.instance.generateResponse(
+        query: 'Tell me a funny joke about golden retrievers',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsentedToDataAnalysis: false,
+        userMascot: 'mascot_main',
+        backendUrlOverride: 'http://127.0.0.1:59999', // Port 59999 would fail if called!
+      );
+      expect(jokeResponse.isUser, isFalse);
+      expect(jokeResponse.isError, isFalse);
+      expect(
+        jokeResponse.text,
+        contains(
+          "I'm Spentee AI 💚 I can help you understand your money, analyse your spending, track budgets, explain financial concepts, and roast your spending habits. Ask me something finance-related!",
+        ),
+      );
+
+      // Unrelated prompt 2: Programming task
+      final codeResponse = await AiChatService.instance.generateResponse(
+        query: 'Write a python script to solve quicksort',
+        transactions: testTransactions,
+        budgets: testBudgets,
+        savingsGoals: testSavingsGoals,
+        userConsentedToDataAnalysis: false,
+        userMascot: 'mascot_main',
+        backendUrlOverride: 'http://127.0.0.1:59999',
+      );
+      expect(codeResponse.isError, isFalse);
+      expect(codeResponse.text, contains("I'm Spentee AI 💚"));
+    });
+
+    test('21. Empty accounts and zero-state queries calculate safely without crashing', () {
+      final emptyRes = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'How much did I spend today?',
+        transactions: const [],
+        budgets: const [],
+        savingsGoals: const [],
+        debts: const [],
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(emptyRes, isNotNull);
+      expect(emptyRes!.text, contains('₹0'));
+
+      final emptyWho = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'Who owes me money?',
+        transactions: const [],
+        budgets: const [],
+        savingsGoals: const [],
+        debts: const [],
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(emptyWho, isNotNull);
+      expect(emptyWho!.text, contains('Nobody currently owes you money!'));
+
+      final emptyBal = FinancialIntelligenceEngine.instance.evaluateQuery(
+        query: 'What is my current available balance?',
+        transactions: const [],
+        budgets: const [],
+        savingsGoals: const [],
+        debts: const [],
+        userConsented: true,
+        referenceDate: fixedNow,
+      );
+      expect(emptyBal, isNotNull);
+      expect(emptyBal!.text, contains('₹0'));
     });
   });
 }
