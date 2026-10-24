@@ -5,11 +5,26 @@ import 'state/app_state.dart';
 import 'screens/splash_screen.dart';
 import 'screens/main_shell.dart';
 
+import 'package:google_mobile_ads/google_mobile_ads.dart' hide AppState;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+  }
+  try {
+    await MobileAds.instance.initialize();
+  } catch (e) {
+    debugPrint('MobileAds initialization error: $e');
+  }
   final appState = AppState();
-  await appState.initFromStorage();
+  try {
+    await appState.initFromStorage();
+  } catch (e) {
+    debugPrint('AppState storage init error: $e');
+  }
   runApp(SpenteeApp(appState: appState));
 }
 

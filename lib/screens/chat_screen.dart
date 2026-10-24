@@ -145,34 +145,40 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showAllPopularQuestions(AppState appState) {
     final extraQuestions = [
       {
-        'title': 'Emergency Fund: How much do I need?',
-        'desc': 'Buffer formula for 3 to 6 months expenses',
-        'icon': Icons.shield_rounded,
+        'title': 'How much did I spend today?',
+        'desc': 'Daily expense summary',
+        'icon': Icons.calendar_today_rounded,
         'color': AppTheme.primaryMint,
       },
       {
-        'title': '50/30/20 Budgeting Rule',
-        'desc': 'Needs, wants, and savings framework',
-        'icon': Icons.pie_chart_rounded,
+        'title': 'How much did I earn this month?',
+        'desc': 'Monthly earnings overview',
+        'icon': Icons.attach_money_rounded,
         'color': AppTheme.accentCyan,
       },
       {
-        'title': 'Debt Snowball vs Avalanche',
-        'desc': 'Fastest strategies to pay off loans',
-        'icon': Icons.trending_down_rounded,
+        'title': 'Where did most of my money go?',
+        'desc': 'Top spending categories',
+        'icon': Icons.pie_chart_rounded,
         'color': AppTheme.accentOrange,
       },
       {
-        'title': 'How to cut recurring subscription costs?',
-        'desc': 'Find hidden money leakages',
-        'icon': Icons.subscriptions_rounded,
+        'title': 'How much budget do I have left?',
+        'desc': 'Remaining budget balance',
+        'icon': Icons.account_balance_wallet_rounded,
         'color': AppTheme.accentPink,
       },
       {
-        'title': 'Give me a witty spending roast 🔥',
-        'desc': 'Spentee mascot humor on your balance',
-        'icon': Icons.local_fire_department_rounded,
+        'title': 'How can I save more money?',
+        'desc': 'Personalized saving tips',
+        'icon': Icons.savings_rounded,
         'color': AppTheme.accentPurple,
+      },
+      {
+        'title': 'Where can I reduce my spending?',
+        'desc': 'Identify spending cuts',
+        'icon': Icons.bar_chart_rounded,
+        'color': AppTheme.accentCyan,
       },
     ];
 
@@ -1055,37 +1061,15 @@ class _ChatScreenState extends State<ChatScreen> {
               child: _buildSuggestionCard(
                 icon: Icons.bar_chart_rounded,
                 iconColor: const Color(0xFFEC4899),
-                title: 'Explain SIPs\nfor beginners',
+                title: 'Where can I reduce my spending?',
                 onTap: () =>
-                    _sendMessage('Explain SIPs for beginners', appState),
+                    _sendMessage('Where can I reduce my spending?', appState),
               ),
             ),
           ],
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSuggestionCard(
-                icon: Icons.description_rounded,
-                iconColor: const Color(0xFF38BDF8),
-                title: 'Help me plan\na monthly budget',
-                onTap: () =>
-                    _sendMessage('Help me plan a monthly budget', appState),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildSuggestionCard(
-                icon: Icons.chat_bubble_rounded,
-                iconColor: const Color(0xFFA855F7),
-                title: 'Review my\nspending this month',
-                onTap: () =>
-                    _sendMessage('Review my spending this month', appState),
-              ),
-            ),
-          ],
-        ),
+// Removed second row of extra suggestion cards – only the approved 2x2 grid remains.
       ],
     );
   }

@@ -9,6 +9,7 @@ import 'roast_screen.dart';
 import 'lent_borrowed_screen.dart';
 import 'edit_transaction_screen.dart';
 import '../widgets/transaction_details_modal.dart';
+import '../ads/banner_ad_widget.dart';
 
 /// Screen 9 — Home / Dashboard Screen
 /// Matches the reference storyboard: greeting, balance card, 3 shortcut buttons,
@@ -565,6 +566,7 @@ class HomeScreen extends StatelessWidget {
                     },
                   ),
 
+                BannerAdWidget(),
                 const SizedBox(height: 30),
               ],
             ),
