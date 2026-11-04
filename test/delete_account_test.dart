@@ -118,7 +118,7 @@ void main() {
       appState.initSyncForTesting(testUid);
 
       // Populate test data
-      appState.addTransaction(Transaction(
+      await appState.addTransaction(Transaction(
         id: 'tx_del_1',
         title: 'Dinner',
         amount: 250.0,
@@ -129,7 +129,7 @@ void main() {
         type: TransactionType.expense,
       ));
 
-      appState.addBudget(Budget(
+      await appState.addBudget(Budget(
         id: 'b_del_1',
         category: 'Food',
         limitAmount: 1000.0,
@@ -138,7 +138,7 @@ void main() {
         month: 10,
       ));
 
-      appState.addDebt(LentBorrowedRecord(
+      await appState.addDebt(LentBorrowedRecord(
         id: 'debt_del_1',
         personName: 'Alex',
         amount: 500.0,

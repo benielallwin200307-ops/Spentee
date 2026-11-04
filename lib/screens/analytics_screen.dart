@@ -501,16 +501,19 @@ class _SimpleBarChart extends StatelessWidget {
 
         // X-Axis labels
         Padding(
-          padding: const EdgeInsets.only(left: 24),
+          padding: const EdgeInsets.only(left: 20),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: weekLabels.map((lbl) {
-              return Text(
-                lbl,
-                style: const TextStyle(
-                  color: AppTheme.textGrey,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+              return Expanded(
+                child: Center(
+                  child: Text(
+                    lbl,
+                    style: const TextStyle(
+                      color: AppTheme.textGrey,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               );
             }).toList(),

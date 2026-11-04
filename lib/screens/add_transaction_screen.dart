@@ -947,43 +947,47 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           ),
                         ),
                         const SizedBox(width: 14),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            RichText(
-                              text: TextSpan(
-                                children: [
-                                  const TextSpan(
-                                    text: 'Add ',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.3,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              RichText(
+                                text: TextSpan(
+                                  children: [
+                                    const TextSpan(
+                                      text: 'Add ',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.3,
+                                      ),
                                     ),
-                                  ),
-                                  TextSpan(
-                                    text: 'Transaction',
-                                    style: TextStyle(
-                                      color: theme.primaryAccent,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.3,
+                                    TextSpan(
+                                      text: 'Transaction',
+                                      style: TextStyle(
+                                        color: theme.primaryAccent,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.3,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            const Text(
-                              'Track every rupee. Build a better you.',
-                              style: TextStyle(
-                                color: Color(0xFF7E97A0),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Track every rupee. Build a better you.',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Color(0xFF7E97A0),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -1359,28 +1363,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ]
                 : null,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected
-                    ? const Color(0xFF051C11)
-                    : const Color(0xFF7E97A0),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: isSelected
+                        ? const Color(0xFF051C11)
+                        : const Color(0xFF7E97A0),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isSelected
+                          ? const Color(0xFF051C11)
+                          : const Color(0xFF7E97A0),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected
-                      ? const Color(0xFF051C11)
-                      : const Color(0xFF7E97A0),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

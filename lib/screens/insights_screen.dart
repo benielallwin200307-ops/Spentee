@@ -367,29 +367,34 @@ class _InsightsScreenState extends State<InsightsScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Insights',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.6,
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Insights',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.6,
+                ),
               ),
-            ),
-            SizedBox(height: 3),
-            Text(
-              'Understand your money better.',
-              style: TextStyle(
-                color: Color(0xFF8E9DAE),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+              SizedBox(height: 3),
+              Text(
+                'Understand your money better.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Color(0xFF8E9DAE),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        const SizedBox(width: 8),
         // Pill-shaped Month Selector
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -507,12 +512,16 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Total Income',
-                      style: TextStyle(
-                        color: Color(0xFF9FB0C0),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    const Flexible(
+                      child: Text(
+                        'Total Income',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Color(0xFF9FB0C0),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -616,12 +625,16 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Total Spent',
-                      style: TextStyle(
-                        color: Color(0xFF9FB0C0),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    const Flexible(
+                      child: Text(
+                        'Total Spent',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Color(0xFF9FB0C0),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -736,15 +749,20 @@ class _InsightsScreenState extends State<InsightsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Expense Breakdown',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
+              const Expanded(
+                child: Text(
+                  'Expense Breakdown',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () {
                   Navigator.of(context).push(
@@ -874,19 +892,25 @@ class _InsightsScreenState extends State<InsightsScreen> {
                               cat.percent,
                               style: const TextStyle(
                                 color: Color(0xFF8E9DAE),
-                                fontSize: 11.5,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 4),
                             // Amount
-                            Text(
-                              _formatINR(cat.amount),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.2,
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  _formatINR(cat.amount),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -1170,15 +1194,20 @@ class _InsightsScreenState extends State<InsightsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Monthly Trend',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
+              const Expanded(
+                child: Text(
+                  'Monthly Trend',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
@@ -1303,11 +1332,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                 onTap: () => _selectMonth(trend.date),
                                 behavior: HitTestBehavior.opaque,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  padding: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 2),
                                   decoration: isCurrentSelected
                                       ? BoxDecoration(
                                           color: const Color(0xFF0E2C3D).withValues(alpha: 0.8),
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(8),
                                           border: Border.all(
                                             color: const Color(0x3338BDF8),
                                             width: 1,
@@ -1323,7 +1352,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                         children: [
                                           // Income Bar
                                           Container(
-                                            width: 13.5,
+                                            width: 11.5,
                                             height: incHeight,
                                             decoration: BoxDecoration(
                                               gradient: const LinearGradient(
@@ -1335,14 +1364,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                                 end: Alignment.bottomCenter,
                                               ),
                                               borderRadius: const BorderRadius.vertical(
-                                                top: Radius.circular(3.5),
+                                                top: Radius.circular(3),
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(width: 3.5),
+                                          const SizedBox(width: 2.5),
                                           // Expense Bar
                                           Container(
-                                            width: 13.5,
+                                            width: 11.5,
                                             height: expHeight,
                                             decoration: BoxDecoration(
                                               gradient: const LinearGradient(

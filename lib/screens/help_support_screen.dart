@@ -15,42 +15,66 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     _FaqItem(
       question: 'How does Budget Management work?',
       answer:
-          'Spentee lets you allocate monthly spending limits for individual categories (e.g., Food, Shopping, Transport). The app automatically tracks your recorded transactions for the current month, showing real-time remaining balances and warning you when you exceed 80% and 100% of your budget.',
+          'Spentee lets you set monthly spending limits for individual categories such as Food, Shopping and Transport. Track your spending, view your remaining budget and receive alerts when you approach or exceed your budget limit.',
       category: 'Finances',
     ),
     _FaqItem(
       question: 'Is my financial data secure and private?',
       answer:
-          'Absolutely. Spentee operates with a local-first architecture. All your transactions, category setups, budgets, and personal settings are securely stored directly on your device. We do not sell your personal financial records.',
+          'Your financial information is associated with your account. Spentee stores data locally on your device and uses Firebase to sync your information across devices when connected to the internet. Spentee does not access your SMS messages to track transactions.',
       category: 'Privacy',
     ),
     _FaqItem(
-      question: 'Can I switch between Male and Female mascots?',
+      question: 'How do I add and manage transactions?',
       answer:
-          'Yes! You can switch between the male and female mascot companion anytime in Profile > Mascot Theme. Changing your mascot updates your avatar and AI chatbot experience while keeping all your financial data 100% intact.',
-      category: 'Customization',
+          'You can manually add income and expenses, select categories, enter amounts and choose dates. You can also edit or delete transactions whenever needed.',
+      category: 'Transactions',
     ),
     _FaqItem(
-      question: 'What happens if I delete a category?',
+      question: 'How does Lend & Repay work?',
       answer:
-          'Your transaction history is completely safe! When you delete a custom category, Spentee automatically transfers any past transactions linked to it into the default "Others" category, ensuring your net balances and analytics never break.',
-      category: 'Categories',
+          'Use Lend & Repay to record money you lend to others or borrow from them. Track money to collect and money to repay separately without mixing these amounts with your regular income and expenses. You can also record repayments and track outstanding amounts.',
+      category: 'Lend & Repay',
     ),
     _FaqItem(
-      question: 'How do the AI Chatbot and Roasts work?',
+      question: 'How do Transfers and Investments work?',
       answer:
-          'The Spentee AI chatbot analyzes your spending habits and provides actionable savings tips, answers financial questions, and delivers playful roasts on impulse purchases to keep you accountable.',
+          'Record transfers between your own accounts and track investments such as Gold, Mutual Funds, SIPs, Stocks, ETFs, Savings and Retirement Investments. These records are handled separately from regular spending.',
+      category: 'Finances',
+    ),
+    _FaqItem(
+      question: 'How does Spentee AI work?',
+      answer:
+          'Spentee AI helps you understand your financial activity, analyse spending, check budgets and discover ways to save money. It focuses on money-related questions and uses your available financial data to provide relevant insights.',
       category: 'AI Assistant',
     ),
     _FaqItem(
-      question: 'Can I use Spentee offline?',
+      question: 'Can I use Spentee without an internet connection?',
       answer:
-          'Yes! All core financial features—including logging transactions, tracking category budgets, and managing categories—work completely offline. Data syncs locally without requiring an active internet connection.',
+          'Yes. You can access supported features and manage your locally stored financial data offline. Changes will sync with your account when an internet connection becomes available.',
+      category: 'General',
+    ),
+    _FaqItem(
+      question: 'Can I create my own categories?',
+      answer:
+          'Yes. You can create custom income and expense categories to organise your transactions according to your needs.',
+      category: 'Customization',
+    ),
+    _FaqItem(
+      question: 'What happens if I delete my account?',
+      answer:
+          'Deleting your account is intended to permanently remove your account and associated financial data. This action cannot be undone. Make sure you export or save any information you want to keep before proceeding.',
+      category: 'Account',
+    ),
+    _FaqItem(
+      question: 'Why does Spentee show advertisements?',
+      answer:
+          'Spentee is free to use and displays advertisements to support the app. Advertisements help us maintain and improve the service.',
       category: 'General',
     ),
   ];
 
-  final Set<int> _expandedIndices = {0};
+  int? _expandedIndex = 0;
 
   void _copySupportEmail() {
     Clipboard.setData(const ClipboardData(text: 'support@spentee.app'));
@@ -60,9 +84,12 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           children: [
             Icon(Icons.check_circle_rounded, color: AppTheme.primaryMint, size: 20),
             SizedBox(width: 10),
-            Text(
-              'Copied support@spentee.app to clipboard!',
-              style: TextStyle(fontWeight: FontWeight.w600),
+            Flexible(
+              child: Text(
+                'Copied support@spentee.app to clipboard!',
+                style: TextStyle(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -178,6 +205,76 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     );
   }
 
+  Widget _buildCopyEmailButton() {
+    return InkWell(
+      onTap: _copySupportEmail,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryMint,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.mail_rounded, color: Color(0xFF03161C), size: 16),
+            SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Copy Support Email',
+                style: TextStyle(
+                  color: Color(0xFF03161C),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackButton({bool isFullWidth = false}) {
+    return InkWell(
+      onTap: _showFeedbackModal,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 11,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF061B22),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF1A4554),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: isFullWidth ? MainAxisSize.max : MainAxisSize.min,
+          children: const [
+            Icon(Icons.rate_review_rounded, color: Colors.white, size: 16),
+            SizedBox(width: 6),
+            Text(
+              'Feedback',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -264,7 +361,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                               ),
                               SizedBox(height: 3),
                               Text(
-                                'Reach out directly to the Spentee engineering team.',
+                                'Reach out directly to the Spentee support team.',
                                 style: TextStyle(
                                   color: Color(0xFF88AAB6),
                                   fontSize: 12,
@@ -276,71 +373,26 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: _copySupportEmail,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 11),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryMint,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.mail_rounded,
-                                      color: Color(0xFF03161C), size: 16),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Copy Support Email',
-                                    style: TextStyle(
-                                      color: Color(0xFF03161C),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        InkWell(
-                          onTap: _showFeedbackModal,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 11,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF061B22),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFF1A4554),
-                              ),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.rate_review_rounded,
-                                    color: Colors.white, size: 16),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Feedback',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < 260) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildCopyEmailButton(),
+                              const SizedBox(height: 10),
+                              _buildFeedbackButton(isFullWidth: true),
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: _buildCopyEmailButton()),
+                            const SizedBox(width: 10),
+                            _buildFeedbackButton(isFullWidth: false),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -357,12 +409,14 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                     size: 20,
                   ),
                   SizedBox(width: 8),
-                  Text(
-                    'Frequently Asked Questions',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                  Expanded(
+                    child: Text(
+                      'Frequently Asked Questions',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -377,7 +431,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                 separatorBuilder: (context, index) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final faq = _faqs[index];
-                  final isExpanded = _expandedIndices.contains(index);
+                  final isExpanded = _expandedIndex == index;
 
                   return Container(
                     decoration: BoxDecoration(
@@ -394,11 +448,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                       borderRadius: BorderRadius.circular(16),
                       onTap: () {
                         setState(() {
-                          if (isExpanded) {
-                            _expandedIndices.remove(index);
-                          } else {
-                            _expandedIndices.add(index);
-                          }
+                          _expandedIndex = isExpanded ? null : index;
                         });
                       },
                       child: Padding(
@@ -421,52 +471,67 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Icon(
-                                  isExpanded
-                                      ? Icons.keyboard_arrow_up_rounded
-                                      : Icons.keyboard_arrow_down_rounded,
-                                  color: isExpanded
-                                      ? AppTheme.primaryMint
-                                      : const Color(0xFF7293A0),
-                                  size: 22,
+                                AnimatedRotation(
+                                  turns: isExpanded ? 0.5 : 0.0,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: isExpanded
+                                        ? AppTheme.primaryMint
+                                        : const Color(0xFF7293A0),
+                                    size: 22,
+                                  ),
                                 ),
                               ],
                             ),
-                            if (isExpanded) ...[
-                              const SizedBox(height: 12),
-                              const Divider(
-                                color: Color(0xFF0F303B),
-                                height: 1,
+                            ClipRect(
+                              child: AnimatedSize(
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeInOut,
+                                child: isExpanded
+                                    ? Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const SizedBox(height: 12),
+                                          const Divider(
+                                            color: Color(0xFF0F303B),
+                                            height: 1,
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            faq.answer,
+                                            style: const TextStyle(
+                                              color: Color(0xFF9CB8C4),
+                                              fontSize: 13,
+                                              height: 1.45,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF04141A),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              faq.category,
+                                              style: const TextStyle(
+                                                color: Color(0xFF5A808E),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : const SizedBox.shrink(),
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                faq.answer,
-                                style: const TextStyle(
-                                  color: Color(0xFF9CB8C4),
-                                  fontSize: 13,
-                                  height: 1.45,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF04141A),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  faq.category,
-                                  style: const TextStyle(
-                                    color: Color(0xFF5A808E),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ],
                         ),
                       ),

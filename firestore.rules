@@ -2,12 +2,75 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read/write their own data
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    // Helper functions for robust access control and schema validation
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Deny all other access by default
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidAmount(field) {
+      return !(field in request.resource.data) || 
+        (request.resource.data[field] is number && request.resource.data[field] >= 0);
+    }
+
+    function isValidString(field, maxLen) {
+      return !(field in request.resource.data) || 
+        (request.resource.data[field] is string && request.resource.data[field].size() <= maxLen);
+    }
+
+    // Root user document
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // Transactions collection: validates positive amounts & bounded title lengths
+      match /transactions/{txId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidAmount('amount')
+          && isValidString('title', 100);
+      }
+
+      // Budgets collection: validates non-negative budget limits
+      match /budgets/{budgetId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidAmount('limitAmount');
+      }
+
+      // Savings Goals collection: validates target amounts & bounded titles
+      match /savings_goals/{goalId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidAmount('targetAmount')
+          && isValidString('title', 100);
+      }
+
+      // Debts (Lend & Repay) collection: validates debt amounts & contact names
+      match /debts/{debtId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidAmount('amount')
+          && isValidString('personName', 100);
+      }
+
+      // Custom Categories collection: validates category name bounds
+      match /categories/{categoryId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidString('name', 50);
+      }
+
+      // Settings collection (Profile, preferences)
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Deny all other access globally (including unknown subcollections or root paths)
     match /{document=**} {
       allow read, write: if false;
     }

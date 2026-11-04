@@ -14,11 +14,11 @@ Future<void> main() async {
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
   }
-  try {
-    await MobileAds.instance.initialize();
-  } catch (e) {
+  // Initialize MobileAds asynchronously in background so cold startup is not delayed
+  MobileAds.instance.initialize().catchError((e) {
     debugPrint('MobileAds initialization error: $e');
-  }
+    return InitializationStatus({});
+  });
   final appState = AppState();
   try {
     await appState.initFromStorage();
@@ -60,22 +60,14 @@ class _SpenteeAppState extends State<SpenteeApp> {
   Widget build(BuildContext context) {
     return AppStateScope(
       state: _appState,
-      child: ListenableBuilder(
-        listenable: _appState,
-        builder: (context, _) {
-          return MaterialApp(
-            title: 'Spentee',
-            debugShowCheckedModeBanner: false,
-            themeMode: _appState.themeMode,
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            home: _appState.isAuthenticated
-                ? const MainShell()
-                : const SplashScreen(),
-          );
-        },
+      child: MaterialApp(
+        title: 'Spentee',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        home: _appState.isAuthenticated
+            ? const MainShell()
+            : const SplashScreen(),
       ),
     );
   }
 }
-

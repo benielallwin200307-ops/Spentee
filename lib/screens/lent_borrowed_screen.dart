@@ -390,24 +390,32 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                         size: 18,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'To Collect',
-                      style: TextStyle(
-                        color: Color(0xFF7CA1AA),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(width: 8),
+                    const Flexible(
+                      child: Text(
+                        'To Collect',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Color(0xFF7CA1AA),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  _formatCurrency(toCollect),
-                  style: const TextStyle(
-                    color: Color(0xFF00E5A3),
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _formatCurrency(toCollect),
+                    style: const TextStyle(
+                      color: Color(0xFF00E5A3),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ],
@@ -445,24 +453,32 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                         size: 18,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'To Repay',
-                      style: TextStyle(
-                        color: Color(0xFF9E8E7D),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(width: 8),
+                    const Flexible(
+                      child: Text(
+                        'To Repay',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Color(0xFF9E8E7D),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  _formatCurrency(toRepay),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _formatCurrency(toRepay),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ],
@@ -658,17 +674,21 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                       : const Color(0xFF769AA5),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  record.isOverdue
-                      ? 'Due ${_formatDate(record.dueDate!)} · ${record.daysOverdue} days overdue'
-                      : 'Due ${_formatDate(record.dueDate!)} · ${record.daysUntilDue} days left',
-                  style: TextStyle(
-                    color: record.isOverdue
-                        ? const Color(0xFFFF3366)
-                        : const Color(0xFF769AA5),
-                    fontSize: 12,
-                    fontWeight:
-                        record.isOverdue ? FontWeight.w700 : FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    record.isOverdue
+                        ? 'Due ${_formatDate(record.dueDate!)} · ${record.daysOverdue} days overdue'
+                        : 'Due ${_formatDate(record.dueDate!)} · ${record.daysUntilDue} days left',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: record.isOverdue
+                          ? const Color(0xFFFF3366)
+                          : const Color(0xFF769AA5),
+                      fontSize: 12,
+                      fontWeight:
+                          record.isOverdue ? FontWeight.w700 : FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -739,91 +759,107 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     // Another Joke
-                    InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () {
-                        setState(() {
-                          _reminderSeedMap[record.id] =
-                              (_reminderSeedMap[record.id] ?? 0) + 1;
-                        });
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.refresh_rounded,
-                              size: 15,
-                              color: Color(0xFF769AA5),
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Another joke',
-                              style: TextStyle(
+                    Flexible(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          setState(() {
+                            _reminderSeedMap[record.id] =
+                                (_reminderSeedMap[record.id] ?? 0) + 1;
+                          });
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.refresh_rounded,
+                                size: 15,
                                 color: Color(0xFF769AA5),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
                               ),
-                            ),
-                          ],
+                              SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'Another joke',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Color(0xFF769AA5),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
 
+                    const SizedBox(width: 6),
+
                     // Copy reminder
-                    InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: funnyReminder));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: const Color(0xFF0F323D),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            content: Row(
-                              children: [
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: Color(0xFF00E5A3),
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Copied reminder! Ready to send to ${record.personName} 🚀',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: funnyReminder));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: const Color(0xFF0F323D),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              content: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Color(0xFF00E5A3),
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Copied reminder! Ready to send to ${record.personName} 🚀',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.copy_rounded,
-                              size: 14,
-                              color: Color(0xFF00E5A3),
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Copy reminder',
-                              style: TextStyle(
-                                color: Color(0xFF00E5A3),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                                ],
                               ),
                             ),
-                          ],
+                          );
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.copy_rounded,
+                                size: 14,
+                                color: Color(0xFF00E5A3),
+                              ),
+                              SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'Copy reminder',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Color(0xFF00E5A3),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

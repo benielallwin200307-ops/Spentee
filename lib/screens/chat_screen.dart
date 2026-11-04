@@ -662,30 +662,37 @@ class _ChatScreenState extends State<ChatScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(fontFamily: 'Roboto'),
-                        children: [
-                          const TextSpan(
-                            text: 'Spentee ',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.2,
-                            ),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(fontFamily: 'Roboto'),
+                            children: [
+                              const TextSpan(
+                                text: 'Spentee ',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              TextSpan(
+                                text: 'AI',
+                                style: TextStyle(
+                                  color: appState.mascotTheme.primaryAccent,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
                           ),
-                          TextSpan(
-                            text: 'AI',
-                            style: TextStyle(
-                              color: appState.mascotTheme.primaryAccent,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -699,6 +706,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 const SizedBox(height: 2),
                 const Text(
                   'Your AI Money Companion',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Color(0xFF8E9DAE),
                     fontSize: 12,
@@ -718,7 +727,7 @@ class _ChatScreenState extends State<ChatScreen> {
             },
             borderRadius: BorderRadius.circular(20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0xFF071926),
                 borderRadius: BorderRadius.circular(20),
@@ -735,9 +744,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: appState.mascotTheme.primaryAccent,
                     size: 16,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   const Text(
-                    'Chat History',
+                    'History',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,

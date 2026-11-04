@@ -48,34 +48,35 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
                 top: 16,
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E3842),
-                        borderRadius: BorderRadius.circular(2),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E3842),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    isEditing ? 'Edit Category Budget' : 'Set Category Budget',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                    const SizedBox(height: 16),
+                    Text(
+                      isEditing ? 'Edit Category Budget' : 'Set Category Budget',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Track spending against a monthly limit.',
-                    style: TextStyle(color: AppTheme.textGrey, fontSize: 13),
-                  ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Track spending against a monthly limit.',
+                      style: TextStyle(color: AppTheme.textGrey, fontSize: 13),
+                    ),
                   const SizedBox(height: 18),
 
                   // Category Selector
@@ -276,7 +277,8 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
                   ),
                 ],
               ),
-            );
+            ),
+          );
           },
         );
       },
@@ -400,14 +402,19 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'October 2026 Budget',
-                          style: TextStyle(
-                            color: AppTheme.textGrey,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                        const Expanded(
+                          child: Text(
+                            'October 2026 Budget',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppTheme.textGrey,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
@@ -430,72 +437,92 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Total Spent',
-                              style: TextStyle(
-                                  color: Color(0xFF7E97A0), fontSize: 12),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '₹${totalSpent.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Total Spent',
+                                style: TextStyle(
+                                    color: Color(0xFF7E97A0), fontSize: 12),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 2),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '₹${totalSpent.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         Container(
                           height: 36,
                           width: 1,
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
                           color: const Color(0xFF16323B),
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Remaining',
-                              style: TextStyle(
-                                  color: Color(0xFF7E97A0), fontSize: 12),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '₹${overallRemaining.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: AppTheme.primaryMint,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Remaining',
+                                style: TextStyle(
+                                    color: Color(0xFF7E97A0), fontSize: 12),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 2),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '₹${overallRemaining.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: AppTheme.primaryMint,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         Container(
                           height: 36,
                           width: 1,
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
                           color: const Color(0xFF16323B),
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Total Limit',
-                              style: TextStyle(
-                                  color: Color(0xFF7E97A0), fontSize: 12),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '₹${totalBudget.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: Color(0xFFB0C4CB),
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Total Limit',
+                                style: TextStyle(
+                                    color: Color(0xFF7E97A0), fontSize: 12),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 2),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '₹${totalBudget.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Color(0xFFB0C4CB),
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -508,14 +535,19 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Category Budgets',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                  const Expanded(
+                    child: Text(
+                      'Category Budgets',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => _openAddOrEditBudgetDialog(),
                     child: Row(

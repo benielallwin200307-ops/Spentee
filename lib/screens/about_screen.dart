@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 import '../theme/app_theme.dart';
+import 'help_support_screen.dart';
 
-/// Screen displaying Spentee version, creators, mission, privacy architecture, and open source licenses.
+/// Screen displaying Spentee version, features, technical architecture, and legal policies.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
-
-  static const String appVersion = '1.0.0+1';
-  static const String appName = 'Spentee';
 
   void _showTermsDialog(BuildContext context) {
     showDialog(
@@ -20,7 +19,7 @@ class AboutScreen extends StatelessWidget {
         ),
         content: const SingleChildScrollView(
           child: Text(
-            'Welcome to Spentee!\n\n1. Purpose: Spentee provides personal expense tracking, budgeting, and AI assistance for informational purposes.\n\n2. Local Data: Your financial data is stored directly on your device. You are responsible for maintaining device security.\n\n3. AI Recommendations: Mascot feedback and budgeting tips are educational and do not constitute certified financial or investment advisory.\n\n4. Updates: We continually update Spentee to bring new budgeting tools, insights, and mascot features.',
+            'Welcome to Spentee!\n\n1. Purpose: Spentee provides personal expense tracking, budgeting, and financial intelligence for informational and planning purposes.\n\n2. Local & Cloud Data: Your financial data is stored locally on your device and synchronized securely with your authenticated account via Firebase. You remain in full control of your records.\n\n3. AI Recommendations: Insights and budgeting suggestions provided by Spentee AI are for educational and self-management purposes and do not constitute certified financial or investment advisory.\n\n4. Updates: We continually update Spentee to bring advanced analytics, investment tracking, and smarter financial tools.',
             style: TextStyle(color: Color(0xFF8DAAB6), fontSize: 13, height: 1.5),
           ),
         ),
@@ -49,7 +48,7 @@ class AboutScreen extends StatelessWidget {
         ),
         content: const SingleChildScrollView(
           child: Text(
-            'Spentee is designed Privacy-First.\n\n• Zero Bank Linking Required: Spentee does not scrape your bank SMS or credentials without your explicit consent.\n\n• Local Storage: All transactions, budgets, custom categories, and reminder configurations are stored securely in local JSON storage.\n\n• No Data Selling: We do not sell, rent, or monetize your personal financial records to third-party advertisers.\n\n• User Control: You have complete freedom to export, edit, or reset your records at any time.',
+            'Spentee is designed Privacy-First.\n\n• Zero Bank Linking Required: Spentee operates without scraping your private SMS messages or requesting bank credentials.\n\n• Local-First & Cloud Sync: All transactions, budgets, categories, and settings are stored locally on your device and securely synced with Firebase when online.\n\n• No Data Selling: We do not sell, rent, or monetize your personal financial records to third-party advertisers.\n\n• User Control: You have complete freedom to export, edit, or reset your records at any time.',
             style: TextStyle(color: Color(0xFF8DAAB6), fontSize: 13, height: 1.5),
           ),
         ),
@@ -107,7 +106,7 @@ class AboutScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 10),
 
-              // Logo Banner
+              // 1. App Identity Section
               Container(
                 width: 88,
                 height: 88,
@@ -132,18 +131,27 @@ class AboutScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Spentee',
-                style: TextStyle(
+              Text(
+                AppConfig.appName,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
+              Text(
+                AppConfig.appTagline,
+                style: const TextStyle(
+                  color: Color(0xFF7A9CA8),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryMint.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
@@ -151,27 +159,19 @@ class AboutScreen extends StatelessWidget {
                     color: AppTheme.primaryMint.withValues(alpha: 0.35),
                   ),
                 ),
-                child: const Text(
-                  'Version 1.0.0+1 (Build 1)',
-                  style: TextStyle(
+                child: Text(
+                  'Version: ${AppConfig.version}',
+                  style: const TextStyle(
                     color: AppTheme.primaryMint,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Your AI Money Companion',
-                style: TextStyle(
-                  color: Color(0xFF7A9CA8),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+
               const SizedBox(height: 24),
 
-              // Description Card
+              // 2. About Spentee Description Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(18),
@@ -181,57 +181,186 @@ class AboutScreen extends StatelessWidget {
                   border: Border.all(color: const Color(0xFF102E3A)),
                 ),
                 child: const Text(
-                  'Spentee empowers you to track every rupee without stress. Set custom category budgets, monitor live spending, and interact with your AI mascot for smart tips and entertaining roasts that build lifelong financial health.',
+                  'Spentee helps you take control of your money, one transaction at a time. Track income and expenses, manage budgets, monitor investments, keep track of money lent and borrowed, and discover smarter ways to manage your finances with Spentee AI.',
                   style: TextStyle(
                     color: Color(0xFF94B2BE),
-                    fontSize: 13,
-                    height: 1.5,
+                    fontSize: 13.5,
+                    height: 1.55,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 28),
 
-              // Technical Details Card
+              // 3. Key Features Section Header
+              const Row(
+                children: [
+                  Icon(
+                    Icons.stars_rounded,
+                    color: AppTheme.primaryMint,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'What You Can Do with Spentee',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // 4 Compact Feature Cards
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const card1 = _FeatureCard(
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Smart Money Tracking',
+                    description:
+                        'Manually track your income, expenses and transactions.',
+                  );
+                  const card2 = _FeatureCard(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Spending Analytics',
+                    description:
+                        'Understand your spending habits, monitor budgets and discover where your money goes.',
+                  );
+                  const card3 = _FeatureCard(
+                    icon: Icons.auto_awesome_rounded,
+                    title: 'AI Financial Insights',
+                    description:
+                        'Get money-related insights, spending analysis and smarter saving suggestions with Spentee AI.',
+                  );
+                  const card4 = _FeatureCard(
+                    icon: Icons.cloud_sync_rounded,
+                    title: 'Offline Access & Cloud Sync',
+                    description:
+                        'Access supported features offline and synchronise your financial data across devices using Firebase.',
+                  );
+
+                  if (constraints.maxWidth < 340) {
+                    return const Column(
+                      children: [
+                        card1,
+                        SizedBox(height: 10),
+                        card2,
+                        SizedBox(height: 10),
+                        card3,
+                        SizedBox(height: 10),
+                        card4,
+                      ],
+                    );
+                  }
+
+                  return const Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: card1),
+                          SizedBox(width: 10),
+                          Expanded(child: card2),
+                        ],
+                      ),
+                      SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: card3),
+                          SizedBox(width: 10),
+                          Expanded(child: card4),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 28),
+
+              // 4. Technical Information Section
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF081820),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFF102E3A)),
                 ),
-                child: Column(
+                child: const Column(
                   children: [
                     _InfoRow(
-                      icon: Icons.code_rounded,
-                      label: 'Framework',
-                      value: 'Flutter 3.x / Dart',
+                      icon: Icons.storage_rounded,
+                      label: 'Storage',
+                      value: AppConfig.storage,
                     ),
-                    const Divider(color: Color(0xFF0E2732), height: 1),
+                    Divider(color: Color(0xFF0E2732), height: 1),
+                    _InfoRow(
+                      icon: Icons.cloud_done_rounded,
+                      label: 'Cloud Sync',
+                      value: AppConfig.cloudSync,
+                    ),
+                    Divider(color: Color(0xFF0E2732), height: 1),
                     _InfoRow(
                       icon: Icons.android_rounded,
-                      label: 'Package ID',
-                      value: 'com.spentee.spentee',
-                    ),
-                    const Divider(color: Color(0xFF0E2732), height: 1),
-                    _InfoRow(
-                      icon: Icons.groups_rounded,
-                      label: 'Engineered By',
-                      value: 'Team Seven',
-                    ),
-                    const Divider(color: Color(0xFF0E2732), height: 1),
-                    _InfoRow(
-                      icon: Icons.storage_rounded,
-                      label: 'Database',
-                      value: 'Local JSON Storage',
+                      label: 'Platform',
+                      value: AppConfig.platform,
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
-              // Policy Actions
+              // 5. Bottom Section (Contact Support + Privacy Policy + Terms of Use)
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HelpSupportScreen(),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF092923),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppTheme.primaryMint.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.support_agent_rounded,
+                        color: AppTheme.primaryMint,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Contact Support',
+                        style: TextStyle(
+                          color: AppTheme.primaryMint,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
               Row(
                 children: [
                   Expanded(
@@ -254,12 +383,15 @@ class AboutScreen extends StatelessWidget {
                               size: 16,
                             ),
                             SizedBox(width: 8),
-                            Text(
-                              'Privacy Policy',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                'Privacy Policy',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -267,7 +399,7 @@ class AboutScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: InkWell(
                       onTap: () => _showTermsDialog(context),
@@ -288,12 +420,15 @@ class AboutScreen extends StatelessWidget {
                               size: 16,
                             ),
                             SizedBox(width: 8),
-                            Text(
-                              'Terms of Use',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                'Terms of Use',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -306,8 +441,9 @@ class AboutScreen extends StatelessWidget {
 
               const SizedBox(height: 28),
 
+              // 6. Copyright
               const Text(
-                '© 2026 Spentee. All rights reserved.',
+                AppConfig.copyright,
                 style: TextStyle(
                   color: Color(0xFF4C6873),
                   fontSize: 12,
@@ -317,6 +453,61 @@ class AboutScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _FeatureCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF081820),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF102E3A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryMint.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: AppTheme.primaryMint, size: 18),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: const TextStyle(
+              color: Color(0xFF7D9DAA),
+              fontSize: 11,
+              height: 1.35,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -349,13 +540,17 @@ class _InfoRow extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

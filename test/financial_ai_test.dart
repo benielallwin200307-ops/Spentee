@@ -470,9 +470,32 @@ void main() {
       expect(noConsentSummary['consent'], isFalse);
       expect(noConsentSummary.containsKey('monthly_spend_total'), isFalse);
 
-      // With consent
+      // With consent (using current month transactions so calendar month calculations stay invariant)
+      final now = DateTime.now();
+      final currentMonthTxs = [
+        Transaction(
+          id: 'tx_cur_exp',
+          title: 'Monthly Expenses',
+          amount: 17000.0,
+          type: TransactionType.expense,
+          category: 'Food & Dining',
+          icon: Icons.restaurant_rounded,
+          categoryColor: Colors.pink,
+          date: DateTime(now.year, now.month, 2),
+        ),
+        Transaction(
+          id: 'tx_cur_inc',
+          title: 'Monthly Salary',
+          amount: 50000.0,
+          type: TransactionType.income,
+          category: 'Salary',
+          icon: Icons.account_balance_wallet_rounded,
+          categoryColor: Colors.green,
+          date: DateTime(now.year, now.month, 1),
+        ),
+      ];
       final consentedSummary = FinancialIntelligenceEngine.buildMinimalSummary(
-        transactions: testTransactions,
+        transactions: currentMonthTxs,
         budgets: testBudgets,
         userConsented: true,
       );

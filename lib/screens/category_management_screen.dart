@@ -66,10 +66,11 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen>
                 top: 16,
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Center(
                     child: Container(
                       width: 40,
@@ -301,7 +302,8 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen>
                   ),
                 ],
               ),
-            );
+            ),
+          );
           },
         );
       },

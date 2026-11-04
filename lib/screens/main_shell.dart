@@ -86,17 +86,21 @@ class _MainShellState extends State<MainShell> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _NavBarItem(
-                  icon: Icons.home_rounded,
-                  label: 'Home',
-                  isSelected: _currentIndex == 0,
-                  onTap: () => _onTabSelected(0),
+                Expanded(
+                  child: _NavBarItem(
+                    icon: Icons.home_rounded,
+                    label: 'Home',
+                    isSelected: _currentIndex == 0,
+                    onTap: () => _onTabSelected(0),
+                  ),
                 ),
-                _NavBarItem(
-                  icon: Icons.bar_chart_rounded,
-                  label: 'Insights',
-                  isSelected: _currentIndex == 1,
-                  onTap: () => _onTabSelected(1),
+                Expanded(
+                  child: _NavBarItem(
+                    icon: Icons.bar_chart_rounded,
+                    label: 'Insights',
+                    isSelected: _currentIndex == 1,
+                    onTap: () => _onTabSelected(1),
+                  ),
                 ),
                 // Raised Center '+' Button with radiant glow
                 GestureDetector(
@@ -104,6 +108,7 @@ class _MainShellState extends State<MainShell> {
                   child: Container(
                     width: 52,
                     height: 52,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
                       color: theme.primaryAccent,
                       shape: BoxShape.circle,
@@ -123,17 +128,21 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ),
-                _NavBarItem(
-                  icon: Icons.chat_bubble_rounded,
-                  label: 'Spentee AI',
-                  isSelected: _currentIndex == 3,
-                  onTap: () => _onTabSelected(3),
+                Expanded(
+                  child: _NavBarItem(
+                    icon: Icons.chat_bubble_rounded,
+                    label: 'Spentee AI',
+                    isSelected: _currentIndex == 3,
+                    onTap: () => _onTabSelected(3),
+                  ),
                 ),
-                _NavBarItem(
-                  icon: Icons.person_rounded,
-                  label: 'Profile',
-                  isSelected: _currentIndex == 4,
-                  onTap: () => _onTabSelected(4),
+                Expanded(
+                  child: _NavBarItem(
+                    icon: Icons.person_rounded,
+                    label: 'Profile',
+                    isSelected: _currentIndex == 4,
+                    onTap: () => _onTabSelected(4),
+                  ),
                 ),
               ],
             ),
@@ -166,7 +175,7 @@ class _NavBarItem extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -174,6 +183,8 @@ class _NavBarItem extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: color,
                 fontSize: 11,

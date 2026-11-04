@@ -34,28 +34,33 @@ class ProfileScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Profile',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Profile',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Manage your account and preferences.',
-                        style: TextStyle(
-                          color: Color(0xFF7E9DAA),
-                          fontSize: 13,
+                        SizedBox(height: 4),
+                        Text(
+                          'Manage your account and preferences.',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Color(0xFF7E9DAA),
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   InkWell(
                     onTap: () => _showEditProfileModal(context, appState),
                     borderRadius: BorderRadius.circular(20),
@@ -1077,12 +1082,17 @@ class _SectionHeader extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            color: Color(0xFF6B8B97),
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF6B8B97),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],

@@ -79,7 +79,8 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     // Verify 3 quick-action buttons exist
     expect(find.text('Add\nExpense'), findsOneWidget);
@@ -92,14 +93,16 @@ void main() {
 
     // Tap Lend & Repay button
     await tester.tap(find.text('Lend\n& Repay'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     // Verify LentBorrowedScreen opened
     expect(find.byType(LentBorrowedScreen), findsOneWidget);
 
     // Verify back navigation returns to HomeScreen
     await tester.tap(find.byIcon(Icons.chevron_left_rounded));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byType(LentBorrowedScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
@@ -118,7 +121,8 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     // Verify no character images are displayed on Home
     final maleMainImages = find.byWidgetPredicate((widget) =>
@@ -134,7 +138,8 @@ void main() {
 
     // Switch to Female theme (as done in Profile Settings)
     appState.setSelectedMascot('female');
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     // Verify still zero character illustrations on Home
     final femaleMainImages = find.byWidgetPredicate((widget) =>

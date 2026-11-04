@@ -129,31 +129,37 @@ class HomeScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Hi, ${appState.userName}! ',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Hi, ${appState.userName}! ',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
                               ),
-                            ),
-                            const Text('👋', style: TextStyle(fontSize: 20)),
-                          ],
-                        ),
-                        const Text(
-                          "Let's make today count.",
-                          style: TextStyle(
-                            color: AppTheme.textGrey,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                              const Text('👋', style: TextStyle(fontSize: 20)),
+                            ],
                           ),
-                        ),
-                      ],
+                          const Text(
+                            "Let's make today count.",
+                            style: TextStyle(
+                              color: AppTheme.textGrey,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     MascotAvatar(
                       size: 46,
@@ -202,9 +208,12 @@ class HomeScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Row(
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 4,
                               children: [
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     const Icon(Icons.arrow_upward_rounded,
                                         size: 13, color: AppTheme.primaryMint),
@@ -219,8 +228,8 @@ class HomeScreen extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(width: 10),
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     const Icon(Icons.arrow_downward_rounded,
                                         size: 13, color: AppTheme.accentPink),
@@ -240,16 +249,21 @@ class HomeScreen extends StatelessWidget {
 
                             const SizedBox(height: 8),
                             Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(Icons.visibility_outlined,
                                     size: 14, color: AppTheme.textGrey),
                                 const SizedBox(width: 4),
-                                Text(
-                                  'Local Mode • Secure',
-                                  style: TextStyle(
-                                    color: theme.primaryAccent,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
+                                Flexible(
+                                  child: Text(
+                                    'Local Mode • Secure',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: theme.primaryAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -402,12 +416,16 @@ class HomeScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Recent Transactions',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
+                    const Expanded(
+                      child: Text(
+                        'Recent Transactions',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     GestureDetector(
