@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../state/app_state.dart';
+import '../services/notification_service.dart';
 import 'auth_screens.dart';
 
 class _NotificationCardData {
@@ -52,7 +53,9 @@ class NotificationsScreen extends StatelessWidget {
     ),
   ];
 
-  void _onContinue(BuildContext context) {
+  void _onContinue(BuildContext context) async {
+    await NotificationService.instance.requestPermission();
+    if (!context.mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     );

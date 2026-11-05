@@ -4,6 +4,7 @@ import 'theme/app_theme.dart';
 import 'state/app_state.dart';
 import 'screens/splash_screen.dart';
 import 'screens/main_shell.dart';
+import 'services/notification_service.dart';
 
 import 'package:google_mobile_ads/google_mobile_ads.dart' hide AppState;
 
@@ -19,13 +20,26 @@ Future<void> main() async {
     debugPrint('MobileAds initialization error: $e');
     return InitializationStatus({});
   });
+
   final appState = AppState();
   try {
     await appState.initFromStorage();
   } catch (e) {
     debugPrint('AppState storage init error: $e');
   }
+
+  // Launch Flutter UI immediately to avoid any black screen or cold-start blocking.
   runApp(SpenteeApp(appState: appState));
+
+  // Initialize notification channels and reschedule saved reminders asynchronously in the background.
+  NotificationService.instance.init().then((_) {
+    NotificationService.instance.rescheduleAll(
+      notifications: appState.notifications,
+      notificationTime: appState.notificationTime,
+    );
+  }).catchError((e) {
+    debugPrint('NotificationService background init error: $e');
+  });
 }
 
 

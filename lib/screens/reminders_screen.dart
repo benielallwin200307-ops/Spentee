@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../services/notification_service.dart';
 
 /// Screen for managing notifications, spending reminders, budget alerts, and AI roasts.
 class RemindersScreen extends StatelessWidget {
@@ -145,7 +146,12 @@ class RemindersScreen extends StatelessWidget {
                 title: 'Daily Spending Log',
                 subtitle: 'A gentle evening nudge to record today\'s expenses.',
                 value: isDaily,
-                onChanged: (val) => appState.setNotification('daily', val),
+                onChanged: (val) async {
+                  if (val) {
+                    await NotificationService.instance.requestPermission();
+                  }
+                  appState.setNotification('daily', val);
+                },
                 child: isDaily
                     ? Padding(
                         padding: const EdgeInsets.only(top: 14),
@@ -222,7 +228,12 @@ class RemindersScreen extends StatelessWidget {
                 subtitle:
                     'Receive an AI breakdown of your weekly cash flow every Sunday.',
                 value: isWeekly,
-                onChanged: (val) => appState.setNotification('weekly', val),
+                onChanged: (val) async {
+                  if (val) {
+                    await NotificationService.instance.requestPermission();
+                  }
+                  appState.setNotification('weekly', val);
+                },
               ),
 
               const SizedBox(height: 16),
@@ -236,7 +247,12 @@ class RemindersScreen extends StatelessWidget {
                 subtitle:
                     'Instant alert when any category exceeds 80% or 100% of its budget limit.',
                 value: isBudget,
-                onChanged: (val) => appState.setNotification('budget', val),
+                onChanged: (val) async {
+                  if (val) {
+                    await NotificationService.instance.requestPermission();
+                  }
+                  appState.setNotification('budget', val);
+                },
               ),
 
               const SizedBox(height: 16),
@@ -250,7 +266,12 @@ class RemindersScreen extends StatelessWidget {
                 subtitle:
                     'Witty remarks and savings encouragement from your companion mascot.',
                 value: isRoasts,
-                onChanged: (val) => appState.setNotification('roasts', val),
+                onChanged: (val) async {
+                  if (val) {
+                    await NotificationService.instance.requestPermission();
+                  }
+                  appState.setNotification('roasts', val);
+                },
               ),
 
               const SizedBox(height: 28),

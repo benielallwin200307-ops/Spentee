@@ -13,6 +13,8 @@ import '../services/ai_chat_service.dart';
 import '../services/roast_engine.dart';
 import '../services/roast_library.dart';
 import '../services/sync_service.dart';
+import '../services/notification_service.dart';
+// ignore_for_file: depend_on_referenced_packages
 import '../utils/date_restriction.dart';
 
 /// Central state manager with persistent user profile and theme preferences.
@@ -761,6 +763,10 @@ class AppState extends ChangeNotifier {
     _notificationTime = time;
     notifyListeners();
     saveToStorage();
+    // Reschedule daily reminder with the new time if it is enabled.
+    if (_notifications['daily'] == true) {
+      NotificationService.instance.scheduleDailyReminder(time);
+    }
   }
 
   final Map<String, bool> _notifications = {
@@ -777,6 +783,7 @@ class AppState extends ChangeNotifier {
       _notifications[key] = !_notifications[key]!;
       notifyListeners();
       saveToStorage();
+      _applyNotificationSchedule(key, _notifications[key]!);
     }
   }
 
@@ -784,6 +791,39 @@ class AppState extends ChangeNotifier {
     _notifications[key] = value;
     notifyListeners();
     saveToStorage();
+    _applyNotificationSchedule(key, value);
+  }
+
+  /// Schedule or cancel a single notification type based on [value].
+  void _applyNotificationSchedule(String key, bool value) {
+    final svc = NotificationService.instance;
+    switch (key) {
+      case 'daily':
+        if (value) {
+          svc.scheduleDailyReminder(_notificationTime);
+        } else {
+          svc.cancel(NotifId.daily);
+        }
+        break;
+      case 'weekly':
+        if (value) {
+          svc.scheduleWeeklyReminder();
+        } else {
+          svc.cancel(NotifId.weekly);
+        }
+        break;
+      case 'roasts':
+        if (value) {
+          svc.scheduleRoastReminder();
+        } else {
+          svc.cancel(NotifId.roasts);
+        }
+        break;
+      case 'budget':
+        // Budget alerts are fired imperatively when spending is checked;
+        // no persistent alarm needed. Nothing to schedule/cancel here.
+        break;
+    }
   }
 
   // In-memory Transactions list (starts empty for genuine zero-data state)
@@ -1008,6 +1048,19 @@ class AppState extends ChangeNotifier {
       debugPrint('Validation failed: Attempted to add future transaction date ${tx.date}');
       return;
     }
+    // Calculate previous spending for budget warnings before inserting
+    double oldSpent = 0.0;
+    if (tx.type == TransactionType.expense) {
+      for (final t in _transactions) {
+        if (t.type == TransactionType.expense &&
+            t.category.toLowerCase().trim() == tx.category.toLowerCase().trim() &&
+            t.date.year == tx.date.year &&
+            t.date.month == tx.date.month) {
+          oldSpent += t.amount;
+        }
+      }
+    }
+
     final syncedTx = tx.copyWith(updatedAt: DateTime.now());
     _transactions.insert(0, syncedTx);
     if (syncedTx.isCashOutflow) {
@@ -1020,6 +1073,47 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     await saveTransactionsToStorage();
     SyncService.instance.syncTransaction(syncedTx);
+
+    // Trigger budget alerts if thresholds (80% or 100%) were crossed
+    if (tx.type == TransactionType.expense) {
+      _checkBudgetThresholds(
+        category: tx.category,
+        date: tx.date,
+        oldSpentOnCategory: oldSpent,
+      );
+    }
+  }
+
+  void _checkBudgetThresholds({
+    required String category,
+    required DateTime date,
+    required double oldSpentOnCategory,
+  }) {
+    if (_notifications['budget'] != true) return;
+    final matchingBudgets = _budgets.where((b) =>
+        !b.isDeleted &&
+        b.year == date.year &&
+        b.month == date.month &&
+        b.category.toLowerCase().trim() == category.toLowerCase().trim());
+
+    for (final b in matchingBudgets) {
+      if (b.limitAmount <= 0) continue;
+      final newSpent = b.calculateSpent(_transactions);
+      final prevRatio = oldSpentOnCategory / b.limitAmount;
+      final newRatio = newSpent / b.limitAmount;
+
+      if (prevRatio < 1.0 && newRatio >= 1.0) {
+        NotificationService.instance.showBudgetAlert(
+          categoryName: b.category,
+          percent: 100,
+        );
+      } else if (prevRatio < 0.8 && newRatio >= 0.8) {
+        NotificationService.instance.showBudgetAlert(
+          categoryName: b.category,
+          percent: 80,
+        );
+      }
+    }
   }
 
   /// Delete transaction and adjust balance deterministically.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/transaction.dart';
+import '../services/notification_service.dart';
 import 'home_screen.dart';
 import 'insights_screen.dart';
 import 'add_transaction_screen.dart';
@@ -25,6 +26,10 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    // Request Android 13+ POST_NOTIFICATIONS permission after first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.instance.requestPermission();
+    });
   }
 
   void _onTabSelected(int index) {
