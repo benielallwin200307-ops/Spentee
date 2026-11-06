@@ -1068,11 +1068,11 @@ class _ChatScreenState extends State<ChatScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _buildSuggestionCard(
-                icon: Icons.bar_chart_rounded,
-                iconColor: const Color(0xFFEC4899),
-                title: 'Where can I reduce my spending?',
+                icon: Icons.pie_chart_rounded,
+                iconColor: AppTheme.accentOrange,
+                title: 'Where did most of\nmy money go?',
                 onTap: () =>
-                    _sendMessage('Where can I reduce my spending?', appState),
+                    _sendMessage('Where did most of my money go?', appState),
               ),
             ),
           ],
