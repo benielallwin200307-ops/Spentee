@@ -3,8 +3,8 @@ import '../theme/app_theme.dart';
 import '../models/transaction.dart';
 import '../state/app_state.dart';
 import '../utils/date_restriction.dart';
-
 import '../models/category_model.dart';
+import '../widgets/spentee_loading.dart';
 
 /// Screen allowing users to edit an existing transaction record with full validation.
 class EditTransactionScreen extends StatefulWidget {
@@ -1061,13 +1061,9 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         elevation: 0,
                       ),
                       child: _isSaving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF04190F),
-                              ),
+                          ? const SpenteeLoading.inline(
+                              size: 20,
+                              color: Color(0xFF04190F),
                             )
                           : const Text(
                               'Save Changes',

@@ -289,7 +289,12 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
             color: Color(0xFF03161C),
           ),
         ),
-        onPressed: () => _openAddEditModal(context, appState),
+        onPressed: () {
+          final defaultType = _tabController.index == 1
+              ? DebtType.borrowed
+              : DebtType.lent;
+          _openAddEditModal(context, appState, initialType: defaultType);
+        },
       ),
     );
   }
@@ -1523,6 +1528,7 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
     BuildContext context,
     AppState appState, {
     LentBorrowedRecord? existing,
+    DebtType? initialType,
   }) {
     final nameController = TextEditingController(text: existing?.personName ?? '');
     final amountController = TextEditingController(
@@ -1532,7 +1538,7 @@ class _LentBorrowedScreenState extends State<LentBorrowedScreen>
     );
     final noteController = TextEditingController(text: existing?.note ?? '');
 
-    DebtType selectedType = existing?.type ?? DebtType.lent;
+    DebtType selectedType = existing?.type ?? initialType ?? DebtType.lent;
     DateTime selectedDate = existing?.date ?? DateTime.now();
     DateTime? selectedDueDate = existing?.dueDate;
 

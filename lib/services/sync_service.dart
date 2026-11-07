@@ -182,7 +182,11 @@ class SyncService {
       );
 
       // 5. Reconcile custom categories (only custom ones stored in Firestore)
-      final customCats = localCategories.where((c) => c.isCustom).toList();
+      final activeUid = _activeUid ?? '';
+      final customCats = localCategories
+          .where((c) => c.isCustom && (c.userId == null || c.userId == activeUid))
+          .map((c) => c.userId == null && activeUid.isNotEmpty ? c.copyWith(userId: activeUid) : c)
+          .toList();
       final reconciledCategories = await _migrateCollection<CategoryItem>(
         collection: _categoriesCol!,
         localRecords: customCats,
@@ -518,11 +522,15 @@ class SyncService {
 
     _categoriesSub = col.snapshots().listen((snapshot) {
       if (_suppressListeners) return;
+      final activeUid = _activeUid ?? '';
       final categories = <CategoryItem>[];
       for (final doc in snapshot.docs) {
         try {
           final data = doc.data() as Map<String, dynamic>;
-          categories.add(CategoryItem.fromJson(data));
+          final cat = CategoryItem.fromJson(data);
+          if (cat.userId == null || cat.userId == activeUid) {
+            categories.add(cat.userId == null && activeUid.isNotEmpty ? cat.copyWith(userId: activeUid) : cat);
+          }
         } catch (e) {
           debugPrint('[SyncService] Error parsing category: $e');
         }
@@ -659,8 +667,13 @@ class SyncService {
   Future<void> syncCategory(CategoryItem category) async {
     try {
       final col = _categoriesCol;
-      if (col == null) return;
-      await col.doc(category.id).set(category.toJson());
+      final activeUid = _activeUid;
+      if (col == null || activeUid == null || activeUid.isEmpty) return;
+      if (category.userId != null && category.userId != activeUid) return;
+      final payload = category.userId == null
+          ? category.copyWith(userId: activeUid).toJson()
+          : category.toJson();
+      await col.doc(category.id).set(payload);
     } catch (e) {
       debugPrint('[SyncService] Error syncing category ${category.id}: $e');
     }

@@ -10,6 +10,7 @@ import 'help_support_screen.dart';
 import 'lent_borrowed_screen.dart';
 import 'reminders_screen.dart';
 import 'splash_screen.dart';
+import '../widgets/spentee_loading.dart';
 
 /// Screen 15 — Spentee Profile & Preferences Screen
 class ProfileScreen extends StatelessWidget {
@@ -883,33 +884,9 @@ class ProfileScreen extends StatelessWidget {
     String? passwordForReauth,
   }) async {
     // Show blocking progress indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          backgroundColor: const Color(0xFF091C24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          content: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Row(
-              children: [
-                CircularProgressIndicator(
-                  color: Color(0xFFFF2E56),
-                ),
-                SizedBox(width: 20),
-                Expanded(
-                  child: Text(
-                    'Deleting account & data permanently...',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    SpenteeLoading.showLoadingDialog(
+      context,
+      message: 'Deleting account & data permanently...',
     );
 
     try {

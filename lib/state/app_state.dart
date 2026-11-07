@@ -93,6 +93,7 @@ class AppState extends ChangeNotifier {
             _userGender = _selectedMascot;
           }
           if (isDifferentUser) {
+            _resetCategoriesToDefaults();
             await _promoteOfflineData(user.uid);
             await loadTransactionsFromStorage();
             await loadBudgetsFromStorage();
@@ -260,13 +261,21 @@ class AppState extends ChangeNotifier {
     sync.onCategoriesChanged = (remoteCategories) {
       final customMap = <String, CategoryItem>{};
       for (final c in _customCategories.where((c) => c.isCustom)) {
-        customMap[c.id] = c;
+        if (c.userId == null || c.userId == _userUid) {
+          customMap[c.id] = c;
+        }
       }
       for (final remote in remoteCategories) {
         if (remote.isCustom) {
+          // Security isolation: reject any remote category that belongs to another user
+          if (remote.userId != null && remote.userId != _userUid) {
+            continue;
+          }
           final local = customMap[remote.id];
           if (local == null || remote.updatedAt.isAfter(local.updatedAt) || remote.updatedAt.isAtSameMomentAs(local.updatedAt)) {
-            customMap[remote.id] = remote;
+            customMap[remote.id] = remote.userId == null && _userUid.isNotEmpty
+                ? remote.copyWith(userId: _userUid)
+                : remote;
           }
         }
       }
@@ -310,12 +319,18 @@ class AppState extends ChangeNotifier {
     try {
       await createLocalBackup();
       SyncService.instance.setActiveUid(_userUid);
+      final isolatedLocalCategories = [
+        ..._customCategories.where((c) => !c.isCustom),
+        ..._customCategories
+            .where((c) => c.isCustom && (c.userId == null || c.userId == _userUid))
+            .map((c) => c.userId == null && _userUid.isNotEmpty ? c.copyWith(userId: _userUid) : c),
+      ];
       final result = await SyncService.instance.performMigration(
         localTransactions: List.from(_transactions),
         localBudgets: List.from(_budgets),
         localSavingsGoals: List.from(_savingsGoals),
         localDebts: List.from(_debts),
-        localCategories: List.from(_customCategories),
+        localCategories: isolatedLocalCategories,
         localProfile: {
           'userName': _userName,
           'userEmail': _userEmail,
@@ -406,6 +421,7 @@ class AppState extends ChangeNotifier {
     final targetUid = uid ?? _userUid;
     if (targetUid.isNotEmpty) {
       if (targetUid != _userUid) {
+        _resetCategoriesToDefaults();
         await _promoteOfflineData(targetUid);
       }
       _userUid = targetUid;
@@ -467,6 +483,7 @@ class AppState extends ChangeNotifier {
     _budgets.clear();
     _savingsGoals.clear();
     _debts.clear();
+    _resetCategoriesToDefaults();
     refreshRoast();
     notifyListeners();
     await saveToStorage();
@@ -950,7 +967,7 @@ class AppState extends ChangeNotifier {
         await legacyGoal.copy(newGoalFile.path);
       }
       final legacyCat = File('${dir.path}/spentee_categories.json');
-      if (await legacyCat.exists() && !await newCatFile.exists()) {
+      if (await legacyCat.exists() && !await newCatFile.exists() && _legacyUserUids.contains(newUid)) {
         await legacyCat.copy(newCatFile.path);
       }
     } catch (e) {
@@ -2082,28 +2099,13 @@ class AppState extends ChangeNotifier {
           return userFile;
         }
         final legacyFile = File('${dir.path}/spentee_categories.json');
-        if (await legacyFile.exists()) {
-          if (_legacyUserUids.contains(_userUid)) {
-            return legacyFile;
-          }
-          try {
-            await legacyFile.copy(userFile.path);
-            return userFile;
-          } catch (_) {
-            return legacyFile;
-          }
+        if (await legacyFile.exists() && _legacyUserUids.contains(_userUid)) {
+          return legacyFile;
         }
         return userFile;
       }
 
       final guestFile = File('${dir.path}/spentee_categories_guest.json');
-      if (await guestFile.exists()) {
-        return guestFile;
-      }
-      final legacyFile = File('${dir.path}/spentee_categories.json');
-      if (await legacyFile.exists()) {
-        return legacyFile;
-      }
       return guestFile;
     } catch (e) {
       debugPrint('Categories storage lookup error: $e');
@@ -2124,6 +2126,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadCategoriesFromStorage() async {
     try {
+      // 1. Reset in-memory categories to defaults first to avoid cross-session contamination
+      _resetCategoriesToDefaults();
+
       final file = await _getCategoriesFile();
       if (file != null && await file.exists()) {
         final content = await file.readAsString();
@@ -2133,7 +2138,23 @@ class AppState extends ChangeNotifier {
             final loaded = <CategoryItem>[];
             for (final item in data) {
               if (item is Map<String, dynamic>) {
-                loaded.add(CategoryItem.fromJson(item));
+                final cat = CategoryItem.fromJson(item);
+                if (!cat.isCustom) {
+                  loaded.add(cat);
+                } else if (_userUid.isEmpty) {
+                  // Guest mode: only allow guest or unassigned custom categories
+                  if (cat.userId == null || cat.userId!.startsWith('local_')) {
+                    loaded.add(cat);
+                  }
+                } else {
+                  // Authenticated mode: strictly isolate to current user UID
+                  if (cat.userId == null) {
+                    // Backfill with current user UID so it belongs to this account
+                    loaded.add(cat.copyWith(userId: _userUid));
+                  } else if (cat.userId == _userUid) {
+                    loaded.add(cat);
+                  }
+                }
               }
             }
             if (loaded.isNotEmpty) {
@@ -2152,8 +2173,6 @@ class AppState extends ChangeNotifier {
             }
           }
         }
-      } else {
-        await saveCategoriesToStorage();
       }
     } catch (e) {
       debugPrint('Error loading categories from storage: $e');
@@ -2169,11 +2188,18 @@ class AppState extends ChangeNotifier {
     );
     if (exists) return;
 
-    final syncedCat = cat.copyWith(updatedAt: DateTime.now());
+    final targetUserId = _userUid.isNotEmpty ? _userUid : cat.userId;
+    final syncedCat = cat.copyWith(
+      id: cat.id.isEmpty ? 'cat_${DateTime.now().millisecondsSinceEpoch}' : cat.id,
+      userId: targetUserId,
+      updatedAt: DateTime.now(),
+    );
     _customCategories.add(syncedCat);
     notifyListeners();
     await saveCategoriesToStorage();
-    SyncService.instance.syncCategory(syncedCat);
+    if (_userUid.isNotEmpty && !_userUid.startsWith('local_')) {
+      SyncService.instance.syncCategory(syncedCat);
+    }
   }
 
   Future<void> renameCategory(String id, String newName) async {
@@ -2181,8 +2207,9 @@ class AppState extends ChangeNotifier {
     if (idx >= 0) {
       final oldName = _customCategories[idx].name;
       final syncedCat = _customCategories[idx].copyWith(
-        name: newName,
+        name: newName.trim(),
         updatedAt: DateTime.now(),
+        userId: _userUid.isNotEmpty ? _userUid : _customCategories[idx].userId,
       );
       _customCategories[idx] = syncedCat;
 

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../state/app_state.dart';
+import '../widgets/spentee_loading.dart';
 import 'main_shell.dart';
 
 /// Screen 7 — Login Screen (Recreated from reference design)
@@ -19,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscurePass = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -28,7 +30,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _onLogin() async {
-    final email = _emailCtrl.text.trim();
+    if (_isLoading || _isGoogleLoading) return;
+    final email = _emailCtrl.text.trim().toLowerCase();
     final pass = _passCtrl.text;
 
     if (email.isEmpty) {
@@ -76,37 +79,6 @@ class _LoginScreenState extends State<LoginScreen> {
         (route) => false,
       );
     } catch (e) {
-      if (e is FirebaseAuthException &&
-          (e.code == 'operation-not-allowed' || e.code == 'network-request-failed')) {
-        String matchingUid = '';
-        String existingName = email.split('@')[0];
-        for (final entry in appState.userProfiles.entries) {
-          if (entry.value is Map &&
-              (entry.value['userEmail'] as String?)?.toLowerCase().trim() ==
-                  email.toLowerCase().trim()) {
-            matchingUid = entry.key;
-            if (entry.value['userName'] is String &&
-                (entry.value['userName'] as String).isNotEmpty) {
-              existingName = entry.value['userName'];
-            }
-            break;
-          }
-        }
-        final targetUid = matchingUid.isNotEmpty
-            ? matchingUid
-            : 'local_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}';
-        await appState.setUserProfile(
-          name: existingName,
-          email: email,
-          uid: targetUid,
-        );
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
-        );
-        return;
-      }
       if (!mounted) return;
       _showError(AuthService.getErrorMessage(e));
     } finally {
@@ -115,15 +87,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _onGoogleSignIn() async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
+    if (_isLoading || _isGoogleLoading) return;
+    setState(() => _isGoogleLoading = true);
     final appState = AppStateScope.of(context);
 
     try {
       final credential = await AuthService.instance.signInWithGoogleForLogin();
       if (credential == null) {
-        // User cancelled selection
-        if (mounted) setState(() => _isLoading = false);
+        // User cancelled selection or dismissed bottom sheet
         return;
       }
 
@@ -151,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       _showError(AuthService.getErrorMessage(e));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -197,31 +168,192 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _onForgotPassword() async {
-    final email = _emailCtrl.text.trim();
-    if (email.isEmpty) {
-      _showError('Please enter your email address to reset your password.');
-      return;
-    }
-    final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
-    if (!emailRegex.hasMatch(email)) {
-      _showError('Please enter a valid email address.');
-      return;
-    }
-    try {
-      await AuthService.instance.sendPasswordReset(email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Password reset link sent to $email.'),
-          backgroundColor: const Color(0xFF012026),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      _showError(AuthService.getErrorMessage(e));
-    }
+  void _onForgotPassword() {
+    final resetEmailCtrl = TextEditingController(text: _emailCtrl.text.trim().toLowerCase());
+    bool isResetting = false;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF091C24),
+      barrierColor: Colors.black.withValues(alpha: 0.75),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 16,
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E3842),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00E676).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.lock_reset_rounded,
+                          color: Color(0xFF00E676),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Reset Password',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Enter your email to receive a reset link',
+                              style: TextStyle(
+                                color: Color(0xFF88A0A8),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D2329),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF163E44),
+                        width: 1,
+                      ),
+                    ),
+                    child: TextField(
+                      controller: resetEmailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(
+                          Icons.mail_outline_rounded,
+                          color: Color(0xFF88A0A8),
+                          size: 20,
+                        ),
+                        hintText: 'Enter your account email',
+                        hintStyle: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: isResetting
+                          ? null
+                          : () async {
+                              final email = resetEmailCtrl.text.trim().toLowerCase();
+                              if (email.isEmpty) {
+                                _showError('Please enter your email address.');
+                                return;
+                              }
+                              final emailRegex =
+                                  RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
+                              if (!emailRegex.hasMatch(email)) {
+                                _showError('Please enter a valid email address.');
+                                return;
+                              }
+
+                              setModalState(() => isResetting = true);
+                              try {
+                                await AuthService.instance.sendPasswordReset(email);
+                                if (!sheetCtx.mounted) return;
+                                Navigator.pop(sheetCtx);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Password reset link sent to $email. Please check your inbox.'),
+                                    backgroundColor: const Color(0xFF0D3528),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                setModalState(() => isResetting = false);
+                                _showError(AuthService.getErrorMessage(e));
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00E676),
+                        foregroundColor: const Color(0xFF00241D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: isResetting
+                          ? const SpenteeLoading.inline(
+                              size: 20,
+                              color: Color(0xFF00241D),
+                            )
+                          : const Text(
+                              'Send Reset Link',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _onSignUp() {
@@ -372,6 +504,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _emailCtrl,
                             keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.next,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 15,
@@ -412,8 +546,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child: TextField(
                             controller: _passCtrl,
+                            keyboardType: TextInputType.visiblePassword,
                             obscureText: _obscurePass,
                             textInputAction: TextInputAction.done,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             onSubmitted: (_) => _onLogin(),
                             style: const TextStyle(
                               color: Colors.white,
@@ -429,8 +566,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePass
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
                                   color: _obscurePass
                                       ? const Color(0xFF88A0A8)
                                       : const Color(0xFF45F59A),
@@ -459,13 +596,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: _onForgotPassword,
-                            child: const Text(
-                              'Forgot Password?',
-                              style: TextStyle(
-                                color: Color(0xFF45F59A),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              child: Text(
+                                'Forgot Password?',
+                                style: TextStyle(
+                                  color: Color(0xFF45F59A),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
@@ -496,16 +637,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(28),
-                              onTap: _isLoading ? null : _onLogin,
+                              onTap: (_isLoading || _isGoogleLoading) ? null : _onLogin,
                               child: Center(
                                 child: _isLoading
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: Color(0xFF002219),
-                                        ),
+                                    ? const SpenteeLoading.inline(
+                                        size: 22,
+                                        color: Color(0xFF002219),
                                       )
                                     : const Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
@@ -579,32 +716,53 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(27),
-                              onTap: _isLoading ? null : _onGoogleSignIn,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    'Assets/extracted/google_g_logo_transparent.png',
-                                    height: 22,
-                                    width: 22,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        const Icon(
-                                      Icons.g_mobiledata_rounded,
-                                      color: Colors.white,
-                                      size: 24,
+                              onTap: (_isLoading || _isGoogleLoading)
+                                  ? null
+                                  : _onGoogleSignIn,
+                              child: _isGoogleLoading
+                                  ? const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SpenteeLoading.inline(size: 20),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Connecting with Google...',
+                                          style: TextStyle(
+                                            color: Color(0xFF45F59A),
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'Assets/extracted/google_g_logo_transparent.png',
+                                          height: 22,
+                                          width: 22,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  const Icon(
+                                            Icons.g_mobiledata_rounded,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'Continue with Google',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
                         ),
@@ -669,6 +827,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passCtrl = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -679,8 +838,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _onSignUp() async {
+    if (_isLoading || _isGoogleLoading) return;
     final name = _nameCtrl.text.trim();
-    final email = _emailCtrl.text.trim();
+    final email = _emailCtrl.text.trim().toLowerCase();
     final pass = _passCtrl.text;
 
     if (name.isEmpty) {
@@ -732,21 +892,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         (route) => false,
       );
     } catch (e) {
-      if (e is FirebaseAuthException &&
-          (e.code == 'operation-not-allowed' || e.code == 'network-request-failed')) {
-        final localUid = 'local_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}';
-        await appState.setUserProfile(
-          name: name,
-          email: email,
-          uid: localUid,
-        );
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-          (route) => false,
-        );
-        return;
-      }
       if (!mounted) return;
       _showError(AuthService.getErrorMessage(e));
     } finally {
@@ -755,15 +900,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _onGoogleSignIn() async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
+    if (_isLoading || _isGoogleLoading) return;
+    setState(() => _isGoogleLoading = true);
     final appState = AppStateScope.of(context);
 
     try {
       final credential = await AuthService.instance.signUpWithGoogle();
       if (credential == null) {
-        // User cancelled account selection
-        if (mounted) setState(() => _isLoading = false);
+        // User cancelled account selection or dismissed bottom sheet
         return;
       }
 
@@ -786,7 +930,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (!mounted) return;
       _showError(AuthService.getErrorMessage(e));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -811,8 +955,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
-    // Top illustration aspect ratio based on 504x360 source
-    final topArtHeight = screenWidth * (355.0 / 504.0);
+    // Top illustration extends to top of screen filling the gap while preserving desk edge position
+    final topArtHeight = mediaQuery.padding.top + (screenWidth * (570.0 / 1024.0));
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -831,68 +975,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Artwork with Mascot, Window, Lamp, Laptop & Mug
+                  // Top Artwork extending to very top of screen, filling the gap
                   SizedBox(
                     width: double.infinity,
                     height: topArtHeight,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned.fill(
-                          child: Image.asset(
-                            'Assets/extracted/signup_top_art_clean.png',
-                            width: screenWidth,
-                            height: topArtHeight,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.topCenter,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(color: const Color(0xFF00151B)),
-                          ),
-                        ),
-
-                        // Heading: "Create your\nSpentee account" overlaid at the bottom-left of the desk
-                        Positioned(
-                          left: 22,
-                          right: screenWidth * 0.28,
-                          bottom: 6,
-                          child: RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'Create your\n',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: math.min(screenWidth * 0.082, 32.0),
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.6,
-                                    height: 1.15,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'Spentee ',
-                                  style: TextStyle(
-                                    color: const Color(0xFF65FFA7),
-                                    fontSize: math.min(screenWidth * 0.082, 32.0),
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.6,
-                                    height: 1.15,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'account',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: math.min(screenWidth * 0.082, 32.0),
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.6,
-                                    height: 1.15,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Image.asset(
+                      'Assets/extracted/signup_top_art_clean.png',
+                      width: screenWidth,
+                      height: topArtHeight,
+                      fit: BoxFit.fitWidth,
+                      alignment: Alignment.bottomCenter,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Container(color: const Color(0xFF00151B)),
                     ),
                   ),
 
@@ -902,7 +996,45 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 6),
+                        // Heading: "Create your Spentee account" positioned immediately below the illustration with 5 px spacing
+                        const SizedBox(height: 5.0),
+                        RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'Create your\n',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: math.min(screenWidth * 0.082, 32.0),
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.6,
+                                  height: 1.15,
+                                ),
+                              ),
+                              TextSpan(
+                                text: 'Spentee ',
+                                style: TextStyle(
+                                  color: const Color(0xFF65FFA7),
+                                  fontSize: math.min(screenWidth * 0.082, 32.0),
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.6,
+                                  height: 1.15,
+                                ),
+                              ),
+                              TextSpan(
+                                text: 'account',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: math.min(screenWidth * 0.082, 32.0),
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.6,
+                                  height: 1.15,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 7),
 
                         // Subtitle
                         const Text(
@@ -914,11 +1046,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             letterSpacing: -0.1,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 27),
 
                         // Full Name Field
                         _buildLabel('Full name'),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 5.5),
                         _buildInputField(
                           controller: _nameCtrl,
                           hint: 'Alex',
@@ -926,29 +1058,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           keyboardType: TextInputType.name,
                           textInputAction: TextInputAction.next,
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 11),
 
                         // Email Address Field
                         _buildLabel('Email address'),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 5.5),
                         _buildInputField(
                           controller: _emailCtrl,
                           hint: 'you@example.com',
                           prefixIcon: Icons.mail_outline_rounded,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          enableSuggestions: false,
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 11),
 
                         // Password Field
                         _buildLabel('Password'),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 5.5),
                         _buildInputField(
                           controller: _passCtrl,
                           hint: '••••••••',
                           prefixIcon: Icons.lock_outline_rounded,
+                          keyboardType: TextInputType.visiblePassword,
                           obscureText: !_isPasswordVisible,
                           textInputAction: TextInputAction.done,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          textCapitalization: TextCapitalization.none,
                           suffixIcon: IconButton(
                             icon: Icon(
                               _isPasswordVisible
@@ -964,7 +1102,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
 
                         // Sign Up Pill Button (Mint gradient with green glow)
                         Container(
@@ -991,16 +1129,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(26),
-                              onTap: _isLoading ? null : _onSignUp,
+                              onTap: (_isLoading || _isGoogleLoading)
+                                  ? null
+                                  : _onSignUp,
                               child: Center(
                                 child: _isLoading
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: Color(0xFF00241D),
-                                        ),
+                                    ? const SpenteeLoading.inline(
+                                        size: 22,
+                                        color: Color(0xFF00241D),
                                       )
                                     : const Row(
                                         mainAxisAlignment:
@@ -1027,7 +1163,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 13),
 
                         // OR Divider
                         const Row(
@@ -1058,7 +1194,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 13),
 
                         // Continue with Google Button (Android only, NO Apple sign-in)
                         Container(
@@ -1076,37 +1212,57 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(25),
-                              onTap: _isLoading ? null : _onGoogleSignIn,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    'Assets/extracted/google_g_logo_transparent.png',
-                                    height: 22,
-                                    width: 22,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            const Icon(
-                                      Icons.g_mobiledata_rounded,
-                                      color: Colors.white,
-                                      size: 24,
+                              onTap: (_isLoading || _isGoogleLoading)
+                                  ? null
+                                  : _onGoogleSignIn,
+                              child: _isGoogleLoading
+                                  ? const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SpenteeLoading.inline(size: 20),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Connecting with Google...',
+                                          style: TextStyle(
+                                            color: Color(0xFF45F59A),
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'Assets/extracted/google_g_logo_transparent.png',
+                                          height: 22,
+                                          width: 22,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  const Icon(
+                                            Icons.g_mobiledata_rounded,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'Continue with Google',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 15),
 
                         // Already have an account? Login
                         Row(
@@ -1227,6 +1383,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     TextInputType keyboardType = TextInputType.text,
     TextInputAction textInputAction = TextInputAction.next,
     bool obscureText = false,
+    bool autocorrect = true,
+    bool enableSuggestions = true,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     Widget? suffixIcon,
   }) {
     return Container(
@@ -1244,6 +1403,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         obscureText: obscureText,
         keyboardType: keyboardType,
         textInputAction: textInputAction,
+        autocorrect: autocorrect,
+        enableSuggestions: enableSuggestions,
+        textCapitalization: textCapitalization,
         style: const TextStyle(
           color: Colors.white,
           fontSize: 15,

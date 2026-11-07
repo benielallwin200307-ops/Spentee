@@ -268,6 +268,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen>
                               isCustom: true,
                               icon: Icons.label_rounded,
                               color: selectedColor,
+                              userId: appState.userUid.isNotEmpty ? appState.userUid : null,
                             );
 
                             final messenger = ScaffoldMessenger.of(context);

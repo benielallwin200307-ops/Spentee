@@ -12,6 +12,7 @@ class CategoryItem {
   final Color color;
   final DateTime updatedAt;
   final bool isDeleted;
+  final String? userId;
 
   CategoryItem({
     required this.id,
@@ -22,6 +23,7 @@ class CategoryItem {
     required this.color,
     DateTime? updatedAt,
     this.isDeleted = false,
+    this.userId,
   }) : updatedAt = updatedAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
@@ -36,6 +38,7 @@ class CategoryItem {
       'iconFontPackage': icon.fontPackage,
       'updatedAt': updatedAt.toIso8601String(),
       'isDeleted': isDeleted,
+      if (userId != null) 'userId': userId,
     };
   }
 
@@ -72,6 +75,7 @@ class CategoryItem {
           ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
           : DateTime.now(),
       isDeleted: json['isDeleted'] as bool? ?? false,
+      userId: json['userId'] as String?,
     );
   }
 
@@ -84,6 +88,7 @@ class CategoryItem {
     Color? color,
     DateTime? updatedAt,
     bool? isDeleted,
+    String? userId,
   }) {
     return CategoryItem(
       id: id ?? this.id,
@@ -94,6 +99,7 @@ class CategoryItem {
       color: color ?? this.color,
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
+      userId: userId ?? this.userId,
     );
   }
 }

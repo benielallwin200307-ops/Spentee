@@ -736,5 +736,78 @@ void main() {
       expect(appState.totalBorrowedOutstanding, 0.0);
       expect(appState.debts, isEmpty);
     });
+
+    testWidgets('21. Add Record selection: Lent under Money Lent tab, Borrowed under Borrowed tab, (+) icon defaults to Lent', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final appState = AppState();
+      await tester.pumpWidget(
+        AppStateScope(
+          state: appState,
+          child: const MaterialApp(
+            home: LentBorrowedScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. On Money Lent tab (default tab 0): Tap FAB (Add Record)
+      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add Record'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Lent or Borrowed Record'), findsOneWidget);
+      // Money I Lent is selected (dark active text color 0xFF021015)
+      final lentTextWidget = tester.widget<Text>(find.text('Money I Lent'));
+      expect(lentTextWidget.style?.color, const Color(0xFF021015));
+      final borrowedTextWidget1 = tester.widget<Text>(find.text('Money I Borrowed'));
+      expect(borrowedTextWidget1.style?.color, const Color(0xFF88A6B2));
+
+      // Dismiss modal
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator).last);
+      navigator.pop();
+      await tester.pumpAndSettle();
+
+      // 2. Switch to Borrowed tab (tab 1)
+      await tester.tap(find.text('Borrowed'));
+      await tester.pumpAndSettle();
+
+      // Tap FAB under Money Borrowed
+      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add Record'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Lent or Borrowed Record'), findsOneWidget);
+      // Money I Borrowed is selected automatically (dark active text color 0xFF021015)
+      final borrowedTextWidget2 = tester.widget<Text>(find.text('Money I Borrowed'));
+      expect(borrowedTextWidget2.style?.color, const Color(0xFF021015));
+      final lentTextWidget2 = tester.widget<Text>(find.text('Money I Lent'));
+      expect(lentTextWidget2.style?.color, const Color(0xFF88A6B2));
+
+      // Dismiss modal
+      final navigator2 = tester.state<NavigatorState>(find.byType(Navigator).last);
+      navigator2.pop();
+      await tester.pumpAndSettle();
+
+      // 3. While still on Borrowed tab, tap top-right (+) icon
+      // Top right icon is inside the AppBar action
+      final topPlusButton = find.byWidgetPredicate(
+        (w) => w is InkWell && w.child is Container && (w.child as Container).child is Icon && ((w.child as Container).child as Icon).icon == Icons.add_rounded,
+      );
+      await tester.tap(topPlusButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Lent or Borrowed Record'), findsOneWidget);
+      // Unchanged default behavior: Money I Lent is selected
+      final lentTextWidget3 = tester.widget<Text>(find.text('Money I Lent'));
+      expect(lentTextWidget3.style?.color, const Color(0xFF021015));
+
+      final navigator3 = tester.state<NavigatorState>(find.byType(Navigator).last);
+      navigator3.pop();
+      await tester.pumpAndSettle();
+    });
   });
 }

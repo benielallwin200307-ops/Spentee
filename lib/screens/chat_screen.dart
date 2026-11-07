@@ -6,6 +6,7 @@ import '../models/roast.dart';
 import '../models/budget.dart';
 import '../models/savings_goal.dart';
 import 'chat_history_screen.dart';
+import '../widgets/spentee_loading.dart';
 
 /// Screen 10 — Spentee AI Chatbot Screen
 /// Pixel-perfect redesign matching the reference UI:
@@ -1881,13 +1882,9 @@ class _ChatScreenState extends State<ChatScreen> {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00E676)),
-                  ),
+                SpenteeLoading.inline(
+                  size: 16,
+                  color: Color(0xFF00E676),
                 ),
                 SizedBox(width: 10),
                 Text(

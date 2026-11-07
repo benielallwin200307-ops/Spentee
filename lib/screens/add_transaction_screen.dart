@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import 'lent_borrowed_screen.dart';
 import 'category_management_screen.dart';
 import '../utils/date_restriction.dart';
+import '../widgets/spentee_loading.dart';
 
 /// Screen 8 — Redesigned Add Transaction Screen
 /// Matches the reference UI with custom numeric keypad, category/date/note cards,
@@ -1270,16 +1271,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           alignment: Alignment.center,
                           children: [
                             if (_isSaving)
-                              Row(
+                              const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Color(0xFF04190F),
-                                      strokeWidth: 2.4,
-                                    ),
+                                children: [
+                                  SpenteeLoading.inline(
+                                    size: 20,
+                                    color: Color(0xFF04190F),
                                   ),
                                   SizedBox(width: 10),
                                   Text(

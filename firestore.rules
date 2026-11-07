@@ -57,11 +57,12 @@ service cloud.firestore {
           && isValidString('personName', 100);
       }
 
-      // Custom Categories collection: validates category name bounds
+      // Custom Categories collection: validates category name bounds and user ownership
       match /categories/{categoryId} {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId)
-          && isValidString('name', 50);
+          && isValidString('name', 50)
+          && (!('userId' in request.resource.data) || request.resource.data.userId == userId);
       }
 
       // Settings collection (Profile, preferences)
