@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../utils/date_restriction.dart';
 import '../models/category_model.dart';
 import '../widgets/spentee_loading.dart';
+import '../widgets/insufficient_balance_dialog.dart';
 
 /// Screen allowing users to edit an existing transaction record with full validation.
 class EditTransactionScreen extends StatefulWidget {
@@ -604,12 +605,28 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       return;
     }
 
+    final appState = AppStateScope.of(context);
+
+    // Revalidate available balance for expenses accounting for the original transaction
+    if (_selectedType == TransactionType.expense) {
+      if (!appState.canAffordExpense(parsedAmount, excludeTransactionId: widget.transaction.id)) {
+        final effectiveBal = appState.getEffectiveAvailableBalance(
+          excludeTransactionId: widget.transaction.id,
+        );
+        await InsufficientBalanceDialog.show(
+          context,
+          availableBalance: effectiveBal,
+          expenseAmount: parsedAmount,
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isSaving = true;
     });
 
     try {
-      final appState = AppStateScope.of(context);
       final rawTitle = _titleController.text.trim();
       final updatedTitle = rawTitle.isNotEmpty ? rawTitle : _selectedCategory.name;
 
@@ -627,7 +644,10 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
         destinationAccount: isOwnAccount ? _destinationAccount : null,
       );
 
-      final success = await appState.updateTransaction(updatedTx);
+      final success = await appState.updateTransaction(
+        updatedTx,
+        enforceBalanceValidation: true,
+      );
 
       if (!mounted) return;
 
@@ -656,13 +676,25 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
         setState(() {
           _isSaving = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Color(0xFF2A101C),
-            behavior: SnackBarBehavior.floating,
-            content: Text('Failed to update transaction.'),
-          ),
-        );
+        if (_selectedType == TransactionType.expense &&
+            !appState.canAffordExpense(parsedAmount, excludeTransactionId: widget.transaction.id)) {
+          final effectiveBal = appState.getEffectiveAvailableBalance(
+            excludeTransactionId: widget.transaction.id,
+          );
+          await InsufficientBalanceDialog.show(
+            context,
+            availableBalance: effectiveBal,
+            expenseAmount: parsedAmount,
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Color(0xFF2A101C),
+              behavior: SnackBarBehavior.floating,
+              content: Text('Failed to update transaction.'),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

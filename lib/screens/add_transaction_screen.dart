@@ -7,6 +7,7 @@ import 'lent_borrowed_screen.dart';
 import 'category_management_screen.dart';
 import '../utils/date_restriction.dart';
 import '../widgets/spentee_loading.dart';
+import '../widgets/insufficient_balance_dialog.dart';
 
 /// Screen 8 — Redesigned Add Transaction Screen
 /// Matches the reference UI with custom numeric keypad, category/date/note cards,
@@ -790,6 +791,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    // Revalidate available balance immediately before saving for expenses
+    if (_selectedType == TransactionType.expense) {
+      if (!appState.canAffordExpense(parsedAmount)) {
+        await InsufficientBalanceDialog.show(
+          context,
+          availableBalance: appState.availableBalance,
+          expenseAmount: parsedAmount,
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isSaving = true;
     });
@@ -810,8 +823,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         destinationAccount: isOwnAccount ? _destinationAccount : null,
       );
 
-      // Persist to database/storage
-      await appState.addTransaction(newTx);
+      // Persist to database/storage with atomic balance validation
+      final saved = await appState.addTransaction(newTx, enforceBalanceValidation: true);
+      if (!saved) {
+        if (!mounted) return;
+        setState(() {
+          _isSaving = false;
+        });
+        await InsufficientBalanceDialog.show(
+          context,
+          availableBalance: appState.availableBalance,
+          expenseAmount: parsedAmount,
+        );
+        return;
+      }
 
       if (!mounted) return;
 

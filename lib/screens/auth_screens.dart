@@ -719,50 +719,47 @@ class _LoginScreenState extends State<LoginScreen> {
                               onTap: (_isLoading || _isGoogleLoading)
                                   ? null
                                   : _onGoogleSignIn,
-                              child: _isGoogleLoading
-                                  ? const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        SpenteeLoading.inline(size: 20),
-                                        SizedBox(width: 12),
-                                        Text(
-                                          'Connecting with Google...',
-                                          style: TextStyle(
-                                            color: Color(0xFF45F59A),
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
+                              child: Center(
+                                child: _isGoogleLoading
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Color(0xFF45F59A),
                                           ),
                                         ),
-                                      ],
-                                    )
-                                  : Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Image.asset(
-                                          'Assets/extracted/google_g_logo_transparent.png',
-                                          height: 22,
-                                          width: 22,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const Icon(
-                                            Icons.g_mobiledata_rounded,
-                                            color: Colors.white,
-                                            size: 24,
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Image.asset(
+                                            'Assets/extracted/google_g_logo_transparent.png',
+                                            height: 22,
+                                            width: 22,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const Icon(
+                                              Icons.g_mobiledata_rounded,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Text(
-                                          'Continue with Google',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
+                                          const SizedBox(width: 12),
+                                          const Text(
+                                            'Continue with Google',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
+                                        ],
+                                      ),
+                              ),
                             ),
                           ),
                         ),
@@ -1215,50 +1212,47 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               onTap: (_isLoading || _isGoogleLoading)
                                   ? null
                                   : _onGoogleSignIn,
-                              child: _isGoogleLoading
-                                  ? const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        SpenteeLoading.inline(size: 20),
-                                        SizedBox(width: 12),
-                                        Text(
-                                          'Connecting with Google...',
-                                          style: TextStyle(
-                                            color: Color(0xFF45F59A),
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
+                              child: Center(
+                                child: _isGoogleLoading
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Color(0xFF45F59A),
                                           ),
                                         ),
-                                      ],
-                                    )
-                                  : Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Image.asset(
-                                          'Assets/extracted/google_g_logo_transparent.png',
-                                          height: 22,
-                                          width: 22,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const Icon(
-                                            Icons.g_mobiledata_rounded,
-                                            color: Colors.white,
-                                            size: 24,
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Image.asset(
+                                            'Assets/extracted/google_g_logo_transparent.png',
+                                            height: 22,
+                                            width: 22,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const Icon(
+                                              Icons.g_mobiledata_rounded,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Text(
-                                          'Continue with Google',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
+                                          const SizedBox(width: 12),
+                                          const Text(
+                                            'Continue with Google',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
+                                        ],
+                                      ),
+                              ),
                             ),
                           ),
                         ),

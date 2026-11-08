@@ -31,6 +31,32 @@ class AppState extends ChangeNotifier {
   double get netWorth =>
       _balance + totalLentOutstanding - totalBorrowedOutstanding;
 
+  /// Returns the effective spendable balance available for a new or edited expense.
+  /// If [excludeTransactionId] is provided, any cash effect of that existing transaction is
+  /// temporarily reverted so the user can re-spend funds freed up by modifying it.
+  double getEffectiveAvailableBalance({String? excludeTransactionId}) {
+    if (excludeTransactionId == null || excludeTransactionId.isEmpty) {
+      return _balance;
+    }
+    final idx = _transactions.indexWhere((t) => t.id == excludeTransactionId);
+    if (idx < 0) return _balance;
+    final oldTx = _transactions[idx];
+    if (oldTx.isCashOutflow) {
+      return _balance + oldTx.amount;
+    } else if (oldTx.isCashInflow) {
+      return _balance - oldTx.amount;
+    }
+    return _balance;
+  }
+
+  /// Checks whether an expense of [amount] can be afforded.
+  /// An expense is allowed if and only if [amount] > 0 and [amount] <= effective available balance.
+  bool canAffordExpense(double amount, {String? excludeTransactionId}) {
+    if (amount <= 0) return false;
+    final effectiveBal = getEffectiveAvailableBalance(excludeTransactionId: excludeTransactionId);
+    return amount <= effectiveBal + 0.000001;
+  }
+
 
   // User Profile
   String _userUid = '';
@@ -1059,11 +1085,23 @@ class AppState extends ChangeNotifier {
   }
 
   /// Add new transaction with deterministic financial calculation.
-  Future<void> addTransaction(Transaction tx) async {
+  Future<bool> addTransaction(
+    Transaction tx, {
+    bool enforceBalanceValidation = false,
+  }) async {
     // Shared date-validation rule: disallow future transaction dates
     if (DateRestriction.isFuture(tx.date)) {
       debugPrint('Validation failed: Attempted to add future transaction date ${tx.date}');
-      return;
+      return false;
+    }
+
+    // Insufficient balance validation for expenses
+    if (enforceBalanceValidation && tx.type == TransactionType.expense) {
+      if (!canAffordExpense(tx.amount)) {
+        debugPrint(
+            'Validation failed: Insufficient balance ($_balance) for expense ${tx.amount}');
+        return false;
+      }
     }
     // Calculate previous spending for budget warnings before inserting
     double oldSpent = 0.0;
@@ -1099,6 +1137,7 @@ class AppState extends ChangeNotifier {
         oldSpentOnCategory: oldSpent,
       );
     }
+    return true;
   }
 
   void _checkBudgetThresholds({
@@ -1184,7 +1223,10 @@ class AppState extends ChangeNotifier {
   }
 
   /// Update an existing transaction and adjust balance deterministically.
-  Future<bool> updateTransaction(Transaction updatedTx) async {
+  Future<bool> updateTransaction(
+    Transaction updatedTx, {
+    bool enforceBalanceValidation = false,
+  }) async {
     final idx = _transactions.indexWhere((t) => t.id == updatedTx.id);
     if (idx < 0) return false;
 
@@ -1192,6 +1234,15 @@ class AppState extends ChangeNotifier {
     if (DateRestriction.isFuture(updatedTx.date)) {
       debugPrint('Validation failed: Attempted to update with future transaction date ${updatedTx.date}');
       return false;
+    }
+
+    // Insufficient balance validation for expenses
+    if (enforceBalanceValidation && updatedTx.type == TransactionType.expense) {
+      if (!canAffordExpense(updatedTx.amount, excludeTransactionId: updatedTx.id)) {
+        debugPrint(
+            'Validation failed: Insufficient balance for updated expense ${updatedTx.amount}');
+        return false;
+      }
     }
 
     final oldTx = _transactions[idx];

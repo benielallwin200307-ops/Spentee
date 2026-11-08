@@ -231,6 +231,16 @@ void main() {
         color: const Color(0xFFFF9100),
       );
       await tester.runAsync(() async {
+        await appState.addTransaction(Transaction(
+          id: 'inc_setup_pet',
+          title: 'Initial Funds',
+          amount: 1000.0,
+          type: TransactionType.income,
+          category: 'Salary',
+          icon: Icons.attach_money,
+          categoryColor: Colors.green,
+          date: DateTime.now(),
+        ));
         await appState.addCustomCategory(customExp);
       });
 
@@ -275,7 +285,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // Verify transaction was saved with custom category
-      expect(appState.transactions.length, 1);
+      expect(appState.transactions.length, 2);
       final savedTx = appState.transactions.first;
       expect(savedTx.category, 'Pet Food');
       expect(savedTx.amount, 5.0);
@@ -381,6 +391,16 @@ void main() {
         date: DateTime.now().subtract(const Duration(hours: 1)),
       );
       await tester.runAsync(() async {
+        await appState.addTransaction(Transaction(
+          id: 'inc_setup_edit',
+          title: 'Initial Funds',
+          amount: 1000.0,
+          type: TransactionType.income,
+          category: 'Salary',
+          icon: Icons.attach_money,
+          categoryColor: Colors.green,
+          date: DateTime.now(),
+        ));
         await appState.addCustomCategory(customExp);
         await appState.addTransaction(initialTx);
       });
@@ -412,7 +432,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      final updated = appState.transactions.first;
+      final updated = appState.transactions.firstWhere((t) => t.id == 'tx_edit_test');
       expect(updated.category, 'Coaching');
     });
   });
