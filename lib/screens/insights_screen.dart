@@ -5,6 +5,8 @@ import '../theme/app_theme.dart';
 import '../models/transaction.dart';
 import 'transactions_screen.dart';
 import '../utils/date_restriction.dart';
+import '../services/financial_intelligence_engine.dart';
+import 'chat_screen.dart';
 
 /// Data model for category expense breakdown
 class _CategoryBreakdown {
@@ -340,6 +342,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
                 // 4. AI Insight Card with Original Spentee Mascot
                 _buildAiInsightCard(
+                  appState: appState,
                   totalSpent: totalSpent,
                   categories: categories,
                 ),
@@ -725,8 +728,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
     required double totalSpent,
     required List<_CategoryBreakdown> categories,
   }) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 360;
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 12 : 18, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF071928),
         borderRadius: BorderRadius.circular(22),
@@ -971,182 +976,162 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   // ─── 4. AI Insight Card ───────────────────────────────────────────────────
   Widget _buildAiInsightCard({
+    required AppState appState,
     required double totalSpent,
     required List<_CategoryBreakdown> categories,
   }) {
-    // Determine dynamic rule-based insights
-    String insightTitle = 'No spending recorded this month.';
-    String insightSubtitle = 'Log your daily spends to receive smart money-saving tips!';
-    String savingsHighlight = '';
+    // Determine dynamic personalized insights from the engine
+    final insights = FinancialIntelligenceEngine.instance.generatePersonalizedInsights(
+      transactions: appState.transactions,
+      budgets: appState.budgets,
+      referenceDate: _selectedPeriod,
+    );
 
-    if (totalSpent > 0 && categories.isNotEmpty) {
-      final topCat = categories.first;
-      final percentStr = topCat.percent;
-      final catName = topCat.label.toLowerCase();
-
-      if (catName.contains('food') || catName.contains('dining') || catName.contains('drink')) {
-        insightTitle = 'You spent $percentStr on food this month.';
-        insightSubtitle = 'By cooking at home a few more times, you could save ';
-        final potentialSavings = math.max(2000, ((topCat.amount * 0.45) / 500).round() * 500);
-        savingsHighlight = '${_formatINR(potentialSavings.toDouble())}+!';
-      } else if (catName.contains('shop')) {
-        insightTitle = 'You spent $percentStr on shopping this month.';
-        insightSubtitle = 'Trying the 72-hour delay rule could save you ';
-        final potentialSavings = math.max(1000, ((topCat.amount * 0.20) / 500).round() * 500);
-        savingsHighlight = '${_formatINR(potentialSavings.toDouble())}+!';
-      } else if (catName.contains('transport') || catName.contains('cab')) {
-        insightTitle = 'Transport accounted for $percentStr of spends.';
-        insightSubtitle = 'Opting for transit passes or carpools could save ';
-        final potentialSavings = math.max(500, ((topCat.amount * 0.20) / 250).round() * 250);
-        savingsHighlight = '${_formatINR(potentialSavings.toDouble())}+!';
-      } else if (catName.contains('bill') || catName.contains('utilit')) {
-        insightTitle = 'Bills made up $percentStr of your budget.';
-        insightSubtitle = 'Reviewing recurring subscriptions could save ';
-        final potentialSavings = math.max(500, ((topCat.amount * 0.15) / 250).round() * 250);
-        savingsHighlight = '${_formatINR(potentialSavings.toDouble())}+!';
-      } else {
-        insightTitle = 'Top spend was ${topCat.label} at $percentStr.';
-        insightSubtitle = 'Trimming small impulse purchases could save ';
-        final potentialSavings = math.max(500, ((topCat.amount * 0.15) / 250).round() * 250);
-        savingsHighlight = '${_formatINR(potentialSavings.toDouble())}+!';
-      }
-    }
+    final insightTitle = insights.quickInsightTitle;
+    final insightSubtitle = insights.quickInsightSubtitle;
 
     final theme = MascotThemeData.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: theme.bannerGradient,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.subtleBorder,
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.primaryAccent.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (ctx) => const ChatScreen(),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(19),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Clean Fintech Analytics Icon Badge
-              Padding(
-                padding: const EdgeInsets.only(left: 16, top: 16, bottom: 16),
-                child: Center(
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: theme.primaryAccent.withValues(alpha: 0.15),
-                      border: Border.all(
-                        color: theme.primaryAccent.withValues(alpha: 0.35),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.primaryAccent.withValues(alpha: 0.2),
-                          blurRadius: 12,
-                          spreadRadius: 1,
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: theme.bannerGradient,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.subtleBorder,
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: theme.primaryAccent.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(19),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Clean Fintech Analytics Icon Badge
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, top: 14, bottom: 14),
+                  child: Center(
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.primaryAccent.withValues(alpha: 0.15),
+                        border: Border.all(
+                          color: theme.primaryAccent.withValues(alpha: 0.35),
+                          width: 1.5,
                         ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.insights_rounded,
-                        color: theme.primaryAccent,
-                        size: 24,
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.primaryAccent.withValues(alpha: 0.2),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.insights_rounded,
+                          color: theme.primaryAccent,
+                          size: 24,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
 
-              // Insight Observation and Suggestion
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 16, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // AI Insight Label with Sparkle
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.auto_awesome,
-                            color: theme.primaryAccent,
-                            size: 13,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'AI Insight',
-                            style: TextStyle(
+                // Insight Observation and Suggestion
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 14, 8, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // AI Insight Label with Sparkle
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
                               color: theme.primaryAccent,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
+                              size: 13,
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      // Observation Heading
-                      Text(
-                        insightTitle,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          height: 1.25,
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                'AI Insight • Hiro',
+                                style: TextStyle(
+                                  color: theme.primaryAccent,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      // Suggestion Subtitle with Highlighted Savings
-                      RichText(
-                        text: TextSpan(
+                        const SizedBox(height: 6),
+                        // Observation Heading
+                        Text(
+                          insightTitle,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            height: 1.25,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        // Suggestion Subtitle
+                        Text(
+                          insightSubtitle,
                           style: const TextStyle(
                             color: Color(0xFFB0C0D0),
                             fontSize: 11.5,
                             height: 1.35,
                           ),
-                          children: [
-                            TextSpan(text: insightSubtitle),
-                            if (savingsHighlight.isNotEmpty)
-                              TextSpan(
-                                text: savingsHighlight,
-                                style: TextStyle(
-                                  color: theme.primaryAccent,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                          ],
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
-              // Chevron Right indicator
-              const Padding(
-                padding: EdgeInsets.only(right: 10),
-                child: Center(
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(0xFF8E9DAE),
-                    size: 20,
+                // Chevron Right indicator
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Center(
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF8E9DAE),
+                      size: 20,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1170,8 +1155,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
     final double step = (maxVal / 3).ceilToDouble();
     final double chartMax = math.max(60000.0, step * 3);
 
+    final isSmallScreen = MediaQuery.of(context).size.width < 360;
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 12 : 18, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF071928),
         borderRadius: BorderRadius.circular(22),
@@ -1299,6 +1286,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       const chartBarMaxHeight = 105.0;
+                      final isNarrow = constraints.maxWidth < 250;
+                      final barWidth = isNarrow ? 8.5 : 11.5;
+                      final barGap = isNarrow ? 1.5 : 2.5;
+                      final groupPadH = isNarrow ? 1.0 : 2.5;
+                      final labelFontSize = isNarrow ? 9.5 : 10.5;
+                      final selectedPadH = isNarrow ? 4.0 : 7.0;
 
                       return Stack(
                         children: [
@@ -1332,7 +1325,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                 onTap: () => _selectMonth(trend.date),
                                 behavior: HitTestBehavior.opaque,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 2),
+                                  padding: EdgeInsets.symmetric(horizontal: groupPadH, vertical: 2),
                                   decoration: isCurrentSelected
                                       ? BoxDecoration(
                                           color: const Color(0xFF0E2C3D).withValues(alpha: 0.8),
@@ -1352,7 +1345,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                         children: [
                                           // Income Bar
                                           Container(
-                                            width: 11.5,
+                                            width: barWidth,
                                             height: incHeight,
                                             decoration: BoxDecoration(
                                               gradient: const LinearGradient(
@@ -1368,10 +1361,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(width: 2.5),
+                                          SizedBox(width: barGap),
                                           // Expense Bar
                                           Container(
-                                            width: 11.5,
+                                            width: barWidth,
                                             height: expHeight,
                                             decoration: BoxDecoration(
                                               gradient: const LinearGradient(
@@ -1393,16 +1386,16 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                       // Month Label (with pill badge for selected month)
                                       if (isCurrentSelected)
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          padding: EdgeInsets.symmetric(horizontal: selectedPadH, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFF04121F),
                                             borderRadius: BorderRadius.circular(6),
                                           ),
                                           child: Text(
                                             trend.label,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               color: Colors.white,
-                                              fontSize: 10.5,
+                                              fontSize: labelFontSize,
                                               fontWeight: FontWeight.w800,
                                             ),
                                           ),
@@ -1410,9 +1403,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                       else
                                         Text(
                                           trend.label,
-                                          style: const TextStyle(
-                                            color: Color(0xFF8E9DAE),
-                                            fontSize: 10.5,
+                                          style: TextStyle(
+                                            color: const Color(0xFF8E9DAE),
+                                            fontSize: labelFontSize,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),

@@ -42,6 +42,11 @@ Future<void> main() async {
     NotificationService.instance.rescheduleAll(
       notifications: appState.notifications,
       notificationTime: appState.notificationTime,
+      transactions: appState.transactions,
+      budgets: appState.budgets,
+      savingsGoals: appState.savingsGoals,
+      language: appState.selectedLanguage,
+      intensity: appState.roastIntensity,
     );
   }).catchError((e) {
     debugPrint('NotificationService background init error: $e');

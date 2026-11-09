@@ -1,8 +1,32 @@
 import 'package:flutter/material.dart';
 
+/// Intensity levels for humorous financial roasts.
+enum RoastIntensity {
+  friendly,
+  savage,
+  brutal,
+}
+
 /// Categories representing financial situations for personalized roasts.
 enum RoastCategory {
+  // 15 Primary Financial Situations
   foodDining,
+  shopping,
+  entertainment,
+  travelTransport,
+  billsUtilities,
+  subscriptions,
+  groceries,
+  lifestyle,
+  onlineShopping,
+  frequentSmallPurchases,
+  budgetOverspending,
+  highSpendingCategories,
+  savingsHabits,
+  incomeVsExpenses,
+  monthlySpendingBehaviour,
+
+  // Legacy situation categories (retained for backward compatibility)
   shoppingDiscretionary,
   spendingSpike,
   deficitSpending,
@@ -37,6 +61,7 @@ class RoastItem {
   final String category;
   final String mascotEmoji;
   final RoastCategory? situation;
+  final RoastIntensity intensity;
 
   const RoastItem({
     this.id = '',
@@ -45,6 +70,7 @@ class RoastItem {
     required this.category,
     this.mascotEmoji = '😎',
     this.situation,
+    this.intensity = RoastIntensity.savage,
   });
 
   /// Returns a new RoastItem with placeholders like {amount}, {category}, {period}, {percentage}, {budget_remaining} replaced.
@@ -63,6 +89,7 @@ class RoastItem {
     String? category,
     String? mascotEmoji,
     RoastCategory? situation,
+    RoastIntensity? intensity,
   }) {
     return RoastItem(
       id: id ?? this.id,
@@ -71,6 +98,7 @@ class RoastItem {
       category: category ?? this.category,
       mascotEmoji: mascotEmoji ?? this.mascotEmoji,
       situation: situation ?? this.situation,
+      intensity: intensity ?? this.intensity,
     );
   }
 
@@ -81,6 +109,7 @@ class RoastItem {
         'category': category,
         'mascotEmoji': mascotEmoji,
         'situation': situation?.name,
+        'intensity': intensity.name,
       };
 
   factory RoastItem.fromJson(Map<String, dynamic> json) => RoastItem(
@@ -95,6 +124,12 @@ class RoastItem {
                 orElse: () => RoastCategory.playfulWallet,
               )
             : null,
+        intensity: json['intensity'] != null
+            ? RoastIntensity.values.firstWhere(
+                (i) => i.name == json['intensity'],
+                orElse: () => RoastIntensity.savage,
+              )
+            : RoastIntensity.savage,
       );
 }
 

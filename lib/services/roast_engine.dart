@@ -368,8 +368,8 @@ class DynamicRoastEngine {
   static const String onboardingRoastText =
       "Your wallet is looking suspiciously peaceful. Add a few transactions and let's see your money story!";
 
-  /// Selects a personalized roast based on the user's actual on-device financial behavior
-  /// and selected language, applying anti-repetition guards.
+  /// Selects a personalized roast based on the user's actual on-device financial behavior,
+  /// selected intensity level, and selected language, applying anti-repetition guards.
   static RoastItem generateRoast({
     required List<Transaction> transactions,
     List<Budget> budgets = const [],
@@ -379,6 +379,7 @@ class DynamicRoastEngine {
     List<String>? recentRoastIds,
     String language = 'English',
     String currencySymbol = '₹',
+    RoastIntensity intensity = RoastIntensity.savage,
     DateTime? referenceDate,
   }) {
     final canonLang = RoastLibrary.normalizeLanguage(language);
@@ -389,11 +390,12 @@ class DynamicRoastEngine {
       savingsGoals: savingsGoals,
       language: canonLang,
       currencySymbol: currencySymbol,
+      intensity: intensity,
       referenceDate: referenceDate,
     );
 
     if (candidateRoasts.isEmpty) {
-      return RoastLibrary.getOnboardingRoast(canonLang);
+      return RoastLibrary.getOnboardingRoast(canonLang, intensity: intensity);
     }
 
     if (candidateRoasts.length == 1) {
@@ -424,22 +426,23 @@ class DynamicRoastEngine {
     return pool.first;
   }
 
-  /// Returns all eligible candidate roasts in the chosen language matching the user's real data.
+  /// Returns all eligible candidate roasts in the chosen language and intensity matching the user's real data.
   static List<RoastItem> getMatchingRoasts({
     required List<Transaction> transactions,
     List<Budget> budgets = const [],
     List<SavingsGoal> savingsGoals = const [],
     String language = 'English',
     String currencySymbol = '₹',
+    RoastIntensity intensity = RoastIntensity.savage,
     DateTime? referenceDate,
   }) {
     final canonLang = RoastLibrary.normalizeLanguage(language);
-    final langStaticRoasts = RoastLibrary.getRoastsForLanguage(canonLang);
-    final templates = RoastLibrary.getDataDrivenTemplates(canonLang);
+    final langStaticRoasts = RoastLibrary.getRoastsForLanguage(canonLang, intensity: intensity);
+    final templates = RoastLibrary.getDataDrivenTemplates(canonLang, intensity: intensity);
 
-    // 1. True zero-data state
+    // 1. True zero-data state: Empty wallet
     if (transactions.isEmpty) {
-      return [RoastLibrary.getOnboardingRoast(canonLang)];
+      return [RoastLibrary.getOnboardingRoast(canonLang, intensity: intensity)];
     }
 
     final calc = RoastCalculationData.compute(
@@ -449,20 +452,17 @@ class DynamicRoastEngine {
       referenceDate: referenceDate,
     );
 
-    // 2. Insufficient transaction history (< 3 transactions or 0 valid expenses)
-    if (calc.totalTransactionCount < 3 || calc.validExpenseCount == 0) {
-      final onboarding = RoastLibrary.getOnboardingRoast(canonLang);
-      final insufficient = RoastLibrary.getInsufficientHistoryRoast(canonLang);
-      final playful = langStaticRoasts.where((r) => r.situation == RoastCategory.playfulWallet);
-
-      return [
-        onboarding,
-        insufficient,
-        ...playful,
-      ];
+    // 2. Income only state: Has recorded income, but no expenses to roast
+    if (calc.validExpenseCount == 0 && calc.thisMonthIncome > 0) {
+      return [RoastLibrary.getIncomeOnlyRoast(canonLang, intensity: intensity)];
     }
 
-    // 3. Evaluate active situations and populate placeholder dictionaries
+    // 3. Insufficient transaction history (< 3 transactions or 0 valid expenses)
+    if (calc.totalTransactionCount < 3 || calc.validExpenseCount == 0) {
+      return [RoastLibrary.getInsufficientHistoryRoast(canonLang, intensity: intensity)];
+    }
+
+    // 4. Evaluate active situations and populate placeholder dictionaries
     final List<MapEntry<RoastCategory, Map<String, String>>> situationContexts = [];
 
     // Helper to format currency
@@ -471,27 +471,27 @@ class DynamicRoastEngine {
 
     // ── Priority 1: Budget Overrun & Warnings ──────────────────────────────
     if (calc.overrunBudget != null) {
-      situationContexts.add(MapEntry(
-        RoastCategory.budgetOverrun,
-        {
-          'category': calc.overrunBudget!.category,
-          'amount': fmt(calc.overrunAmount),
-          'percentage': '${(calc.overrunRatio * 100).round()}%',
-          'budget_remaining': fmt(0.0),
-          'period': 'this month',
-        },
-      ));
+      final placeholders = {
+        'category': calc.overrunBudget!.category,
+        'amount': fmt(calc.overrunAmount),
+        'budget': fmt(calc.overrunBudget!.limitAmount),
+        'percentage': '${(calc.overrunRatio * 100).round()}%',
+        'budget_remaining': fmt(0.0),
+        'period': 'this month',
+      };
+      situationContexts.add(MapEntry(RoastCategory.budgetOverrun, placeholders));
+      situationContexts.add(MapEntry(RoastCategory.budgetOverspending, placeholders));
     } else if (calc.nearLimitBudget != null) {
-      situationContexts.add(MapEntry(
-        RoastCategory.budgetOverrun,
-        {
-          'category': calc.nearLimitBudget!.category,
-          'amount': fmt(calc.nearLimitBudget!.calculateSpent(transactions)),
-          'percentage': '${(calc.nearLimitRatio * 100).round()}%',
-          'budget_remaining': fmt(calc.nearLimitRemaining),
-          'period': 'this month',
-        },
-      ));
+      final placeholders = {
+        'category': calc.nearLimitBudget!.category,
+        'amount': fmt(calc.nearLimitBudget!.calculateSpent(transactions)),
+        'budget': fmt(calc.nearLimitBudget!.limitAmount),
+        'percentage': '${(calc.nearLimitRatio * 100).round()}%',
+        'budget_remaining': fmt(calc.nearLimitRemaining),
+        'period': 'this month',
+      };
+      situationContexts.add(MapEntry(RoastCategory.budgetOverrun, placeholders));
+      situationContexts.add(MapEntry(RoastCategory.budgetOverspending, placeholders));
     }
 
     // ── Priority 2: Category Dominance ──────────────────────────────────────
@@ -513,8 +513,8 @@ class DynamicRoastEngine {
         lowerCat.contains('restaurant') ||
         lowerCat.contains('swiggy') ||
         lowerCat.contains('zomato') ||
-        lowerCat.contains('grocery');
-    if (isFood && (activeTopRatio >= 0.22 || activeTopAmt >= 1500)) {
+        lowerCat.contains('cafe');
+    if (isFood && (activeTopRatio >= 0.20 || activeTopAmt >= 1000)) {
       situationContexts.add(MapEntry(
         RoastCategory.foodDining,
         {
@@ -530,16 +530,16 @@ class DynamicRoastEngine {
         lowerCat.contains('cloth') ||
         lowerCat.contains('fashion') ||
         lowerCat.contains('retail') ||
-        lowerCat.contains('electronics');
-    if (isShopping && (activeTopRatio >= 0.20 || activeTopAmt >= 1200)) {
-      situationContexts.add(MapEntry(
-        RoastCategory.shoppingDiscretionary,
-        {
-          'category': 'shopping',
-          'amount': fmt(activeTopAmt),
-          'period': periodStr,
-        },
-      ));
+        lowerCat.contains('electronics') ||
+        lowerCat.contains('apparel');
+    if (isShopping && (activeTopRatio >= 0.18 || activeTopAmt >= 1000)) {
+      final placeholders = {
+        'category': 'shopping',
+        'amount': fmt(activeTopAmt),
+        'period': periodStr,
+      };
+      situationContexts.add(MapEntry(RoastCategory.shopping, placeholders));
+      situationContexts.add(MapEntry(RoastCategory.shoppingDiscretionary, placeholders));
     }
 
     // Commute & Transit
@@ -549,27 +549,27 @@ class DynamicRoastEngine {
         lowerCat.contains('fuel') ||
         lowerCat.contains('travel') ||
         lowerCat.contains('uber') ||
-        lowerCat.contains('ola');
-    if (isTransit && (activeTopRatio >= 0.15 || activeTopAmt >= 800)) {
-      situationContexts.add(MapEntry(
-        RoastCategory.transitFuel,
-        {
-          'category': 'transport',
-          'amount': fmt(activeTopAmt),
-          'period': periodStr,
-        },
-      ));
+        lowerCat.contains('ola') ||
+        lowerCat.contains('metro');
+    if (isTransit && (activeTopRatio >= 0.15 || activeTopAmt >= 600)) {
+      final placeholders = {
+        'category': 'transport',
+        'amount': fmt(activeTopAmt),
+        'period': periodStr,
+      };
+      situationContexts.add(MapEntry(RoastCategory.travelTransport, placeholders));
+      situationContexts.add(MapEntry(RoastCategory.transitFuel, placeholders));
     }
 
     // Entertainment & Subscriptions
     final isEntertainment = lowerCat.contains('entert') ||
         lowerCat.contains('movie') ||
         lowerCat.contains('game') ||
-        lowerCat.contains('subscript') ||
-        lowerCat.contains('stream');
-    if (isEntertainment && (activeTopRatio >= 0.15 || activeTopAmt >= 800)) {
+        lowerCat.contains('cinema') ||
+        lowerCat.contains('concert');
+    if (isEntertainment && (activeTopRatio >= 0.12 || activeTopAmt >= 500)) {
       situationContexts.add(MapEntry(
-        RoastCategory.recurringSubs,
+        RoastCategory.entertainment,
         {
           'category': 'entertainment',
           'amount': fmt(activeTopAmt),
@@ -578,120 +578,126 @@ class DynamicRoastEngine {
       ));
     }
 
-    // Category Heavy (> 45% spent in one category)
-    if (activeTopRatio >= 0.45 && (calc.thisMonthExpense >= 2000 || calc.thisWeekExpense >= 2000)) {
+    final isSubs = lowerCat.contains('subscript') ||
+        lowerCat.contains('stream') ||
+        lowerCat.contains('netflix') ||
+        lowerCat.contains('prime') ||
+        lowerCat.contains('hotstar') ||
+        lowerCat.contains('spotify');
+    if (isSubs) {
       situationContexts.add(MapEntry(
-        RoastCategory.categoryHeavy,
+        RoastCategory.subscriptions,
         {
-          'category': activeTopCat,
+          'category': 'subscriptions',
           'amount': fmt(activeTopAmt),
-          'percentage': '${(activeTopRatio * 100).round()}%',
+          'period': periodStr,
+        },
+      ));
+      situationContexts.add(MapEntry(
+        RoastCategory.recurringSubs,
+        {
+          'category': 'subscriptions',
+          'amount': fmt(activeTopAmt),
           'period': periodStr,
         },
       ));
     }
 
-    // ── Priority 3: Period Comparison & Daily Spending Spikes ────────────────
-    if (calc.prevMonthExpense > 0 &&
-        calc.thisMonthExpense > 0 &&
-        calc.thisMonthExpense < calc.prevMonthExpense) {
-      final savedAmt = calc.prevMonthExpense - calc.thisMonthExpense;
-      final pct = ((savedAmt / calc.prevMonthExpense) * 100).round();
+    // Groceries
+    final isGroceries = lowerCat.contains('grocer') ||
+        lowerCat.contains('supermarket') ||
+        lowerCat.contains('vegetable') ||
+        lowerCat.contains('market');
+    if (isGroceries && (activeTopRatio >= 0.15 || activeTopAmt >= 1000)) {
       situationContexts.add(MapEntry(
-        RoastCategory.spendingImproved,
+        RoastCategory.groceries,
         {
-          'percentage': '$pct%',
-          'amount': fmt(savedAmt),
-          'period': 'this month',
+          'category': 'groceries',
+          'amount': fmt(activeTopAmt),
+          'period': periodStr,
         },
       ));
-    } else if (calc.prevWeekExpense > 0 &&
-        calc.thisWeekExpense > 0 &&
-        calc.thisWeekExpense < calc.prevWeekExpense) {
-      final savedAmt = calc.prevWeekExpense - calc.thisWeekExpense;
-      final pct = ((savedAmt / calc.prevWeekExpense) * 100).round();
+    }
+
+    // Lifestyle & Self-care
+    final isLifestyle = lowerCat.contains('life') ||
+        lowerCat.contains('spa') ||
+        lowerCat.contains('salon') ||
+        lowerCat.contains('beauty') ||
+        lowerCat.contains('care');
+    if (isLifestyle) {
+      situationContexts.add(MapEntry(
+        RoastCategory.lifestyle,
+        {
+          'category': 'lifestyle',
+          'amount': fmt(activeTopAmt),
+          'period': periodStr,
+        },
+      ));
+    }
+
+    // Online Shopping
+    final isOnline = lowerCat.contains('amazon') ||
+        lowerCat.contains('flipkart') ||
+        lowerCat.contains('myntra') ||
+        lowerCat.contains('online');
+    if (isOnline) {
+      situationContexts.add(MapEntry(
+        RoastCategory.onlineShopping,
+        {
+          'category': 'online shopping',
+          'amount': fmt(activeTopAmt),
+          'period': periodStr,
+        },
+      ));
+    }
+
+    // Category Heavy (> 30% spent in one category)
+    if (activeTopRatio >= 0.30 && activeTopAmt >= 1000) {
+      final placeholders = {
+        'category': activeTopCat,
+        'amount': fmt(activeTopAmt),
+        'percentage': '${(activeTopRatio * 100).round()}%',
+        'period': periodStr,
+      };
+      situationContexts.add(MapEntry(RoastCategory.highSpendingCategories, placeholders));
+      situationContexts.add(MapEntry(RoastCategory.categoryHeavy, placeholders));
+    }
+
+    // ── Priority 3: Frequent Small Purchases ────────────────────────────────
+    if (calc.smallPurchasesCount >= 3) {
+      final placeholders = {
+        'count': '${calc.smallPurchasesCount}',
+        'amount': fmt(calc.smallPurchasesAmount),
+        'period': 'this month',
+      };
+      situationContexts.add(MapEntry(RoastCategory.frequentSmallPurchases, placeholders));
+      situationContexts.add(MapEntry(RoastCategory.microPurchases, placeholders));
+    }
+
+    // ── Priority 4: Cash Flow, Deficit Spending & Savings Habits ─────────────
+    if (calc.prevWeekExpense > 0 && calc.thisWeekExpense > 0 && calc.thisWeekExpense < calc.prevWeekExpense) {
+      final diff = calc.prevWeekExpense - calc.thisWeekExpense;
+      final pct = ((diff / calc.prevWeekExpense) * 100).round();
       situationContexts.add(MapEntry(
         RoastCategory.spendingImproved,
         {
+          'amount': fmt(diff),
           'percentage': '$pct%',
-          'amount': fmt(savedAmt),
           'period': 'this week',
         },
       ));
-    }
-
-    if (calc.todayExpense > 2000 ||
-        (calc.thisMonthExpense > 0 &&
-            calc.todayExpense >= calc.thisMonthExpense * 0.4 &&
-            calc.todayExpense >= 1000)) {
+    } else if (calc.prevMonthExpense > 0 && calc.thisMonthExpense > 0 && calc.thisMonthExpense < calc.prevMonthExpense) {
+      final diff = calc.prevMonthExpense - calc.thisMonthExpense;
+      final pct = ((diff / calc.prevMonthExpense) * 100).round();
       situationContexts.add(MapEntry(
-        RoastCategory.spendingSpike,
+        RoastCategory.spendingImproved,
         {
-          'amount': fmt(calc.todayExpense),
-          'period': 'today',
-        },
-      ));
-    }
-
-    // ── Priority 4: Frequent Small Purchases ────────────────────────────────
-    if (calc.smallPurchasesCount >= 4) {
-      situationContexts.add(MapEntry(
-        RoastCategory.microPurchases,
-        {
-          'count': '${calc.smallPurchasesCount}',
-          'amount': fmt(calc.smallPurchasesAmount),
+          'amount': fmt(diff),
+          'percentage': '$pct%',
           'period': 'this month',
         },
       ));
-    }
-
-    // ── Priority 5: Deficit Spending & Positive Financial Habits ─────────────
-    if (calc.hasGoalReached) {
-      situationContexts.insert(
-        0,
-        MapEntry(RoastCategory.goalReached, {
-          'period': 'recently',
-        }),
-      );
-    }
-
-    if (calc.thisMonthExpense > calc.thisMonthIncome && calc.thisMonthIncome > 0) {
-      situationContexts.add(MapEntry(
-        RoastCategory.deficitSpending,
-        {
-          'amount': fmt(calc.thisMonthExpense),
-          'period': 'this month',
-        },
-      ));
-      situationContexts.add(MapEntry(
-        RoastCategory.difficultySaving,
-        {
-          'amount': fmt(calc.thisMonthExpense),
-          'period': 'this month',
-        },
-      ));
-    }
-
-    if (calc.thisMonthIncome > 0 && calc.thisMonthExpense > 0) {
-      final savingsRate = (calc.thisMonthIncome - calc.thisMonthExpense) / calc.thisMonthIncome;
-      if (savingsRate >= 0.25) {
-        final netSavings = calc.thisMonthIncome - calc.thisMonthExpense;
-        situationContexts.add(MapEntry(
-          RoastCategory.improvingSavings,
-          {
-            'amount': fmt(netSavings),
-            'percentage': '${(savingsRate * 100).round()}%',
-            'period': 'this month',
-          },
-        ));
-        situationContexts.add(MapEntry(
-          RoastCategory.disciplinedFrugal,
-          {
-            'amount': fmt(netSavings),
-            'period': 'this month',
-          },
-        ));
-      }
     }
 
     if (calc.todayExpense == 0.0 && calc.thisMonthExpense > 0) {
@@ -713,81 +719,81 @@ class DynamicRoastEngine {
       ));
     }
 
-    if (calc.totalTransactionCount >= 7) {
+    if (calc.hasGoalReached) {
       situationContexts.add(MapEntry(
-        RoastCategory.consistentTracking,
+        RoastCategory.goalReached,
         {
-          'count': '${calc.totalTransactionCount}',
-          'period': 'recently',
+          'period': 'this month',
         },
       ));
     }
 
-    // ── Priority 6: Candidate Assembly ──────────────────────────────────────
+    if (calc.thisMonthIncome > 0 && calc.thisMonthExpense > 0 && calc.thisMonthIncome > calc.thisMonthExpense) {
+      final saved = calc.thisMonthIncome - calc.thisMonthExpense;
+      final savingsRate = ((saved / calc.thisMonthIncome) * 100).round();
+      if (savingsRate >= 30) {
+        situationContexts.add(MapEntry(
+          RoastCategory.improvingSavings,
+          {
+            'amount': fmt(saved),
+            'percentage': '$savingsRate%',
+            'period': 'this month',
+          },
+        ));
+      }
+    }
+
+    if (calc.thisMonthExpense > calc.thisMonthIncome && calc.thisMonthIncome > 0) {
+      final placeholders = {
+        'amount': fmt(calc.thisMonthExpense),
+        'period': 'this month',
+      };
+      situationContexts.add(MapEntry(RoastCategory.incomeVsExpenses, placeholders));
+      situationContexts.add(MapEntry(RoastCategory.deficitSpending, placeholders));
+    } else {
+      situationContexts.add(MapEntry(
+        RoastCategory.savingsHabits,
+        {
+          'amount': fmt(calc.thisMonthExpense),
+          'period': 'this month',
+        },
+      ));
+    }
+
+    situationContexts.add(MapEntry(
+      RoastCategory.monthlySpendingBehaviour,
+      {
+        'amount': fmt(calc.thisMonthExpense),
+        'period': 'this month',
+      },
+    ));
+
+    // ── Priority 5: Candidate Assembly ──────────────────────────────────────
     final candidates = <RoastItem>[];
 
     for (final entry in situationContexts) {
       final sit = entry.key;
       final placeholders = entry.value;
 
-      if (canonLang == 'English') {
-        // Data-driven templates first, then static roasts
-        final matchingTemplates = templates.where((t) => t.situation == sit).toList();
-        for (final tmpl in matchingTemplates) {
-          if (!candidates.any((c) => c.id == tmpl.id)) {
-            candidates.add(tmpl.populate(placeholders));
-          }
+      // 1. Data-driven templates first
+      final matchingTemplates = templates.where((t) => t.situation == sit).toList();
+      for (final tmpl in matchingTemplates) {
+        if (!candidates.any((c) => c.id == tmpl.id)) {
+          candidates.add(tmpl.populate(placeholders));
         }
-        for (final r in langStaticRoasts) {
-          if (r.situation == sit && !candidates.any((c) => c.id == r.id)) {
-            candidates.add(r.populate(placeholders));
-          }
-        }
-      } else {
-        // Regional languages: authentic localized roasts first, then localized templates
-        for (final r in langStaticRoasts) {
-          if (r.situation == sit && !candidates.any((c) => c.id == r.id)) {
-            candidates.add(r.populate(placeholders));
-          }
-        }
-        final matchingTemplates = templates.where((t) => t.situation == sit).toList();
-        for (final tmpl in matchingTemplates) {
-          if (!candidates.any((c) => c.id == tmpl.id)) {
-            candidates.add(tmpl.populate(placeholders));
-          }
+      }
+
+      // 2. Static hand-crafted localized roasts
+      for (final r in langStaticRoasts) {
+        if (r.situation == sit && !candidates.any((c) => c.id == r.id)) {
+          candidates.add(r.populate(placeholders));
         }
       }
     }
 
-    // Fallback if no specific trigger fired
+    // Fallback: If no situation specifically matched, return all available roasts of this language & intensity
     if (candidates.isEmpty) {
-      if (canonLang == 'English') {
-        final neutralTemplates = templates
-            .where((t) =>
-                t.situation == RoastCategory.playfulWallet ||
-                t.situation == RoastCategory.balancedSteady ||
-                t.situation == RoastCategory.newUserEmpty)
-            .map((t) => t.populate({'period': 'today', 'amount': fmt(calc.todayExpense)}));
-        candidates.addAll(neutralTemplates);
-
-        final fallbackStatics = langStaticRoasts.where((r) =>
-            r.situation == RoastCategory.playfulWallet ||
-            r.situation == RoastCategory.balancedSteady);
-        candidates.addAll(fallbackStatics);
-      } else {
-        final fallbackStatics = langStaticRoasts.where((r) =>
-            r.situation == RoastCategory.playfulWallet ||
-            r.situation == RoastCategory.balancedSteady ||
-            r.situation == RoastCategory.newUserEmpty);
-        candidates.addAll(fallbackStatics);
-
-        final neutralTemplates = templates
-            .where((t) =>
-                t.situation == RoastCategory.playfulWallet ||
-                t.situation == RoastCategory.balancedSteady)
-            .map((t) => t.populate({'period': 'today', 'amount': fmt(calc.todayExpense)}));
-        candidates.addAll(neutralTemplates);
-      }
+      candidates.addAll(langStaticRoasts);
     }
 
     return candidates;

@@ -3,12 +3,23 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
+import '../models/budget.dart';
+import '../models/roast.dart';
+import '../models/savings_goal.dart';
+import '../models/transaction.dart';
+import 'roast_engine.dart';
+import 'roast_library.dart';
 
 /// Notification IDs — keep them stable so cancel works correctly.
 class NotifId {
   static const int daily = 1;
   static const int weekly = 2;
-  static const int roasts = 3;
+  static const int roasts = 3; // Legacy ID / Morning Roast
+  static const int roastMorning = 3;
+  static const int roastEvening = 4;
+  // Legacy schedules to explicitly cancel
+  static const int legacyRoast2PM = 14;
+  static const int legacyRoast9PM = 21;
   // Budget alerts are fired imperatively via showBudgetAlert(); no fixed ID.
   static const int budgetBase = 100;
 }
@@ -179,20 +190,25 @@ class NotificationService {
   // Public schedule / cancel API
   // ──────────────────────────────────────────────────────────────────────────
 
-  /// Schedule the Daily Spending Log notification at [timeStr] ("HH:MM").
-  Future<void> scheduleDailyReminder(String timeStr) async {
+  /// Schedule the Daily Spending Log reminder.
+  /// Scheduled every day at [timeStr] ("HH:MM"), defaulting to 22:00 (10:00 PM).
+  /// Notification message: "Today, have you added your expenses? 💚"
+  Future<void> scheduleDailyReminder([String timeStr = '22:00']) async {
     if (!_initialised) return;
     await cancel(NotifId.daily);
     final parts = timeStr.split(':');
-    final hour = int.tryParse(parts[0]) ?? 20;
+    final hour = int.tryParse(parts[0]) ?? 22;
     final minute = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
     final scheduleMode = await _determineScheduleMode();
+
+    const title = 'Daily Reminder';
+    const body = 'Today, have you added your expenses? 💚';
 
     try {
       await _plugin.zonedSchedule(
         NotifId.daily,
-        '💸 Daily Spending Log',
-        'Take a moment to record today\'s expenses and stay on budget!',
+        title,
+        body,
         _nextInstanceOf(hour, minute),
         const NotificationDetails(
           android: AndroidNotificationDetails(
@@ -209,13 +225,13 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
-      debugPrint('NotificationService: daily reminder scheduled at $timeStr (mode: $scheduleMode)');
+      debugPrint('NotificationService: daily reminder scheduled at $hour:$minute (mode: $scheduleMode)');
     } catch (e) {
       debugPrint('NotificationService: fallback inexact schedule daily: $e');
       await _plugin.zonedSchedule(
         NotifId.daily,
-        '💸 Daily Spending Log',
-        'Take a moment to record today\'s expenses and stay on budget!',
+        title,
+        body,
         _nextInstanceOf(hour, minute),
         const NotificationDetails(
           android: AndroidNotificationDetails(
@@ -288,18 +304,122 @@ class NotificationService {
     }
   }
 
-  /// Schedule the daily AI Roast & Motivation notification at 08:30.
-  Future<void> scheduleRoastReminder() async {
+  /// Cancel all scheduled roast reminders and legacy schedules (2:00 PM, 9:00 PM).
+  Future<void> cancelRoastReminders() async {
     if (!_initialised) return;
-    await cancel(NotifId.roasts);
-    final scheduleMode = await _determineScheduleMode();
+    await cancel(NotifId.roastMorning);
+    await cancel(NotifId.roastEvening);
+    await cancel(NotifId.legacyRoast2PM);
+    await cancel(NotifId.legacyRoast9PM);
+  }
 
+  /// Backward-compatible single method delegating to dual daily roast scheduling.
+  Future<void> scheduleRoastReminder({
+    List<Transaction> transactions = const [],
+    List<Budget> budgets = const [],
+    List<SavingsGoal> savingsGoals = const [],
+    String language = 'English',
+    RoastIntensity intensity = RoastIntensity.savage,
+    List<String> recentRoastIds = const [],
+  }) async {
+    await scheduleRoastReminders(
+      transactions: transactions,
+      budgets: budgets,
+      savingsGoals: savingsGoals,
+      language: language,
+      intensity: intensity,
+      recentRoastIds: recentRoastIds,
+    );
+  }
+
+  /// Schedules exactly 2 daily AI Roast notifications:
+  /// - Morning Roast at 10:00 AM (10:00)
+  /// - Evening Roast at 6:00 PM (18:00)
+  ///
+  /// Removes existing schedules at 2:00 PM (14:00) and 9:00 PM (21:00).
+  /// Displays a personalised roast based on real financial activity,
+  /// supporting all 6 app languages, avoiding recent roasts, and
+  /// enforcing data sufficiency so users without enough data receive
+  /// safe onboarding roasts rather than fabricated spending roasts.
+  Future<void> scheduleRoastReminders({
+    List<Transaction> transactions = const [],
+    List<Budget> budgets = const [],
+    List<SavingsGoal> savingsGoals = const [],
+    String language = 'English',
+    RoastIntensity intensity = RoastIntensity.savage,
+    List<String> recentRoastIds = const [],
+  }) async {
+    if (!_initialised) return;
+
+    // 1. Remove legacy schedules (2:00 PM, 9:00 PM) and existing roast notifications
+    await cancelRoastReminders();
+
+    final scheduleMode = await _determineScheduleMode();
+    final canonLang = RoastLibrary.normalizeLanguage(language);
+
+    // 2. Generate Morning Roast (10:00 AM)
+    final morningRoast = DynamicRoastEngine.generateRoast(
+      transactions: transactions,
+      budgets: budgets,
+      savingsGoals: savingsGoals,
+      language: canonLang,
+      intensity: intensity,
+      recentRoastIds: recentRoastIds,
+    );
+
+    // 3. Generate Evening Roast (6:00 PM = 18:00), avoiding duplicate of morning roast
+    final eveningHistory = [...recentRoastIds];
+    if (morningRoast.id.isNotEmpty) {
+      eveningHistory.add(morningRoast.id);
+    }
+    final eveningRoast = DynamicRoastEngine.generateRoast(
+      transactions: transactions,
+      budgets: budgets,
+      savingsGoals: savingsGoals,
+      language: canonLang,
+      intensity: intensity,
+      previousRoastId: morningRoast.id,
+      previousRoastText: morningRoast.text,
+      recentRoastIds: eveningHistory,
+    );
+
+    // Schedule 10:00 AM notification
+    await _scheduleSingleRoast(
+      id: NotifId.roastMorning,
+      title: '🔥 Spentee AI Roast',
+      body: morningRoast.text,
+      hour: 10,
+      minute: 0,
+      scheduleMode: scheduleMode,
+    );
+
+    // Schedule 6:00 PM (18:00) notification
+    await _scheduleSingleRoast(
+      id: NotifId.roastEvening,
+      title: '🔥 Spentee AI Roast',
+      body: eveningRoast.text,
+      hour: 18,
+      minute: 0,
+      scheduleMode: scheduleMode,
+    );
+
+    debugPrint('NotificationService: scheduled 2 daily roasts at 10:00 AM and 6:00 PM ($canonLang)');
+  }
+
+  Future<void> _scheduleSingleRoast({
+    required int id,
+    required String title,
+    required String body,
+    required int hour,
+    required int minute,
+    required AndroidScheduleMode scheduleMode,
+  }) async {
     try {
       await _plugin.zonedSchedule(
-        NotifId.roasts,
-        '🔥 Spentee AI Roast',
-        'Your daily dose of financial motivation (and mild roasting) is here!',
-        _nextInstanceOf(8, 30),
+        id,
+        title,
+        body,
+        _nextInstanceOf(hour, minute),
         const NotificationDetails(
           android: AndroidNotificationDetails(
             _Channel.roasts,
@@ -315,14 +435,13 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
-      debugPrint('NotificationService: roast reminder scheduled (mode: $scheduleMode)');
     } catch (e) {
-      debugPrint('NotificationService: fallback inexact schedule roast: $e');
+      debugPrint('NotificationService: fallback inexact single roast ($id): $e');
       await _plugin.zonedSchedule(
-        NotifId.roasts,
-        '🔥 Spentee AI Roast',
-        'Your daily dose of financial motivation (and mild roasting) is here!',
-        _nextInstanceOf(8, 30),
+        id,
+        title,
+        body,
+        _nextInstanceOf(hour, minute),
         const NotificationDetails(
           android: AndroidNotificationDetails(
             _Channel.roasts,
@@ -387,15 +506,26 @@ class NotificationService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /// Re-applies notification schedule from persisted preferences.
-  /// Pass the [notifications] map and [notificationTime] from AppState.
+  /// Pass the [notifications] map and [notificationTime] from AppState,
+  /// along with optional user financial context to personalize roasts.
   Future<void> rescheduleAll({
     required Map<String, bool> notifications,
     required String notificationTime,
+    List<Transaction> transactions = const [],
+    List<Budget> budgets = const [],
+    List<SavingsGoal> savingsGoals = const [],
+    String language = 'English',
+    RoastIntensity intensity = RoastIntensity.savage,
+    List<String> recentRoastIds = const [],
   }) async {
     if (!_initialised) return;
     final daily = notifications['daily'] ?? false;
     final weekly = notifications['weekly'] ?? false;
     final roasts = notifications['roasts'] ?? false;
+
+    // Explicitly clean up legacy schedules (2:00 PM and 9:00 PM)
+    await cancel(NotifId.legacyRoast2PM);
+    await cancel(NotifId.legacyRoast9PM);
 
     if (daily) {
       await scheduleDailyReminder(notificationTime);
@@ -410,9 +540,16 @@ class NotificationService {
     }
 
     if (roasts) {
-      await scheduleRoastReminder();
+      await scheduleRoastReminders(
+        transactions: transactions,
+        budgets: budgets,
+        savingsGoals: savingsGoals,
+        language: language,
+        intensity: intensity,
+        recentRoastIds: recentRoastIds,
+      );
     } else {
-      await cancel(NotifId.roasts);
+      await cancelRoastReminders();
     }
 
     // Budget alerts are fired imperatively when budgets are checked; no

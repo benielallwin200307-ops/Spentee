@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../state/app_state.dart';
 import '../models/transaction.dart';
+import '../models/roast.dart';
 
 /// Screen 11 — Today's Roast & Insights Screen
 class RoastScreen extends StatefulWidget {
@@ -14,27 +15,6 @@ class RoastScreen extends StatefulWidget {
 
 class _RoastScreenState extends State<RoastScreen> {
   bool _showInsightDetails = false;
-
-  void _shareRoast(BuildContext context, String roastText) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppTheme.bgCard,
-        content: Row(
-          children: [
-            const Icon(Icons.share_rounded, color: AppTheme.primaryMint, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Roast ready to share: "$roastText"',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +98,28 @@ class _RoastScreenState extends State<RoastScreen> {
       }
     }
 
+    final activeIntensity = appState.roastIntensity;
+    Color intensityColor;
+    IconData intensityIcon;
+    List<Color> cardGradient;
+    switch (activeIntensity) {
+      case RoastIntensity.friendly:
+        intensityColor = AppTheme.primaryMint;
+        intensityIcon = Icons.sentiment_satisfied_alt_rounded;
+        cardGradient = const [Color(0xFF162D24), Color(0xFF0F1E19)];
+        break;
+      case RoastIntensity.savage:
+        intensityColor = AppTheme.accentYellow;
+        intensityIcon = Icons.local_fire_department_rounded;
+        cardGradient = const [Color(0xFF332A15), Color(0xFF1D170E)];
+        break;
+      case RoastIntensity.brutal:
+        intensityColor = AppTheme.accentPink;
+        intensityIcon = Icons.whatshot_rounded;
+        cardGradient = const [Color(0xFF3B1E38), Color(0xFF22112C)];
+        break;
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       appBar: AppBar(
@@ -126,12 +128,6 @@ class _RoastScreenState extends State<RoastScreen> {
           "Today's Roast",
           style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share_outlined, color: Colors.white),
-            onPressed: () => _shareRoast(context, roast.text),
-          ),
-        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -141,16 +137,19 @@ class _RoastScreenState extends State<RoastScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 3-Tier Roast Intensity Selector
+                _buildIntensitySelector(context, appState),
+
                 // Main Roast Card (Matching Visual Reference)
                 SpenteeCard(
                   padding: const EdgeInsets.all(20),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF3B1E38), Color(0xFF22112C)],
+                  gradient: LinearGradient(
+                    colors: cardGradient,
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   border: Border.all(
-                    color: AppTheme.accentPink.withValues(alpha: 0.4),
+                    color: intensityColor.withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                   child: Column(
@@ -158,29 +157,29 @@ class _RoastScreenState extends State<RoastScreen> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Witty Fire Badge Icon
+                          // Intensity Badge Icon
                           Container(
                             width: 72,
                             height: 72,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppTheme.accentPink.withValues(alpha: 0.15),
+                              color: intensityColor.withValues(alpha: 0.15),
                               border: Border.all(
-                                color: AppTheme.accentPink.withValues(alpha: 0.5),
+                                color: intensityColor.withValues(alpha: 0.5),
                                 width: 2,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.accentPink.withValues(alpha: 0.3),
+                                  color: intensityColor.withValues(alpha: 0.3),
                                   blurRadius: 18,
                                   spreadRadius: 2,
                                 ),
                               ],
                             ),
-                            child: const Center(
+                            child: Center(
                               child: Icon(
-                                Icons.local_fire_department_rounded,
-                                color: AppTheme.accentPink,
+                                intensityIcon,
+                                color: intensityColor,
                                 size: 36,
                               ),
                             ),
@@ -203,8 +202,8 @@ class _RoastScreenState extends State<RoastScreen> {
                                 const SizedBox(height: 8),
                                 PillBadge(
                                   text: roast.category,
-                                  backgroundColor: AppTheme.accentPink.withValues(alpha: 0.2),
-                                  textColor: AppTheme.accentPink,
+                                  backgroundColor: intensityColor.withValues(alpha: 0.2),
+                                  textColor: intensityColor,
                                 ),
                               ],
                             ),
@@ -213,56 +212,35 @@ class _RoastScreenState extends State<RoastScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Action buttons: Share & Next Roast
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor: AppTheme.bgSurface,
-                                side: const BorderSide(color: AppTheme.borderSubtle),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                              onPressed: () => appState.nextRoast(),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'New Roast 🔥',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                  ),
-                                ],
-                              ),
+                      // Action button: Next Roast
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: intensityColor,
+                            foregroundColor: AppTheme.bgDark,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.primaryMint,
-                                foregroundColor: AppTheme.bgDark,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                          onPressed: () => appState.nextRoast(),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.refresh_rounded, size: 18, color: AppTheme.bgDark),
+                              SizedBox(width: 8),
+                              Text(
+                                'New Roast 🔥',
+                                style: TextStyle(
+                                  color: AppTheme.bgDark,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
-                              onPressed: () => _shareRoast(context, roast.text),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.share_rounded, size: 18, color: AppTheme.bgDark),
-                                  SizedBox(width: 6),
-                                  Text('Share', style: TextStyle(fontWeight: FontWeight.w700)),
-                                ],
-                              ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -434,6 +412,84 @@ class _RoastScreenState extends State<RoastScreen> {
 
                 const SizedBox(height: 30),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIntensitySelector(BuildContext context, AppState appState) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderSubtle),
+      ),
+      child: Row(
+        children: [
+          _buildIntensityOption(
+            intensity: RoastIntensity.friendly,
+            label: 'Friendly 😊',
+            activeColor: AppTheme.primaryMint,
+            current: appState.roastIntensity,
+            onTap: () => appState.setRoastIntensity(RoastIntensity.friendly),
+          ),
+          _buildIntensityOption(
+            intensity: RoastIntensity.savage,
+            label: 'Savage 🔥',
+            activeColor: AppTheme.accentYellow,
+            current: appState.roastIntensity,
+            onTap: () => appState.setRoastIntensity(RoastIntensity.savage),
+          ),
+          _buildIntensityOption(
+            intensity: RoastIntensity.brutal,
+            label: 'Brutal 💀',
+            activeColor: AppTheme.accentPink,
+            current: appState.roastIntensity,
+            onTap: () => appState.setRoastIntensity(RoastIntensity.brutal),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntensityOption({
+    required RoastIntensity intensity,
+    required String label,
+    required Color activeColor,
+    required RoastIntensity current,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = intensity == current;
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? activeColor.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? activeColor.withValues(alpha: 0.6)
+                  : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? activeColor : AppTheme.textGrey,
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),

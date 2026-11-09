@@ -170,6 +170,7 @@ class AppState extends ChangeNotifier {
       _transactions.sort((a, b) => b.date.compareTo(a.date));
       _recalculateBalance();
       refreshRoast();
+      rescheduleNotifications();
       notifyListeners();
       saveTransactionsToStorage();
     };
@@ -188,6 +189,7 @@ class AppState extends ChangeNotifier {
       _budgets.clear();
       _budgets.addAll(budgetMap.values.where((b) => !b.isDeleted));
       refreshRoast();
+      rescheduleNotifications();
       notifyListeners();
       saveBudgetsToStorage();
     };
@@ -636,6 +638,7 @@ class AppState extends ChangeNotifier {
         'userUid': _userUid,
         'userProfiles': _userProfiles,
         'recentRoastIds': _recentRoastIds,
+        'roastIntensity': _roastIntensity.name,
       };
       await file.writeAsString(jsonEncode(data));
 
@@ -694,7 +697,12 @@ class AppState extends ChangeNotifier {
           }
           if (data.containsKey('notificationTime') &&
               data['notificationTime'] != null) {
-            _notificationTime = data['notificationTime'];
+            final savedTime = data['notificationTime'] as String;
+            if (savedTime == '20:00') {
+              _notificationTime = '22:00';
+            } else {
+              _notificationTime = savedTime;
+            }
           }
           if (data.containsKey('notifications') &&
               data['notifications'] is Map) {
@@ -710,6 +718,13 @@ class AppState extends ChangeNotifier {
               (data['recentRoastIds'] as List)
                   .map((e) => e.toString())
                   .where((e) => e.isNotEmpty),
+            );
+          }
+          if (data.containsKey('roastIntensity') &&
+              data['roastIntensity'] != null) {
+            _roastIntensity = RoastIntensity.values.firstWhere(
+              (e) => e.name == data['roastIntensity'],
+              orElse: () => RoastIntensity.savage,
             );
           }
         }
@@ -754,6 +769,7 @@ class AppState extends ChangeNotifier {
       await loadDebtsFromStorage();
       await loadCategoriesFromStorage();
       refreshRoast();
+      rescheduleNotifications();
       notifyListeners();
 
       if (_isAuthenticated && _userUid.isNotEmpty && !_userUid.startsWith('local_')) {
@@ -799,7 +815,7 @@ class AppState extends ChangeNotifier {
   }
 
   // Notification Preferences
-  String _notificationTime = '20:00';
+  String _notificationTime = '22:00';
   String get notificationTime => _notificationTime;
 
   void setNotificationTime(String time) {
@@ -857,15 +873,38 @@ class AppState extends ChangeNotifier {
         break;
       case 'roasts':
         if (value) {
-          svc.scheduleRoastReminder();
+          svc.scheduleRoastReminders(
+            transactions: _transactions,
+            budgets: _budgets,
+            savingsGoals: _savingsGoals,
+            language: _selectedLanguage,
+            intensity: _roastIntensity,
+            recentRoastIds: _recentRoastIds,
+          );
         } else {
-          svc.cancel(NotifId.roasts);
+          svc.cancelRoastReminders();
         }
         break;
       case 'budget':
         // Budget alerts are fired imperatively when spending is checked;
         // no persistent alarm needed. Nothing to schedule/cancel here.
         break;
+    }
+  }
+
+  /// Re-applies all notifications with the current financial context.
+  void rescheduleNotifications() {
+    if (NotificationService.instance.isInitialised) {
+      NotificationService.instance.rescheduleAll(
+        notifications: _notifications,
+        notificationTime: _notificationTime,
+        transactions: _transactions,
+        budgets: _budgets,
+        savingsGoals: _savingsGoals,
+        language: _selectedLanguage,
+        intensity: _roastIntensity,
+        recentRoastIds: _recentRoastIds,
+      );
     }
   }
 
@@ -1216,6 +1255,7 @@ class AppState extends ChangeNotifier {
       }
 
       refreshRoast();
+      rescheduleNotifications();
       notifyListeners();
       await saveTransactionsToStorage();
       SyncService.instance.deleteTransactionRemote(id);
@@ -1492,6 +1532,7 @@ class AppState extends ChangeNotifier {
       final syncedBudget = budget.copyWith(updatedAt: DateTime.now());
       _budgets[idx] = syncedBudget;
       refreshRoast();
+      rescheduleNotifications();
       notifyListeners();
       await saveBudgetsToStorage();
       SyncService.instance.syncBudget(syncedBudget);
@@ -2335,12 +2376,26 @@ class AppState extends ChangeNotifier {
   }
 
   // Dynamic Roasts State
+  RoastIntensity _roastIntensity = RoastIntensity.savage;
+  RoastIntensity get roastIntensity => _roastIntensity;
+
+  void setRoastIntensity(RoastIntensity intensity) {
+    if (_roastIntensity != intensity) {
+      _roastIntensity = intensity;
+      refreshRoast();
+      rescheduleNotifications();
+      notifyListeners();
+      saveToStorage();
+    }
+  }
+
   RoastItem? _cachedRoast;
   int _roastCycleIndex = 0;
   final List<String> _recentRoastIds = [];
 
   RoastItem get currentRoast {
     if (_cachedRoast == null ||
+        _cachedRoast!.intensity != _roastIntensity ||
         (_cachedRoast!.language.isNotEmpty &&
             RoastLibrary.normalizeLanguage(_cachedRoast!.language) !=
                 RoastLibrary.normalizeLanguage(_selectedLanguage))) {
@@ -2348,6 +2403,7 @@ class AppState extends ChangeNotifier {
         transactions: _transactions,
         budgets: _budgets,
         savingsGoals: _savingsGoals,
+        intensity: _roastIntensity,
         language: _selectedLanguage,
         recentRoastIds: _recentRoastIds,
       );
@@ -2367,6 +2423,7 @@ class AppState extends ChangeNotifier {
       transactions: _transactions,
       budgets: _budgets,
       savingsGoals: _savingsGoals,
+      intensity: _roastIntensity,
       previousRoastText: _cachedRoast?.text,
       previousRoastId: _cachedRoast?.id,
       language: _selectedLanguage,
@@ -2387,6 +2444,7 @@ class AppState extends ChangeNotifier {
       transactions: _transactions,
       budgets: _budgets,
       savingsGoals: _savingsGoals,
+      intensity: _roastIntensity,
       language: _selectedLanguage,
     );
     if (matching.isNotEmpty) {
@@ -2400,7 +2458,7 @@ class AppState extends ChangeNotifier {
         saveToStorage();
       }
     } else {
-      _cachedRoast = RoastLibrary.getOnboardingRoast(_selectedLanguage);
+      _cachedRoast = RoastLibrary.getOnboardingRoast(_selectedLanguage, intensity: _roastIntensity);
     }
     notifyListeners();
   }

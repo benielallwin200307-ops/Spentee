@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:spentee/models/transaction.dart';
 import 'package:spentee/screens/home_screen.dart';
 import 'package:spentee/services/roast_engine.dart';
+import 'package:spentee/services/roast_library.dart';
 import 'package:spentee/state/app_state.dart';
 
 void main() {
@@ -24,8 +25,11 @@ void main() {
       final state = AppState();
 
       // 0 transactions
-      expect(state.currentRoast.text, DynamicRoastEngine.onboardingRoastText);
-      expect(state.currentRoast.category, 'Getting Started');
+      expect(
+        state.currentRoast.text,
+        RoastLibrary.getOnboardingRoast('English').text,
+      );
+      expect(state.currentRoast.category, 'Welcome to Spentee');
 
       // 1 transaction (still insufficient history < 3)
       final roast1 = DynamicRoastEngine.generateRoast(
@@ -42,7 +46,10 @@ void main() {
           ),
         ],
       );
-      expect(roast1.text, DynamicRoastEngine.onboardingRoastText);
+      expect(
+        roast1.text,
+        RoastLibrary.getInsufficientHistoryRoast('English').text,
+      );
     });
 
     test('3. Existing account with transactions accurately reflects saved data', () async {
@@ -186,7 +193,8 @@ void main() {
       );
 
       expect(
-        roast.category == 'Retail Therapy' ||
+        roast.category == 'Shopping' ||
+            roast.category == 'Retail Therapy' ||
             roast.category == 'Wardrobe Expansion',
         isTrue,
       );
@@ -304,7 +312,7 @@ void main() {
 
       // Verify friendly onboarding roast
       expect(
-        find.textContaining('Your wallet is looking suspiciously peaceful'),
+        find.textContaining("Give me some transactions first. I can't roast an empty wallet! 👛✨"),
         findsOneWidget,
       );
     });

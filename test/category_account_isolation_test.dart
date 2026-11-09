@@ -11,36 +11,39 @@ void main() {
   const String account1Uid = 'user_acc_1_uid';
   const String account2Uid = 'user_acc_2_uid';
 
-  setUp(() async {
+  Future<void> cleanTestFiles() async {
     final storageDir = Directory('.spentee_storage');
-    if (await storageDir.exists()) {
-      final files = [
-        'spentee_categories.json',
-        'spentee_categories_guest.json',
-        'spentee_categories_$account1Uid.json',
-        'spentee_categories_$account2Uid.json',
-      ];
-      for (final name in files) {
-        final f = File('${storageDir.path}/$name');
-        if (await f.exists()) await f.delete();
+    if (!await storageDir.exists()) return;
+    final files = [
+      'spentee_categories.json',
+      'spentee_categories_guest.json',
+      'spentee_categories_$account1Uid.json',
+      'spentee_categories_$account2Uid.json',
+    ];
+    for (final name in files) {
+      final f = File('${storageDir.path}/$name');
+      for (int i = 0; i < 6; i++) {
+        try {
+          if (await f.exists()) {
+            await f.delete();
+          }
+          break;
+        } catch (_) {
+          if (i == 5) break;
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
       }
     }
+  }
+
+  setUp(() async {
+    SyncService.instance.stopListening();
+    await cleanTestFiles();
   });
 
   tearDown(() async {
-    final storageDir = Directory('.spentee_storage');
-    if (await storageDir.exists()) {
-      final files = [
-        'spentee_categories.json',
-        'spentee_categories_guest.json',
-        'spentee_categories_$account1Uid.json',
-        'spentee_categories_$account2Uid.json',
-      ];
-      for (final name in files) {
-        final f = File('${storageDir.path}/$name');
-        if (await f.exists()) await f.delete();
-      }
-    }
+    SyncService.instance.stopListening();
+    await cleanTestFiles();
   });
 
   group('Custom Category Multi-Account Isolation Tests', () {
@@ -211,6 +214,9 @@ void main() {
       // Device 2 receives cloud sync event for Account 1
       appStateDevice2.initSyncForTesting(account1Uid);
       expect(appStateDevice2.customCategories.any((c) => c.name == 'Parents Expense'), isTrue);
+
+      await appStateDevice1.logout();
+      await appStateDevice2.logout();
     });
 
     test('4. Security Filter: Incoming remote categories from a different account are rejected', () async {
@@ -249,6 +255,8 @@ void main() {
       // Verify that Account 2 rejects the leaked category but accepts its own
       expect(appState.customCategories.any((c) => c.name == 'Parents Expense'), isFalse);
       expect(appState.customCategories.any((c) => c.name == 'Gym Subscription'), isTrue);
+
+      await appState.logout();
     });
 
     test('5. Realtime onCategoriesChanged stream callback filters out cross-account categories', () async {
@@ -290,6 +298,8 @@ void main() {
       // Verify that Account 2 accepted 'Organic Market' but rejected 'Parents Expense'
       expect(appState.customCategories.any((c) => c.name == 'Organic Market'), isTrue);
       expect(appState.customCategories.any((c) => c.name == 'Parents Expense'), isFalse);
+
+      await appState.logout();
     });
   });
 }

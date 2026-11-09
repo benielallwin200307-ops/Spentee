@@ -108,7 +108,10 @@ Your core rules:
     let userPrompt = message.trim();
     // Only prepend financial context if user has consented AND the query explicitly asks for personal advice/analysis
     if (summary && summary.consent === true && summary.include_in_prompt === true) {
-      userPrompt = `[User Financial Context: Month: ${summary.month || 'Current'}, Monthly Spend: ₹${summary.monthly_spend_total || '0'}, Monthly Income: ₹${summary.monthly_income_total || '0'}, Top Outflows: ${JSON.stringify(summary.top_expense_categories_share || {})}]\n\nUser Question: ${userPrompt}`;
+      const netSavings = summary.net_savings !== undefined ? `Net Savings: ₹${summary.net_savings}, ` : '';
+      const savingsRate = summary.savings_rate_percent !== undefined ? `Savings Rate: ${summary.savings_rate_percent}%, ` : '';
+      const highestCat = summary.highest_category ? `Highest Spending Category: ${summary.highest_category}, ` : '';
+      userPrompt = `[User Financial Context: Month: ${summary.month || 'Current'}, Monthly Spend: ₹${summary.monthly_spend_total || '0'}, Monthly Income: ₹${summary.monthly_income_total || '0'}, ${netSavings}${savingsRate}${highestCat}Top Outflows: ${JSON.stringify(summary.top_expense_categories_share || {})}]\n\nUser Question: ${userPrompt}`;
     }
 
     contents.push({

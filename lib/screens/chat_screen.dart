@@ -146,6 +146,42 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showAllPopularQuestions(AppState appState) {
     final extraQuestions = [
       {
+        'title': 'Monthly financial summary',
+        'desc': 'Comprehensive monthly report',
+        'icon': Icons.assessment_rounded,
+        'color': AppTheme.primaryMint,
+      },
+      {
+        'title': 'Spending analysis',
+        'desc': 'Category spending breakdown',
+        'icon': Icons.analytics_rounded,
+        'color': AppTheme.accentOrange,
+      },
+      {
+        'title': 'Income analysis',
+        'desc': 'Sources and trends overview',
+        'icon': Icons.monetization_on_rounded,
+        'color': AppTheme.accentCyan,
+      },
+      {
+        'title': 'Savings insights',
+        'desc': 'Savings rate and realistic targets',
+        'icon': Icons.savings_rounded,
+        'color': AppTheme.accentPurple,
+      },
+      {
+        'title': 'Budget insights',
+        'desc': 'Budget performance and limits',
+        'icon': Icons.shield_rounded,
+        'color': AppTheme.accentPink,
+      },
+      {
+        'title': 'Spending behaviour',
+        'desc': 'Habits and daily pacing',
+        'icon': Icons.psychology_rounded,
+        'color': const Color(0xFF00E676),
+      },
+      {
         'title': 'How much did I spend today?',
         'desc': 'Daily expense summary',
         'icon': Icons.calendar_today_rounded,

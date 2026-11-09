@@ -71,6 +71,108 @@ class FinancialEngineResponse {
   });
 }
 
+/// Data sufficiency status for financial insight generation.
+enum DataSufficiencyStatus {
+  zeroData,
+  incomeOnly,
+  expensesOnly,
+  insufficientHistory,
+  matureData,
+}
+
+/// Status of an individual budget in insights.
+enum BudgetStatusType {
+  exceeded,
+  nearLimit,
+  healthy,
+}
+
+/// Detailed breakdown of an individual category budget.
+class BudgetInsightDetail {
+  final String category;
+  final double limit;
+  final double spent;
+  final double remaining;
+  final double ratio;
+  final BudgetStatusType status;
+
+  const BudgetInsightDetail({
+    required this.category,
+    required this.limit,
+    required this.spent,
+    required this.remaining,
+    required this.ratio,
+    required this.status,
+  });
+}
+
+/// Comprehensive, verified personalized financial insights container.
+class PersonalizedFinancialInsights {
+  final DateTime period;
+  final DataSufficiencyStatus sufficiencyStatus;
+  final double totalIncome;
+  final double totalExpense;
+  final double netSavings;
+  final double savingsRate;
+  final bool isDeficit;
+  final String highestCategory;
+  final double highestCategoryAmount;
+  final double highestCategoryPercent;
+  final String lowestCategory;
+  final double lowestCategoryAmount;
+  final double lowestCategoryPercent;
+  final Map<String, double> categoryExpenses;
+  final Map<String, double> categoryIncome;
+  final List<BudgetInsightDetail> budgets;
+  final double totalBudgetLimit;
+  final double totalBudgetSpent;
+  final double totalBudgetRemaining;
+  final bool hasPreviousMonthData;
+  final double previousMonthExpense;
+  final double previousMonthIncome;
+  final double expenseChangePercent;
+  final double incomeChangePercent;
+  final List<String> increasedCategories;
+  final List<String> decreasedCategories;
+  final List<String> unusualSpikes;
+  final List<String> actionableRecommendations;
+  final String quickInsightTitle;
+  final String quickInsightSubtitle;
+
+  const PersonalizedFinancialInsights({
+    required this.period,
+    required this.sufficiencyStatus,
+    required this.totalIncome,
+    required this.totalExpense,
+    required this.netSavings,
+    required this.savingsRate,
+    required this.isDeficit,
+    required this.highestCategory,
+    required this.highestCategoryAmount,
+    required this.highestCategoryPercent,
+    required this.lowestCategory,
+    required this.lowestCategoryAmount,
+    required this.lowestCategoryPercent,
+    required this.categoryExpenses,
+    required this.categoryIncome,
+    required this.budgets,
+    required this.totalBudgetLimit,
+    required this.totalBudgetSpent,
+    required this.totalBudgetRemaining,
+    required this.hasPreviousMonthData,
+    required this.previousMonthExpense,
+    required this.previousMonthIncome,
+    required this.expenseChangePercent,
+    required this.incomeChangePercent,
+    required this.increasedCategories,
+    required this.decreasedCategories,
+    required this.unusualSpikes,
+    required this.actionableRecommendations,
+    required this.quickInsightTitle,
+    required this.quickInsightSubtitle,
+  });
+}
+
 /// A high-performance, deterministic Financial Intelligence Engine for Spentee.
 /// Guarantees exact arithmetic, prevents double counting, strictly excludes transfers
 /// from income/expense totals, handles debt/refund boundaries, and respects user privacy.
@@ -275,6 +377,780 @@ class FinancialIntelligenceEngine {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // 2.5 COMPREHENSIVE PERSONALIZED FINANCIAL INSIGHTS GENERATOR
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Generates a comprehensive, deterministically verified set of personalized financial
+  /// insights based strictly on the user's authentic records. Never hallucinates or invents data.
+  PersonalizedFinancialInsights generatePersonalizedInsights({
+    required List<Transaction> transactions,
+    required List<Budget> budgets,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+    final audit = computeAudit(
+      transactions: transactions,
+      startDate: startOfMonth,
+      endDate: endOfMonth,
+    );
+
+    final prevMonth = now.month == 1 ? 12 : now.month - 1;
+    final prevYear = now.month == 1 ? now.year - 1 : now.year;
+    final startOfPrevMonth = DateTime(prevYear, prevMonth, 1);
+    final endOfPrevMonth = DateTime(prevYear, prevMonth + 1, 0, 23, 59, 59);
+
+    final prevAudit = computeAudit(
+      transactions: transactions,
+      startDate: startOfPrevMonth,
+      endDate: endOfPrevMonth,
+    );
+
+    final hasPreviousMonthData = prevAudit.transactionCount > 0 ||
+        prevAudit.totalExpense > 0 ||
+        prevAudit.totalIncome > 0;
+
+    // Determine data sufficiency status
+    DataSufficiencyStatus status;
+    final hasAnyIncome = audit.totalIncome > 0 || transactions.any((t) => t.type == TransactionType.income);
+    final hasAnyExpense = audit.totalExpense > 0 || transactions.any((t) => t.type == TransactionType.expense);
+
+    if (transactions.isEmpty || (!hasAnyIncome && !hasAnyExpense)) {
+      status = DataSufficiencyStatus.zeroData;
+    } else if (audit.totalExpense == 0 && audit.totalIncome > 0) {
+      status = DataSufficiencyStatus.incomeOnly;
+    } else if (audit.totalIncome == 0 && audit.totalExpense > 0) {
+      status = DataSufficiencyStatus.expensesOnly;
+    } else if (!hasPreviousMonthData) {
+      status = DataSufficiencyStatus.insufficientHistory;
+    } else {
+      status = DataSufficiencyStatus.matureData;
+    }
+
+    final totalIncome = audit.totalIncome;
+    final totalExpense = audit.totalExpense;
+    final netSavings = totalIncome - totalExpense;
+    final savingsRate = totalIncome > 0 ? ((netSavings / totalIncome) * 100) : 0.0;
+    final isDeficit = totalExpense > totalIncome;
+
+    // Category sorting
+    final categoryExpenses = Map<String, double>.from(audit.categoryExpenses);
+    final categoryIncome = Map<String, double>.from(audit.categoryIncome);
+    final sortedExpenses = categoryExpenses.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final highestCategory = sortedExpenses.isNotEmpty ? sortedExpenses.first.key : 'None';
+    final highestCategoryAmount = sortedExpenses.isNotEmpty ? sortedExpenses.first.value : 0.0;
+    final highestCategoryPercent =
+        totalExpense > 0 ? (highestCategoryAmount / totalExpense) * 100 : 0.0;
+
+    final lowestCategory = sortedExpenses.length > 1 ? sortedExpenses.last.key : 'None';
+    final lowestCategoryAmount = sortedExpenses.length > 1 ? sortedExpenses.last.value : 0.0;
+    final lowestCategoryPercent =
+        totalExpense > 0 ? (lowestCategoryAmount / totalExpense) * 100 : 0.0;
+
+    // Budgets analysis for current month & year
+    final activeBudgets = budgets
+        .where((b) => b.year == now.year && b.month == now.month)
+        .toList();
+
+    double totalBudgetLimit = 0.0;
+    double totalBudgetSpent = 0.0;
+    final budgetDetails = <BudgetInsightDetail>[];
+
+    for (final b in activeBudgets) {
+      final spent = b.calculateSpent(transactions);
+      final remaining = b.calculateRemaining(transactions);
+      final ratio = b.limitAmount > 0 ? (spent / b.limitAmount) : 0.0;
+      totalBudgetLimit += b.limitAmount;
+      totalBudgetSpent += spent;
+
+      BudgetStatusType bStatus;
+      if (spent > b.limitAmount) {
+        bStatus = BudgetStatusType.exceeded;
+      } else if (ratio >= 0.80) {
+        bStatus = BudgetStatusType.nearLimit;
+      } else {
+        bStatus = BudgetStatusType.healthy;
+      }
+
+      budgetDetails.add(BudgetInsightDetail(
+        category: b.category,
+        limit: b.limitAmount,
+        spent: spent,
+        remaining: remaining,
+        ratio: ratio,
+        status: bStatus,
+      ));
+    }
+    final totalBudgetRemaining = max(0.0, totalBudgetLimit - totalBudgetSpent);
+
+    // Month-over-month category & spike analysis
+    final increasedCategories = <String>[];
+    final decreasedCategories = <String>[];
+    final unusualSpikes = <String>[];
+
+    double expenseChangePercent = 0.0;
+    double incomeChangePercent = 0.0;
+
+    if (hasPreviousMonthData) {
+      if (prevAudit.totalExpense > 0) {
+        expenseChangePercent =
+            ((totalExpense - prevAudit.totalExpense) / prevAudit.totalExpense) * 100;
+      }
+      if (prevAudit.totalIncome > 0) {
+        incomeChangePercent =
+            ((totalIncome - prevAudit.totalIncome) / prevAudit.totalIncome) * 100;
+      }
+
+      for (final entry in categoryExpenses.entries) {
+        final cat = entry.key;
+        final curr = entry.value;
+        final prev = prevAudit.categoryExpenses[cat] ?? 0.0;
+
+        if (prev > 0) {
+          final diff = curr - prev;
+          final pct = (diff / prev) * 100;
+          if (diff >= 500 && pct >= 30) {
+            unusualSpikes.add('$cat (+${pct.toStringAsFixed(0)}% vs last month)');
+            increasedCategories.add(cat);
+          } else if (diff >= 200) {
+            increasedCategories.add(cat);
+          } else if (diff <= -200) {
+            decreasedCategories.add(cat);
+          }
+        } else if (curr >= 1000) {
+          unusualSpikes.add('$cat (New expense: ₹${_formatCurrency(curr)})');
+          increasedCategories.add(cat);
+        }
+      }
+    }
+
+    // Actionable recommendations based on real data
+    final recommendations = <String>[];
+    if (isDeficit) {
+      recommendations.add(
+        'Deficit Alert: Expenses exceed income by ₹${_formatCurrency(totalExpense - totalIncome)}. Prioritize essential living costs and pause discretionary spending until next month.',
+      );
+    }
+
+    if (highestCategoryPercent >= 35.0 && highestCategory != 'None') {
+      recommendations.add(
+        '$highestCategory represents ${highestCategoryPercent.toStringAsFixed(0)}% of your spending (₹${_formatCurrency(highestCategoryAmount)}). Reviewing discretionary expenses here could create immediate breathing room.',
+      );
+    }
+
+    final exceeded = budgetDetails.where((b) => b.status == BudgetStatusType.exceeded).toList();
+    if (exceeded.isNotEmpty) {
+      recommendations.add(
+        '${exceeded.first.category} has exceeded its budget limit by ₹${_formatCurrency(exceeded.first.spent - exceeded.first.limit)}. Consider dialing back spending in this category.',
+      );
+    }
+
+    if (savingsRate >= 20.0) {
+      recommendations.add(
+        'Healthy Savings: You are saving ${savingsRate.toStringAsFixed(0)}% of your income. Consider allocating your ₹${_formatCurrency(netSavings)} surplus to emergency savings or investments.',
+      );
+    }
+
+    if (recommendations.isEmpty) {
+      recommendations.add(
+        'Try applying the 72-hour pause rule for non-essential purchases over ₹1,000 to prevent impulse spending.',
+      );
+    }
+
+    // Quick Insight Title and Subtitle for UI cards
+    String quickTitle;
+    String quickSubtitle;
+
+    if (status == DataSufficiencyStatus.zeroData) {
+      quickTitle = 'Start Your Financial Journey';
+      quickSubtitle = 'Log your transactions to unlock personalized Spentee AI insights.';
+    } else if (status == DataSufficiencyStatus.incomeOnly) {
+      quickTitle = 'Income Recorded';
+      quickSubtitle = 'Log your daily expenses to unlock spending analysis and savings tracking.';
+    } else if (status == DataSufficiencyStatus.expensesOnly) {
+      quickTitle = 'Spending Recorded';
+      quickSubtitle = 'Add your income to calculate your savings rate and net cash flow.';
+    } else if (isDeficit) {
+      quickTitle = 'Deficit Alert for ${_monthName(now.month)}';
+      quickSubtitle =
+          'Spending exceeds income by ₹${_formatCurrency(totalExpense - totalIncome)}. Top outflow: $highestCategory.';
+    } else {
+      quickTitle = '$highestCategory is your top spend (${highestCategoryPercent.toStringAsFixed(0)}%)';
+      quickSubtitle =
+          'You have saved ₹${_formatCurrency(netSavings)} (${savingsRate.toStringAsFixed(0)}% savings rate) this month.';
+    }
+
+    return PersonalizedFinancialInsights(
+      period: now,
+      sufficiencyStatus: status,
+      totalIncome: totalIncome,
+      totalExpense: totalExpense,
+      netSavings: netSavings,
+      savingsRate: savingsRate,
+      isDeficit: isDeficit,
+      highestCategory: highestCategory,
+      highestCategoryAmount: highestCategoryAmount,
+      highestCategoryPercent: highestCategoryPercent,
+      lowestCategory: lowestCategory,
+      lowestCategoryAmount: lowestCategoryAmount,
+      lowestCategoryPercent: lowestCategoryPercent,
+      categoryExpenses: categoryExpenses,
+      categoryIncome: categoryIncome,
+      budgets: budgetDetails,
+      totalBudgetLimit: totalBudgetLimit,
+      totalBudgetSpent: totalBudgetSpent,
+      totalBudgetRemaining: totalBudgetRemaining,
+      hasPreviousMonthData: hasPreviousMonthData,
+      previousMonthExpense: prevAudit.totalExpense,
+      previousMonthIncome: prevAudit.totalIncome,
+      expenseChangePercent: expenseChangePercent,
+      incomeChangePercent: incomeChangePercent,
+      increasedCategories: increasedCategories,
+      decreasedCategories: decreasedCategories,
+      unusualSpikes: unusualSpikes,
+      actionableRecommendations: recommendations,
+      quickInsightTitle: quickTitle,
+      quickInsightSubtitle: quickSubtitle,
+    );
+  }
+
+  /// 1. Monthly Financial Summary
+  FinancialEngineResponse generateMonthlySummaryQuery({
+    required List<Transaction> transactions,
+    required List<Budget> budgets,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final insights = generatePersonalizedInsights(
+      transactions: transactions,
+      budgets: budgets,
+      referenceDate: now,
+    );
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.zeroData) {
+      return const FinancialEngineResponse(
+        text: '👋 **Welcome to Spentee AI!**\n\n'
+            'Start recording your income and expenses. I\'ll analyse your financial activity and help you make better money decisions.',
+        actionButtons: [
+          'Add an expense',
+          'Add income',
+          'What can Hiro do?',
+        ],
+      );
+    }
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.incomeOnly) {
+      return FinancialEngineResponse(
+        text: '💰 **Income Recorded:**\n\n'
+            'You have recorded income, but there isn\'t enough expense data yet to analyse your spending.\n\n'
+            '• Total Income: **₹${_formatCurrency(insights.totalIncome)}**\n\n'
+            'Log your daily expenses to see net savings, category allocations, and budget progress.',
+        actionButtons: const [
+          'Add an expense',
+          'How much did I earn this month?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.expensesOnly) {
+      return FinancialEngineResponse(
+        text: '📉 **Expenses Recorded:**\n\n'
+            'You have recorded expenses of **₹${_formatCurrency(insights.totalExpense)}** for ${_monthName(now.month)} ${now.year}, but no income has been recorded yet.\n\n'
+            'Record your income to calculate your net savings rate, cash flow, and monthly financial summary.',
+        actionButtons: const [
+          'Add income',
+          'Where did most of my money go?',
+          'How much did I spend this month?',
+        ],
+      );
+    }
+
+    final buffer = StringBuffer();
+    final month = _monthName(now.month);
+    final year = now.year;
+
+    buffer.writeln('📊 **Monthly Financial Summary ($month $year):**\n');
+    buffer.writeln('• **Total Income:** ₹${_formatCurrency(insights.totalIncome)}');
+    buffer.writeln('• **Total Expenses:** ₹${_formatCurrency(insights.totalExpense)}');
+
+    if (insights.isDeficit) {
+      final deficit = insights.totalExpense - insights.totalIncome;
+      buffer.writeln('• **Net Deficit:** -₹${_formatCurrency(deficit)} (Expenses exceed income)');
+    } else {
+      buffer.writeln('• **Net Savings:** **₹${_formatCurrency(insights.netSavings)}** (${insights.savingsRate.toStringAsFixed(1)}% savings rate)');
+    }
+
+    if (insights.highestCategory != 'None') {
+      buffer.writeln('• **Top Spending Category:** **${insights.highestCategory}** (₹${_formatCurrency(insights.highestCategoryAmount)} • ${insights.highestCategoryPercent.toStringAsFixed(0)}% of spending)');
+    }
+
+    if (insights.budgets.isNotEmpty) {
+      final onTrack = insights.budgets.where((b) => b.status != BudgetStatusType.exceeded).length;
+      buffer.writeln('• **Budget Performance:** $onTrack of ${insights.budgets.length} budgets on track (₹${_formatCurrency(insights.totalBudgetRemaining)} remaining of ₹${_formatCurrency(insights.totalBudgetLimit)} limit)');
+    } else {
+      buffer.writeln('• **Budget Performance:** No category budgets set for $month $year.');
+    }
+
+    buffer.writeln('\n💡 **Recommendations:**');
+    for (int i = 0; i < insights.actionableRecommendations.length; i++) {
+      buffer.writeln('${i + 1}. ${insights.actionableRecommendations[i]}');
+    }
+
+    return FinancialEngineResponse(
+      text: buffer.toString().trim(),
+      actionButtons: const [
+        'Spending analysis',
+        'Budget insights',
+        'Savings insights',
+        'Spending behaviour',
+      ],
+    );
+  }
+
+  /// 2. Spending Analysis
+  FinancialEngineResponse generateSpendingAnalysisQuery({
+    required List<Transaction> transactions,
+    required List<Budget> budgets,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final insights = generatePersonalizedInsights(
+      transactions: transactions,
+      budgets: budgets,
+      referenceDate: now,
+    );
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.zeroData) {
+      return const FinancialEngineResponse(
+        text: '👋 **Welcome to Spentee AI!**\n\n'
+            'Start recording your income and expenses. I\'ll analyse your financial activity and help you make better money decisions.',
+        actionButtons: [
+          'Add an expense',
+          'Add income',
+          'What can Hiro do?',
+        ],
+      );
+    }
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.incomeOnly) {
+      return FinancialEngineResponse(
+        text: '💰 **Income Recorded:**\n\n'
+            'You have recorded income, but there isn\'t enough expense data yet to analyse your spending.\n\n'
+            'Add your daily expenses to unlock spending analysis and category breakdowns.',
+        actionButtons: const [
+          'Add an expense',
+          'How much did I earn this month?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    final buffer = StringBuffer();
+    final month = _monthName(now.month);
+    final year = now.year;
+
+    buffer.writeln('💳 **Spending Analysis ($month $year):**\n');
+    buffer.writeln('• **Total Spending:** **₹${_formatCurrency(insights.totalExpense)}** across ${insights.categoryExpenses.length} categories');
+    if (insights.highestCategory != 'None') {
+      buffer.writeln('• **Highest Spending Category:** **${insights.highestCategory}** — ₹${_formatCurrency(insights.highestCategoryAmount)} (${insights.highestCategoryPercent.toStringAsFixed(1)}% of expenses)');
+    }
+    if (insights.lowestCategory != 'None' && insights.categoryExpenses.length > 1) {
+      buffer.writeln('• **Lowest Spending Category:** **${insights.lowestCategory}** — ₹${_formatCurrency(insights.lowestCategoryAmount)} (${insights.lowestCategoryPercent.toStringAsFixed(1)}% of expenses)');
+    }
+
+    buffer.writeln('\n📂 **Category Breakdown:**');
+    final sorted = insights.categoryExpenses.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    for (final entry in sorted) {
+      final pct = insights.totalExpense > 0 ? ((entry.value / insights.totalExpense) * 100).toStringAsFixed(1) : '0';
+      buffer.writeln('• **${entry.key}**: ₹${_formatCurrency(entry.value)} ($pct%)');
+    }
+
+    buffer.writeln('\n📈 **Spending Shifts & Spikes:**');
+    if (insights.hasPreviousMonthData) {
+      if (insights.unusualSpikes.isNotEmpty) {
+        buffer.writeln('• **Unusual Spikes:** ${insights.unusualSpikes.join(', ')}');
+      }
+      if (insights.increasedCategories.isNotEmpty) {
+        buffer.writeln('• **Increased Spending vs Last Month:** ${insights.increasedCategories.join(', ')}');
+      }
+      if (insights.decreasedCategories.isNotEmpty) {
+        buffer.writeln('• **Reduced Spending vs Last Month:** ${insights.decreasedCategories.join(', ')}');
+      }
+      if (insights.unusualSpikes.isEmpty && insights.increasedCategories.isEmpty && insights.decreasedCategories.isEmpty) {
+        buffer.writeln('• Spending levels are consistent with last month.');
+      }
+    } else {
+      buffer.writeln('• *Historical comparison will be available next month once you have consecutive monthly records.*');
+    }
+
+    return FinancialEngineResponse(
+      text: buffer.toString().trim(),
+      actionButtons: const [
+        'Where did most of my money go?',
+        'Spending behaviour',
+        'Monthly financial summary',
+      ],
+    );
+  }
+
+  /// 3. Income Analysis
+  FinancialEngineResponse generateIncomeAnalysisQuery({
+    required List<Transaction> transactions,
+    required List<Budget> budgets,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final insights = generatePersonalizedInsights(
+      transactions: transactions,
+      budgets: budgets,
+      referenceDate: now,
+    );
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.zeroData) {
+      return const FinancialEngineResponse(
+        text: '👋 **Welcome to Spentee AI!**\n\n'
+            'Start recording your income and expenses. I\'ll analyse your financial activity and help you make better money decisions.',
+        actionButtons: [
+          'Add an expense',
+          'Add income',
+          'What can Hiro do?',
+        ],
+      );
+    }
+
+    if (insights.totalIncome == 0) {
+      return const FinancialEngineResponse(
+        text: '💵 **Income Analysis:**\n\n'
+            'No earned income has been recorded for this month yet.\n\n'
+            'Record your salary, freelance earnings, or investment returns to view your income source breakdown and trends.',
+        actionButtons: [
+          'Add income',
+          'How much did I spend this month?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    final buffer = StringBuffer();
+    final month = _monthName(now.month);
+    final year = now.year;
+
+    buffer.writeln('💵 **Income Analysis ($month $year):**\n');
+    buffer.writeln('• **Total Income:** **₹${_formatCurrency(insights.totalIncome)}**');
+
+    if (insights.categoryIncome.isNotEmpty) {
+      final sortedIncome = insights.categoryIncome.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      final primary = sortedIncome.first;
+      final primaryPct = insights.totalIncome > 0 ? ((primary.value / insights.totalIncome) * 100).toStringAsFixed(1) : '0';
+      buffer.writeln('• **Primary Income Source:** **${primary.key}** — ₹${_formatCurrency(primary.value)} ($primaryPct%)\n');
+
+      buffer.writeln('📂 **Income Breakdown by Source:**');
+      for (final entry in sortedIncome) {
+        final pct = insights.totalIncome > 0 ? ((entry.value / insights.totalIncome) * 100).toStringAsFixed(1) : '0';
+        buffer.writeln('• **${entry.key}**: ₹${_formatCurrency(entry.value)} ($pct%)');
+      }
+    } else {
+      buffer.writeln('• Income source: General income.');
+    }
+
+    buffer.writeln('\n📊 **Month-over-Month Comparison:**');
+    if (insights.hasPreviousMonthData) {
+      final prev = insights.previousMonthIncome;
+      buffer.writeln('• **Previous Month Income:** ₹${_formatCurrency(prev)}');
+      if (prev > 0) {
+        final change = insights.incomeChangePercent;
+        final sign = change >= 0 ? '+' : '';
+        buffer.writeln('• **Income Change:** $sign${change.toStringAsFixed(1)}%');
+      }
+      if (insights.totalIncome > prev) {
+        buffer.writeln('• Pattern: Your earned income increased this month.');
+      } else if (insights.totalIncome < prev) {
+        buffer.writeln('• Pattern: Your earned income is lower compared to last month.');
+      } else {
+        buffer.writeln('• Pattern: Your income has remained completely stable.');
+      }
+    } else {
+      buffer.writeln('• *Income comparison will be available once you record income across multiple months.*');
+    }
+
+    return FinancialEngineResponse(
+      text: buffer.toString().trim(),
+      actionButtons: const [
+        'How much did I earn this month?',
+        'Savings insights',
+        'Monthly financial summary',
+      ],
+    );
+  }
+
+  /// 4. Savings Insights
+  FinancialEngineResponse generateSavingsInsightsQuery({
+    required List<Transaction> transactions,
+    required List<Budget> budgets,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final insights = generatePersonalizedInsights(
+      transactions: transactions,
+      budgets: budgets,
+      referenceDate: now,
+    );
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.zeroData) {
+      return const FinancialEngineResponse(
+        text: '👋 **Welcome to Spentee AI!**\n\n'
+            'Start recording your income and expenses. I\'ll analyse your financial activity and help you make better money decisions.',
+        actionButtons: [
+          'Add an expense',
+          'Add income',
+          'What can Hiro do?',
+        ],
+      );
+    }
+
+    if (insights.totalIncome == 0) {
+      return FinancialEngineResponse(
+        text: '🌱 **Savings Insights:**\n\n'
+            'You have recorded expenses of **₹${_formatCurrency(insights.totalExpense)}**, but no income has been recorded yet.\n\n'
+            'Record your income to allow me to calculate your net savings rate, cash flow, and personalized savings targets.',
+        actionButtons: const [
+          'Add income',
+          'How much did I spend this month?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    final buffer = StringBuffer();
+    final month = _monthName(now.month);
+    final year = now.year;
+
+    buffer.writeln('🌱 **Savings Insights ($month $year):**\n');
+    buffer.writeln('• **Total Income:** ₹${_formatCurrency(insights.totalIncome)}');
+    buffer.writeln('• **Total Expenses:** ₹${_formatCurrency(insights.totalExpense)}');
+
+    if (insights.isDeficit) {
+      final deficit = insights.totalExpense - insights.totalIncome;
+      buffer.writeln('• **Net Deficit:** **-₹${_formatCurrency(deficit)}**');
+      buffer.writeln('• **Status:** Living expenses exceed income. Building savings is currently paused.\n');
+      buffer.writeln('🎯 **Immediate Recovery Target:**');
+      buffer.writeln('• Reduce discretionary spending by ₹${_formatCurrency(deficit)} to bring cash flow back to break-even.');
+    } else {
+      buffer.writeln('• **Net Savings:** **₹${_formatCurrency(insights.netSavings)}**');
+      buffer.writeln('• **Savings Rate:** **${insights.savingsRate.toStringAsFixed(1)}%** of earned income\n');
+
+      buffer.writeln('🎯 **Realistic Savings Target:**');
+      final targetRate = insights.savingsRate < 20.0 ? 20.0 : min(50.0, insights.savingsRate + 5.0);
+      final targetSavings = insights.totalIncome * (targetRate / 100);
+      buffer.writeln('• Based on your current income of ₹${_formatCurrency(insights.totalIncome)}, a realistic savings target is **₹${_formatCurrency(targetSavings)}** (${targetRate.toStringAsFixed(0)}% target rate).');
+    }
+
+    buffer.writeln('\n✂️ **Opportunities to Reduce Spending:**');
+    if (insights.highestCategory != 'None') {
+      final discretionaryCats = ['dining', 'food', 'shopping', 'entertainment', 'clothing', 'cafe'];
+      final isDiscretionary = discretionaryCats.any((d) => insights.highestCategory.toLowerCase().contains(d));
+      if (isDiscretionary) {
+        final potentialTrim = (insights.highestCategoryAmount * 0.15).roundToDouble();
+        buffer.writeln('• **${insights.highestCategory}**: Trimming non-essential spends by 15% would save you **₹${_formatCurrency(potentialTrim)}** this month.');
+      } else {
+        buffer.writeln('• Review recurring subscriptions and impulse purchases in discretionary categories.');
+      }
+    }
+    buffer.writeln('• Apply the 72-hour delay rule before non-essential purchases over ₹1,000.');
+
+    return FinancialEngineResponse(
+      text: buffer.toString().trim(),
+      actionButtons: const [
+        'How can I save ₹800 this month?',
+        'Budget performance',
+        'Monthly financial summary',
+      ],
+    );
+  }
+
+  /// 5. Budget Insights
+  FinancialEngineResponse generateBudgetInsightsQuery({
+    required List<Transaction> transactions,
+    required List<Budget> budgets,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final insights = generatePersonalizedInsights(
+      transactions: transactions,
+      budgets: budgets,
+      referenceDate: now,
+    );
+
+    final month = _monthName(now.month);
+    final year = now.year;
+
+    if (insights.budgets.isEmpty) {
+      return FinancialEngineResponse(
+        text: '🛡️ **Budget Insights ($month $year):**\n\n'
+            'You have not set any category budgets for $month $year yet.\n\n'
+            'Setting monthly budgets for top categories like Food & Dining, Shopping, and Transport helps prevent overspending and ensures consistent savings.',
+        actionButtons: const [
+          'Set Category Budget',
+          'Review my spending this month',
+          'Monthly financial summary',
+        ],
+      );
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('🛡️ **Budget Insights & Performance ($month $year):**\n');
+    buffer.writeln('• **Total Budget Limit:** ₹${_formatCurrency(insights.totalBudgetLimit)}');
+    buffer.writeln('• **Total Budget Spent:** ₹${_formatCurrency(insights.totalBudgetSpent)}');
+    buffer.writeln('• **Remaining Budget Buffer:** **₹${_formatCurrency(insights.totalBudgetRemaining)}**\n');
+
+    buffer.writeln('📋 **Category Status:**');
+    for (final b in insights.budgets) {
+      String statusTag;
+      switch (b.status) {
+        case BudgetStatusType.exceeded:
+          statusTag = '⚠️ Exceeded (+₹${_formatCurrency(b.spent - b.limit)})';
+          break;
+        case BudgetStatusType.nearLimit:
+          statusTag = '⚡ Near Limit (Remaining: ₹${_formatCurrency(b.remaining)})';
+          break;
+        case BudgetStatusType.healthy:
+          statusTag = '✅ Healthy (Remaining: ₹${_formatCurrency(b.remaining)})';
+          break;
+      }
+      final pct = (b.ratio * 100).toStringAsFixed(0);
+      buffer.writeln('• **${b.category}**: ₹${_formatCurrency(b.spent)} / ₹${_formatCurrency(b.limit)} ($pct%) — $statusTag');
+    }
+
+    buffer.writeln('\n💡 **Budget Adjustments & Recommendations:**');
+    final exceeded = insights.budgets.where((b) => b.status == BudgetStatusType.exceeded).toList();
+    final healthy = insights.budgets.where((b) => b.status == BudgetStatusType.healthy && b.remaining > 500).toList();
+
+    if (exceeded.isNotEmpty && healthy.isNotEmpty) {
+      buffer.writeln('• **Reallocation Opportunity:** ${exceeded.first.category} exceeded budget by ₹${_formatCurrency(exceeded.first.spent - exceeded.first.limit)}. You have ₹${_formatCurrency(healthy.first.remaining)} buffer in ${healthy.first.category}. You can reallocate ₹${_formatCurrency(min(exceeded.first.spent - exceeded.first.limit, healthy.first.remaining))} to balance your limits.');
+    } else if (exceeded.isNotEmpty) {
+      buffer.writeln('• Dial back spending in ${exceeded.map((e) => e.category).join(', ')} for the rest of $month.');
+    } else {
+      buffer.writeln('• All budgets are healthy! Maintain your current pacing to finish the month with ₹${_formatCurrency(insights.totalBudgetRemaining)} in surplus.');
+    }
+
+    return FinancialEngineResponse(
+      text: buffer.toString().trim(),
+      actionButtons: const [
+        'How much budget do I have left?',
+        'Spending analysis',
+        'Monthly financial summary',
+      ],
+    );
+  }
+
+  /// 6. Spending Behaviour
+  FinancialEngineResponse generateSpendingBehaviourQuery({
+    required List<Transaction> transactions,
+    required List<Budget> budgets,
+    DateTime? referenceDate,
+  }) {
+    final now = referenceDate ?? DateTime.now();
+    final insights = generatePersonalizedInsights(
+      transactions: transactions,
+      budgets: budgets,
+      referenceDate: now,
+    );
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.zeroData) {
+      return const FinancialEngineResponse(
+        text: '👋 **Welcome to Spentee AI!**\n\n'
+            'Start recording your income and expenses. I\'ll analyse your financial activity and help you make better money decisions.',
+        actionButtons: [
+          'Add an expense',
+          'Add income',
+          'What can Hiro do?',
+        ],
+      );
+    }
+
+    if (insights.sufficiencyStatus == DataSufficiencyStatus.incomeOnly) {
+      return FinancialEngineResponse(
+        text: '💰 **Income Recorded:**\n\n'
+            'You have recorded income, but there isn\'t enough expense data yet to analyse your spending behaviour.\n\n'
+            'Add your daily expenses to unlock spending habit analysis and pacing.',
+        actionButtons: const [
+          'Add an expense',
+          'How much did I earn this month?',
+          'What is my current available balance?',
+        ],
+      );
+    }
+
+    final buffer = StringBuffer();
+    final month = _monthName(now.month);
+    final year = now.year;
+    final daysElapsed = max(1, now.day);
+    final dailyPace = insights.totalExpense / daysElapsed;
+
+    buffer.writeln('🧠 **Spending Behaviour & Habits ($month $year):**\n');
+    buffer.writeln('• **Daily Spending Pace:** **₹${_formatCurrency(dailyPace)}/day** (over $daysElapsed days elapsed)');
+
+    // Essential vs Discretionary
+    final essentialKeywords = ['grocery', 'groceries', 'bill', 'bills', 'utilit', 'health', 'medicine', 'medical', 'transport', 'commute', 'rent', 'fuel'];
+    double essentialTotal = 0.0;
+    double discretionaryTotal = 0.0;
+
+    for (final entry in insights.categoryExpenses.entries) {
+      final lower = entry.key.toLowerCase();
+      if (essentialKeywords.any((k) => lower.contains(k))) {
+        essentialTotal += entry.value;
+      } else {
+        discretionaryTotal += entry.value;
+      }
+    }
+
+    final essentialPct = insights.totalExpense > 0 ? ((essentialTotal / insights.totalExpense) * 100).toStringAsFixed(0) : '0';
+    final discretionaryPct = insights.totalExpense > 0 ? ((discretionaryTotal / insights.totalExpense) * 100).toStringAsFixed(0) : '0';
+
+    buffer.writeln('• **Essential Living Spending:** ₹${_formatCurrency(essentialTotal)} ($essentialPct%)');
+    buffer.writeln('• **Discretionary Spending:** ₹${_formatCurrency(discretionaryTotal)} ($discretionaryPct%)\n');
+
+    buffer.writeln('📊 **Month-over-Month Behaviour:**');
+    if (insights.hasPreviousMonthData) {
+      final change = insights.expenseChangePercent;
+      final sign = change >= 0 ? '+' : '';
+      buffer.writeln('• **Overall Spending Change:** $sign${change.toStringAsFixed(1)}% vs previous month');
+      if (insights.increasedCategories.isNotEmpty) {
+        buffer.writeln('• **Increased Categories:** ${insights.increasedCategories.join(', ')}');
+      }
+      if (insights.decreasedCategories.isNotEmpty) {
+        buffer.writeln('• **Reduced Categories:** ${insights.decreasedCategories.join(', ')}');
+      }
+      if (insights.unusualSpikes.isNotEmpty) {
+        buffer.writeln('• **Unusual Spikes:** ${insights.unusualSpikes.join(', ')}');
+      }
+    } else {
+      buffer.writeln('• *Spentee requires at least two consecutive months of records to establish recurring behavioural trends. Continue logging daily to unlock month-over-month habit analysis.*');
+    }
+
+    buffer.writeln('\n💡 **Mindful Habit Tip:**');
+    if (discretionaryTotal > essentialTotal && insights.totalExpense > 0) {
+      buffer.writeln('• Discretionary purchases currently exceed essentials. Pause non-essential purchases for 72 hours before completing checkout.');
+    } else {
+      buffer.writeln('• Great balance! Your essentials form the foundation of your expenses. Keep maintaining mindful daily spending.');
+    }
+
+    return FinancialEngineResponse(
+      text: buffer.toString().trim(),
+      actionButtons: const [
+        'Where did most of my money go?',
+        'Monthly financial summary',
+        'Budget insights',
+      ],
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // 3. DETERMINISTIC QUERY INTERPRETER & ANSWER GENERATOR
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -313,6 +1189,60 @@ class FinancialIntelligenceEngine {
           'How can I save ₹800 this month?',
           'Another roast please 🔥',
         ],
+      );
+    }
+
+    // ── 0.1 Monthly Financial Summary ──────────────────────────────────────────
+    if (_matchesMonthlySummary(q)) {
+      return generateMonthlySummaryQuery(
+        transactions: transactions,
+        budgets: budgets,
+        referenceDate: now,
+      );
+    }
+
+    // ── 0.2 Spending Analysis ──────────────────────────────────────────────────
+    if (_matchesSpendingAnalysis(q)) {
+      return generateSpendingAnalysisQuery(
+        transactions: transactions,
+        budgets: budgets,
+        referenceDate: now,
+      );
+    }
+
+    // ── 0.3 Income Analysis ────────────────────────────────────────────────────
+    if (_matchesIncomeAnalysis(q)) {
+      return generateIncomeAnalysisQuery(
+        transactions: transactions,
+        budgets: budgets,
+        referenceDate: now,
+      );
+    }
+
+    // ── 0.4 Savings Insights ───────────────────────────────────────────────────
+    if (_matchesSavingsInsights(q)) {
+      return generateSavingsInsightsQuery(
+        transactions: transactions,
+        budgets: budgets,
+        referenceDate: now,
+      );
+    }
+
+    // ── 0.5 Budget Insights ────────────────────────────────────────────────────
+    if (_matchesBudgetInsights(q)) {
+      return generateBudgetInsightsQuery(
+        transactions: transactions,
+        budgets: budgets,
+        referenceDate: now,
+      );
+    }
+
+    // ── 0.6 Spending Behaviour ─────────────────────────────────────────────────
+    if (_matchesSpendingBehaviour(q)) {
+      return generateSpendingBehaviourQuery(
+        transactions: transactions,
+        budgets: budgets,
+        referenceDate: now,
       );
     }
 
@@ -1455,6 +2385,8 @@ class FinancialIntelligenceEngine {
       r'dividend|dividends|portfolio|portfolios|crypto|bitcoin|asset|assets|'
       r'liability|liabilities|50/30/20|snowball|avalanche|'
       r'roast|audit|trim|cut spending|reduce spending|'
+      r'insight|insights|summary|overview|report|reports|'
+      r'behaviour|behavior|habit|habits|trend|trends|pacing|discretionary|'
       r'groceries|grocery|dining|shopping|transport|travel|finance|financial)\b',
     );
 
@@ -1673,12 +2605,22 @@ class FinancialIntelligenceEngine {
       minimalCatShares[entry.key] = '$pct%';
     }
 
+    final insights = instance.generatePersonalizedInsights(
+      transactions: transactions,
+      budgets: budgets,
+      referenceDate: now,
+    );
+
     return {
       'consent': true,
       'month': _monthName(now.month),
       'year': now.year,
       'monthly_spend_total': audit.totalExpense.toStringAsFixed(0),
       'monthly_income_total': audit.totalIncome.toStringAsFixed(0),
+      'net_savings': insights.netSavings.toStringAsFixed(0),
+      'savings_rate_percent': insights.savingsRate.toStringAsFixed(1),
+      'highest_category': insights.highestCategory,
+      'data_sufficiency': insights.sufficiencyStatus.name,
       'top_expense_categories_share': minimalCatShares,
       'active_budgets_count': budgets.length,
     };
@@ -1687,6 +2629,84 @@ class FinancialIntelligenceEngine {
   // ───────────────────────────────────────────────────────────────────────────
   // 8. QUERY MATCHING HELPERS
   // ───────────────────────────────────────────────────────────────────────────
+
+  static bool _matchesMonthlySummary(String q) {
+    return q.contains('monthly summary') ||
+        q.contains('monthly financial summary') ||
+        q.contains('financial summary') ||
+        q.contains('monthly report') ||
+        q.contains('financial report') ||
+        q.contains('monthly overview') ||
+        q.contains('financial overview') ||
+        q.contains('summary of this month') ||
+        q.contains('summary of my finances') ||
+        q == 'monthly financial summary' ||
+        q == 'financial summary';
+  }
+
+  static bool _matchesSpendingAnalysis(String q) {
+    return q.contains('spending analysis') ||
+        q.contains('analyse my spending') ||
+        q.contains('analyze my spending') ||
+        q.contains('breakdown of my spending') ||
+        q.contains('spending breakdown') ||
+        q.contains('category spending analysis') ||
+        q.contains('how do i spend my money') ||
+        q.contains('where is my money going') ||
+        q.contains('analyse spending') ||
+        q.contains('analyze spending') ||
+        q == 'spending analysis';
+  }
+
+  static bool _matchesIncomeAnalysis(String q) {
+    return q.contains('income analysis') ||
+        q.contains('analyse my income') ||
+        q.contains('analyze my income') ||
+        q.contains('income breakdown') ||
+        q.contains('where does my income come from') ||
+        q.contains('income sources') ||
+        q.contains('breakdown of my income') ||
+        q.contains('analyse income') ||
+        q.contains('analyze income') ||
+        q == 'income analysis';
+  }
+
+  static bool _matchesSavingsInsights(String q) {
+    return q.contains('savings insights') ||
+        q.contains('saving insights') ||
+        q.contains('how are my savings') ||
+        q.contains('savings rate') ||
+        q.contains('savings advice') ||
+        q.contains('savings target') ||
+        q.contains('ways to save') ||
+        q == 'savings insights';
+  }
+
+  static bool _matchesBudgetInsights(String q) {
+    return q.contains('budget insights') ||
+        q.contains('budget performance') ||
+        q.contains('how are my budgets doing') ||
+        q.contains('how are my budgets performing') ||
+        q.contains('budget analysis') ||
+        q.contains('budget limits') ||
+        q.contains('budget review') ||
+        q == 'budget insights' ||
+        q == 'budget performance';
+  }
+
+  static bool _matchesSpendingBehaviour(String q) {
+    return q.contains('spending behaviour') ||
+        q.contains('spending behavior') ||
+        q.contains('spending habits') ||
+        q.contains('spending habit') ||
+        q.contains('spending pattern') ||
+        q.contains('spending patterns') ||
+        q.contains('recurring spending') ||
+        q.contains('spending trends') ||
+        q.contains('habit analysis') ||
+        q == 'spending behaviour' ||
+        q == 'spending behavior';
+  }
 
   static bool _matchesRoastQuery(String q) {
     return q == 'roast me' ||
