@@ -42,6 +42,9 @@ class _MonthTrendData {
   });
 }
 
+/// Period selection mode for the Insights screen
+enum _PeriodMode { day, month, year }
+
 /// Screen 13 — Spentee Insights Screen
 /// Redesigned to closely match the reference fintech design.
 class InsightsScreen extends StatefulWidget {
@@ -52,8 +55,12 @@ class InsightsScreen extends StatefulWidget {
 }
 
 class _InsightsScreenState extends State<InsightsScreen> {
-  // Default reporting period: October 2026 (matching reference and app timeline)
+  // ── State fields ──────────────────────────────────────────────────────────
   late DateTime _selectedPeriod;
+  _PeriodMode _periodMode = _PeriodMode.month;
+  int _trendPage = 0; // 0 = latest 6 months, positive = older windows
+  final PageController _trendPageController = PageController(initialPage: 0);
+  double _chartDragDistance = 0.0;
 
   final List<String> _monthNames = const [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -67,29 +74,124 @@ class _InsightsScreenState extends State<InsightsScreen> {
     _selectedPeriod = DateTime(now.year, now.month, 1);
   }
 
-  bool get _canGoNextMonth {
-    final now = DateTime.now();
-    return _selectedPeriod.year < now.year ||
-        (_selectedPeriod.year == now.year && _selectedPeriod.month < now.month);
+  @override
+  void dispose() {
+    _trendPageController.dispose();
+    super.dispose();
   }
 
-  void _prevMonth() {
+  // ── Period navigation ──────────────────────────────────────────────────────
+
+  bool get _canGoNextPeriod {
+    final now = DateTime.now();
+    switch (_periodMode) {
+      case _PeriodMode.day:
+        return _selectedPeriod.isBefore(DateRestriction.localToday);
+      case _PeriodMode.month:
+        return _selectedPeriod.year < now.year ||
+            (_selectedPeriod.year == now.year && _selectedPeriod.month < now.month);
+      case _PeriodMode.year:
+        return _selectedPeriod.year < now.year;
+    }
+  }
+
+  void _prevPeriod() {
     setState(() {
-      _selectedPeriod = DateTime(_selectedPeriod.year, _selectedPeriod.month - 1, 1);
+      switch (_periodMode) {
+        case _PeriodMode.day:
+          _selectedPeriod = _selectedPeriod.subtract(const Duration(days: 1));
+          break;
+        case _PeriodMode.month:
+          _selectedPeriod = DateTime(_selectedPeriod.year, _selectedPeriod.month - 1, 1);
+          break;
+        case _PeriodMode.year:
+          _selectedPeriod = DateTime(_selectedPeriod.year - 1, 1, 1);
+          break;
+      }
     });
   }
 
-  void _nextMonth() {
-    if (!_canGoNextMonth) return;
+  void _nextPeriod() {
+    if (!_canGoNextPeriod) return;
     setState(() {
-      _selectedPeriod = DateTime(_selectedPeriod.year, _selectedPeriod.month + 1, 1);
+      switch (_periodMode) {
+        case _PeriodMode.day:
+          _selectedPeriod = _selectedPeriod.add(const Duration(days: 1));
+          break;
+        case _PeriodMode.month:
+          _selectedPeriod = DateTime(_selectedPeriod.year, _selectedPeriod.month + 1, 1);
+          break;
+        case _PeriodMode.year:
+          _selectedPeriod = DateTime(_selectedPeriod.year + 1, 1, 1);
+          break;
+      }
     });
   }
 
   void _selectMonth(DateTime date) {
     setState(() {
       _selectedPeriod = DateRestriction.clampToCurrentMonth(date);
+      _periodMode = _PeriodMode.month;
     });
+  }
+
+  // ── Trend page navigation ─────────────────────────────────────────────────
+
+  bool _canGoOlderTrend(List<Transaction> allTxs) {
+    if (allTxs.isEmpty) return false;
+    final earliestTxDate = allTxs.map((t) => t.date).reduce((a, b) => a.isBefore(b) ? a : b);
+    final earliestMonth = DateTime(earliestTxDate.year, earliestTxDate.month, 1);
+    final now = DateTime.now();
+    final baseMonth = DateTime(now.year, now.month - (_trendPage * 6), 1);
+    final currentWindowStart = DateTime(baseMonth.year, baseMonth.month - 5, 1);
+    return currentWindowStart.isAfter(earliestMonth);
+  }
+
+  bool get _canGoNewerTrend => _trendPage > 0;
+
+  void _olderTrend(List<Transaction> allTxs) {
+    if (!_canGoOlderTrend(allTxs)) return;
+    setState(() { _trendPage++; });
+  }
+
+  void _newerTrend() {
+    if (!_canGoNewerTrend) return;
+    setState(() { _trendPage--; });
+  }
+
+  String _getTrendRangeLabel(List<_MonthTrendData> trends) {
+    if (trends.isEmpty) {
+      return 'No data';
+    }
+    final first = trends.first;
+    final last = trends.last;
+    if (trends.length == 1) {
+      return '${first.label} ${first.date.year}';
+    }
+    if (first.date.year == last.date.year) {
+      return '${first.label} – ${last.label} ${last.date.year}';
+    }
+    return '${first.label} ${first.date.year} – ${last.label} ${last.date.year}';
+  }
+
+  // ── Period picker dialog ──────────────────────────────────────────────────
+
+  void _showPeriodPicker() async {
+    final selection = await showDialog<_CalendarSelection>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (ctx) => _InsightCalendarDialog(
+        initialDate: _selectedPeriod,
+        initialMode: _periodMode,
+      ),
+    );
+
+    if (selection != null && mounted) {
+      setState(() {
+        _selectedPeriod = selection.date;
+        _periodMode = selection.mode;
+      });
+    }
   }
 
   /// Format an amount into standard Indian Rupee format (e.g. ₹ 50,000 or ₹ 12,480)
@@ -189,25 +291,88 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return const Color(0xFF00E676); // Mint green for Others
   }
 
+  // Period label based on current mode
+  String get _periodLabel {
+    switch (_periodMode) {
+      case _PeriodMode.day:
+        return '${_selectedPeriod.day.toString().padLeft(2, '0')} ${_monthNames[_selectedPeriod.month - 1]} ${_selectedPeriod.year}';
+      case _PeriodMode.month:
+        return '${_monthNames[_selectedPeriod.month - 1]} ${_selectedPeriod.year}';
+      case _PeriodMode.year:
+        return '${_selectedPeriod.year}';
+    }
+  }
+
+  List<Transaction> _filterTxs(List<Transaction> allTxs) {
+    switch (_periodMode) {
+      case _PeriodMode.day:
+        return allTxs.where((tx) => tx.date.year == _selectedPeriod.year && tx.date.month == _selectedPeriod.month && tx.date.day == _selectedPeriod.day).toList();
+      case _PeriodMode.month:
+        return allTxs.where((tx) => tx.date.year == _selectedPeriod.year && tx.date.month == _selectedPeriod.month).toList();
+      case _PeriodMode.year:
+        return allTxs.where((tx) => tx.date.year == _selectedPeriod.year).toList();
+    }
+  }
+
+  List<_MonthTrendData> _generateSixMonthTrends(List<Transaction> allTxs) {
+    if (allTxs.isEmpty) {
+      return [];
+    }
+
+    final now = DateTime.now();
+    final earliestTxDate = allTxs.map((t) => t.date).reduce((a, b) => a.isBefore(b) ? a : b);
+    final earliestMonth = DateTime(earliestTxDate.year, earliestTxDate.month, 1);
+
+    // Determine the most recent month to display based on trend page (0 = latest)
+    // Each page shifts back by 6 months
+    final baseMonth = DateTime(now.year, now.month - (_trendPage * 6), 1);
+    final List<_MonthTrendData> trends = [];
+    for (int i = 5; i >= 0; i--) {
+      final mDate = DateTime(baseMonth.year, baseMonth.month - i, 1);
+      // Guard against future months
+      if (mDate.isAfter(now)) continue;
+      // For accounts with less history, display only available months
+      if (mDate.isBefore(earliestMonth)) continue;
+
+      final mTransactions = allTxs.where((tx) {
+        return tx.date.year == mDate.year && tx.date.month == mDate.month;
+      });
+      double mInc = 0.0;
+      double mExp = 0.0;
+      for (final tx in mTransactions) {
+        if (tx.type == TransactionType.income) {
+          mInc += tx.amount;
+        } else if (tx.type == TransactionType.expense) {
+          mExp += tx.amount;
+        }
+      }
+      trends.add(_MonthTrendData(
+        date: mDate,
+        label: _monthNames[mDate.month - 1],
+        income: mInc,
+        expense: mExp,
+      ));
+    }
+    return trends;
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
     final allTxs = appState.transactions;
 
-    final targetYear = _selectedPeriod.year;
-    final targetMonth = _selectedPeriod.month;
+    // final targetYear = _selectedPeriod.year; // removed, not needed
+    // final targetMonth = _selectedPeriod.month; // removed, not needed
 
-    // Filter transactions for currently selected month
-    final monthTxs = allTxs.where((tx) {
-      return tx.date.year == targetYear && tx.date.month == targetMonth;
-    }).toList();
+    // Filter transactions for the currently selected period based on mode
+    final List<Transaction> periodTxs = _filterTxs(allTxs);
 
-    // Calculate current month's income & expenses
+    // Calculate current period's income & expenses
     double totalIncome = 0.0;
     double totalSpent = 0.0;
     final categoryTotals = <String, double>{};
 
-    for (final tx in monthTxs) {
+    for (final tx in periodTxs) {
       if (tx.type == TransactionType.income) {
         totalIncome += tx.amount;
       } else if (tx.type == TransactionType.expense) {
@@ -217,15 +382,33 @@ class _InsightsScreenState extends State<InsightsScreen> {
       }
     }
 
-    // Previous month comparison
-    final prevPeriod = DateTime(targetYear, targetMonth - 1, 1);
-    final prevMonthTxs = allTxs.where((tx) {
-      return tx.date.year == prevPeriod.year && tx.date.month == prevPeriod.month;
+    // Previous period comparison
+    DateTime prevPeriod;
+    switch (_periodMode) {
+      case _PeriodMode.day:
+        prevPeriod = _selectedPeriod.subtract(const Duration(days: 1));
+        break;
+      case _PeriodMode.month:
+        prevPeriod = DateTime(_selectedPeriod.year, _selectedPeriod.month - 1, 1);
+        break;
+      case _PeriodMode.year:
+        prevPeriod = DateTime(_selectedPeriod.year - 1, 1, 1);
+        break;
+    }
+    final prevPeriodTxs = allTxs.where((tx) {
+      switch (_periodMode) {
+        case _PeriodMode.day:
+          return tx.date.year == prevPeriod.year && tx.date.month == prevPeriod.month && tx.date.day == prevPeriod.day;
+        case _PeriodMode.month:
+          return tx.date.year == prevPeriod.year && tx.date.month == prevPeriod.month;
+        case _PeriodMode.year:
+          return tx.date.year == prevPeriod.year;
+      }
     }).toList();
 
     double prevIncome = 0.0;
     double prevSpent = 0.0;
-    for (final tx in prevMonthTxs) {
+    for (final tx in prevPeriodTxs) {
       if (tx.type == TransactionType.income) {
         prevIncome += tx.amount;
       } else if (tx.type == TransactionType.expense) {
@@ -264,33 +447,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
       }
     }
 
-    // Compute 6-Month Trend Data
-    final List<_MonthTrendData> sixMonthTrends = [];
-    for (int i = 5; i >= 0; i--) {
-      final mDate = DateTime(targetYear, targetMonth - i, 1);
-      final mTransactions = allTxs.where((tx) {
-        return tx.date.year == mDate.year && tx.date.month == mDate.month;
-      });
+    // Compute 6-Month Trend Data (with pagination)
+    final List<_MonthTrendData> sixMonthTrends = _generateSixMonthTrends(allTxs);
 
-      double mInc = 0.0;
-      double mExp = 0.0;
-      for (final tx in mTransactions) {
-        if (tx.type == TransactionType.income) {
-          mInc += tx.amount;
-        } else if (tx.type == TransactionType.expense) {
-          mExp += tx.amount;
-        }
-      }
-
-      sixMonthTrends.add(_MonthTrendData(
-        date: mDate,
-        label: _monthNames[mDate.month - 1],
-        income: mInc,
-        expense: mExp,
-      ));
-    }
-
-    final monthLabel = '${_monthNames[targetMonth - 1]} $targetYear';
+    final monthLabel = _periodLabel;
 
     return Scaffold(
       backgroundColor: const Color(0xFF001422),
@@ -349,10 +509,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
                 const SizedBox(height: 14),
 
-                // 5. Monthly Trend Card (Grouped Bar Chart)
+                // 5. Monthly Trend Card (Grouped Bar Chart with Swipe)
                 _buildMonthlyTrendCard(
                   trends: sixMonthTrends,
                   selectedDate: _selectedPeriod,
+                  allTxs: allTxs,
                 ),
 
                 const SizedBox(height: 24),
@@ -398,54 +559,60 @@ class _InsightsScreenState extends State<InsightsScreen> {
           ),
         ),
         const SizedBox(width: 8),
-        // Pill-shaped Month Selector
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFF04201E),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: const Color(0xFF0D5E4D),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00E676).withValues(alpha: 0.08),
-                blurRadius: 10,
-                spreadRadius: 0,
+        // Pill-shaped Period Selector — tap to open calendar picker
+        GestureDetector(
+          key: const ValueKey('period_selector_pill'),
+          onTap: _showPeriodPicker,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF04201E),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: const Color(0xFF0D5E4D),
+                width: 1.2,
               ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _MonthArrowButton(
-                icon: Icons.chevron_left_rounded,
-                onTap: _prevMonth,
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.calendar_today_rounded,
-                color: AppTheme.primaryMint,
-                size: 14,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                monthLabel,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.2,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00E676).withValues(alpha: 0.08),
+                  blurRadius: 10,
+                  spreadRadius: 0,
                 ),
-              ),
-              const SizedBox(width: 4),
-              _MonthArrowButton(
-                icon: Icons.chevron_right_rounded,
-                isEnabled: _canGoNextMonth,
-                onTap: _canGoNextMonth ? _nextMonth : null,
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MonthArrowButton(
+                  key: const ValueKey('pill_prev_btn'),
+                  icon: Icons.chevron_left_rounded,
+                  onTap: _prevPeriod,
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.calendar_today_rounded,
+                  color: AppTheme.primaryMint,
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  monthLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                _MonthArrowButton(
+                  key: const ValueKey('pill_next_btn'),
+                  icon: Icons.chevron_right_rounded,
+                  isEnabled: _canGoNextPeriod,
+                  onTap: _canGoNextPeriod ? _nextPeriod : null,
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1142,6 +1309,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   Widget _buildMonthlyTrendCard({
     required List<_MonthTrendData> trends,
     required DateTime selectedDate,
+    required List<Transaction> allTxs,
   }) {
     // Find maximum income or expense to calibrate Y-axis
     double maxVal = 0.0;
@@ -1177,7 +1345,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row: Monthly Trend title and Last 6 Months Dropdown
+          // Header Row: Monthly Trend title and swipeable period range
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1195,43 +1363,75 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F263A),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0x2B38BDF8),
-                    width: 0.8,
+              // Swipe navigation: older ← range → newer
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _MonthArrowButton(
+                    key: const ValueKey('trend_prev_btn'),
+                    icon: Icons.chevron_left_rounded,
+                    isEnabled: _canGoOlderTrend(allTxs),
+                    onTap: _canGoOlderTrend(allTxs) ? () => _olderTrend(allTxs) : null,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Text(
-                      'Last 6 Months',
-                      style: TextStyle(
+                  Container(
+                    key: const ValueKey('trend_range_chip'),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F263A),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0x2B38BDF8),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      _getTrendRangeLabel(trends),
+                      style: const TextStyle(
                         color: Color(0xFF8E9DAE),
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(width: 4),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Color(0xFF8E9DAE),
-                      size: 15,
-                    ),
-                  ],
-                ),
+                  ),
+                  _MonthArrowButton(
+                    key: const ValueKey('trend_next_btn'),
+                    icon: Icons.chevron_right_rounded,
+                    isEnabled: _canGoNewerTrend,
+                    onTap: _canGoNewerTrend ? _newerTrend : null,
+                  ),
+                ],
               ),
             ],
           ),
 
           const SizedBox(height: 20),
 
-          // Bar Chart with Y-axis and Grouped Bars
-          SizedBox(
+          // Bar Chart with Y-axis and Grouped Bars (swipe left=older, right=newer)
+          GestureDetector(
+            key: const ValueKey('monthly_trend_chart'),
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: (_) {
+              _chartDragDistance = 0.0;
+            },
+            onHorizontalDragUpdate: (details) {
+              _chartDragDistance += details.primaryDelta ?? 0.0;
+            },
+            onHorizontalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0.0;
+              if (velocity < -150 || _chartDragDistance < -35) {
+                // swipe left → go older
+                if (_canGoOlderTrend(allTxs)) {
+                  _olderTrend(allTxs);
+                }
+              } else if (velocity > 150 || _chartDragDistance > 35) {
+                // swipe right → go newer
+                if (_canGoNewerTrend) {
+                  _newerTrend();
+                }
+              }
+              _chartDragDistance = 0.0;
+            },
+            child: SizedBox(
             height: 145,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1423,6 +1623,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
               ],
             ),
           ),
+        ), // end GestureDetector chart wrapper
 
           const SizedBox(height: 14),
 
@@ -1487,6 +1688,7 @@ class _MonthArrowButton extends StatelessWidget {
   final bool isEnabled;
 
   const _MonthArrowButton({
+    super.key,
     required this.icon,
     this.onTap,
     this.isEnabled = true,
@@ -1568,5 +1770,486 @@ class _DonutChartPainter extends CustomPainter {
   bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
     return oldDelegate.totalAmount != totalAmount ||
         oldDelegate.categories != categories;
+  }
+}
+
+// ─── Advanced Calendar Selection Dialog ──────────────────────────────────────
+
+class _CalendarSelection {
+  final DateTime date;
+  final _PeriodMode mode;
+
+  const _CalendarSelection({required this.date, required this.mode});
+}
+
+class _InsightCalendarDialog extends StatefulWidget {
+  final DateTime initialDate;
+  final _PeriodMode initialMode;
+
+  const _InsightCalendarDialog({
+    required this.initialDate,
+    required this.initialMode,
+  });
+
+  @override
+  State<_InsightCalendarDialog> createState() => _InsightCalendarDialogState();
+}
+
+class _InsightCalendarDialogState extends State<_InsightCalendarDialog> {
+  late _PeriodMode _mode;
+  late int _viewYear;
+  late int _viewMonth;
+  late DateTime _selectedDate;
+
+  final List<String> _monthNames = const [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  final List<String> _weekdays = const ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+    _selectedDate = widget.initialDate;
+    _viewYear = widget.initialDate.year;
+    _viewMonth = widget.initialDate.month;
+  }
+
+  bool get _canGoNext {
+    final now = DateTime.now();
+    switch (_mode) {
+      case _PeriodMode.day:
+        return _viewYear < now.year || (_viewYear == now.year && _viewMonth < now.month);
+      case _PeriodMode.month:
+        return _viewYear < now.year;
+      case _PeriodMode.year:
+        return false;
+    }
+  }
+
+  void _prev() {
+    setState(() {
+      switch (_mode) {
+        case _PeriodMode.day:
+          if (_viewMonth == 1) {
+            _viewYear--;
+            _viewMonth = 12;
+          } else {
+            _viewMonth--;
+          }
+          break;
+        case _PeriodMode.month:
+          _viewYear--;
+          break;
+        case _PeriodMode.year:
+          _viewYear -= 10;
+          break;
+      }
+    });
+  }
+
+  void _next() {
+    if (!_canGoNext) return;
+    setState(() {
+      switch (_mode) {
+        case _PeriodMode.day:
+          if (_viewMonth == 12) {
+            _viewYear++;
+            _viewMonth = 1;
+          } else {
+            _viewMonth++;
+          }
+          break;
+        case _PeriodMode.month:
+          _viewYear++;
+          break;
+        case _PeriodMode.year:
+          _viewYear += 10;
+          break;
+      }
+    });
+  }
+
+  void _selectToday() {
+    final now = DateTime.now();
+    Navigator.of(context).pop(
+      _CalendarSelection(
+        date: DateTime(now.year, now.month, now.day),
+        mode: _PeriodMode.day,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return Dialog(
+      backgroundColor: const Color(0xFF071928),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: Color(0x2B38BDF8), width: 1.2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top Bar: Title & Today Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Select Period',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                GestureDetector(
+                  key: const ValueKey('cal_today_shortcut'),
+                  onTap: _selectToday,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF04201E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.primaryMint.withValues(alpha: 0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt_rounded, color: AppTheme.primaryMint, size: 14),
+                        SizedBox(width: 4),
+                        Text(
+                          'Today',
+                          style: TextStyle(
+                            color: AppTheme.primaryMint,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Mode Selector Tabs (Day, Month, Year)
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF04121F),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0x1F38BDF8), width: 0.8),
+              ),
+              child: Row(
+                children: [
+                  _buildTab('Day', _PeriodMode.day, const ValueKey('tab_day')),
+                  _buildTab('Month', _PeriodMode.month, const ValueKey('tab_month')),
+                  _buildTab('Year', _PeriodMode.year, const ValueKey('tab_year')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Navigation Header (< Nov 2026 >)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  key: const ValueKey('cal_prev_btn'),
+                  icon: const Icon(Icons.chevron_left_rounded, color: AppTheme.primaryMint),
+                  onPressed: _prev,
+                  visualDensity: VisualDensity.compact,
+                ),
+                Text(
+                  _mode == _PeriodMode.day
+                      ? '${_monthNames[_viewMonth - 1]} $_viewYear'
+                      : (_mode == _PeriodMode.month ? '$_viewYear' : 'Select Year'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('cal_next_btn'),
+                  icon: Icon(
+                    Icons.chevron_right_rounded,
+                    color: _canGoNext
+                        ? AppTheme.primaryMint
+                        : const Color(0xFF1B4A45).withValues(alpha: 0.3),
+                  ),
+                  onPressed: _canGoNext ? _next : null,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Content per mode
+            if (_mode == _PeriodMode.day) _buildDayGrid(now),
+            if (_mode == _PeriodMode.month) _buildMonthGrid(now),
+            if (_mode == _PeriodMode.year) _buildYearGrid(now),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, _PeriodMode mode, Key key) {
+    final isSelected = _mode == mode;
+    return Expanded(
+      child: GestureDetector(
+        key: key,
+        onTap: () {
+          setState(() {
+            _mode = mode;
+          });
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.primaryMint : Colors.transparent,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? const Color(0xFF001422) : const Color(0xFF8E9DAE),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayGrid(DateTime now) {
+    final firstWeekday = DateTime(_viewYear, _viewMonth, 1).weekday; // 1 = Mon
+    final daysInMonth = DateTime(_viewYear, _viewMonth + 1, 0).day;
+    final totalCells = (firstWeekday - 1) + daysInMonth;
+    final rows = (totalCells / 7).ceil();
+
+    return Column(
+      children: [
+        // Weekday header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: _weekdays
+              .map((d) => SizedBox(
+                    width: 34,
+                    child: Center(
+                      child: Text(
+                        d,
+                        style: const TextStyle(
+                          color: Color(0xFF6B7D90),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 6),
+        // Days Grid
+        ...List.generate(rows, (r) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(7, (c) {
+                final cellIndex = r * 7 + c;
+                final dayNum = cellIndex - (firstWeekday - 1) + 1;
+                if (dayNum < 1 || dayNum > daysInMonth) {
+                  return const SizedBox(width: 34, height: 34);
+                }
+
+                final date = DateTime(_viewYear, _viewMonth, dayNum);
+                final isFuture = date.isAfter(DateTime(now.year, now.month, now.day));
+                final isSelected = _selectedDate.year == date.year &&
+                    _selectedDate.month == date.month &&
+                    _selectedDate.day == date.day &&
+                    widget.initialMode == _PeriodMode.day;
+                final isToday = now.year == date.year && now.month == date.month && now.day == date.day;
+
+                return GestureDetector(
+                  key: ValueKey('cal_day_$dayNum'),
+                  onTap: isFuture
+                      ? null
+                      : () {
+                          Navigator.of(context).pop(
+                            _CalendarSelection(date: date, mode: _PeriodMode.day),
+                          );
+                        },
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppTheme.primaryMint
+                          : (isToday ? AppTheme.primaryMint.withValues(alpha: 0.15) : Colors.transparent),
+                      shape: BoxShape.circle,
+                      border: isToday && !isSelected
+                          ? Border.all(color: AppTheme.primaryMint, width: 1)
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$dayNum',
+                      style: TextStyle(
+                        color: isFuture
+                            ? const Color(0xFF2A3C4D)
+                            : (isSelected ? const Color(0xFF001422) : Colors.white),
+                        fontSize: 12.5,
+                        fontWeight: isSelected || isToday ? FontWeight.w800 : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildMonthGrid(DateTime now) {
+    return Column(
+      children: List.generate(4, (row) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: List.generate(3, (col) {
+              final month = row * 3 + col + 1;
+              final isFuture = _viewYear > now.year || (_viewYear == now.year && month > now.month);
+              final isSelected = _selectedDate.year == _viewYear &&
+                  _selectedDate.month == month &&
+                  widget.initialMode == _PeriodMode.month;
+
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    key: ValueKey('cal_month_$month'),
+                    onTap: isFuture
+                        ? null
+                        : () {
+                            Navigator.of(context).pop(
+                              _CalendarSelection(
+                                date: DateTime(_viewYear, month, 1),
+                                mode: _PeriodMode.month,
+                              ),
+                            );
+                          },
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppTheme.primaryMint
+                            : const Color(0xFF04121F),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.primaryMint
+                              : (isFuture
+                                  ? const Color(0xFF13222F)
+                                  : const Color(0x1F38BDF8)),
+                          width: 0.8,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        _monthNames[month - 1],
+                        style: TextStyle(
+                          color: isFuture
+                            ? const Color(0xFF2A3C4D)
+                            : (isSelected ? const Color(0xFF001422) : Colors.white),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildYearGrid(DateTime now) {
+    final years = <int>[];
+    for (int y = now.year; y >= 2020; y--) {
+      years.add(y);
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: years.map((year) {
+        final isSelected = _selectedDate.year == year && widget.initialMode == _PeriodMode.year;
+        final isFuture = year > now.year;
+
+        return GestureDetector(
+          key: ValueKey('cal_year_$year'),
+          onTap: isFuture
+              ? null
+              : () {
+                  Navigator.of(context).pop(
+                    _CalendarSelection(
+                      date: DateTime(year, 1, 1),
+                      mode: _PeriodMode.year,
+                    ),
+                  );
+                },
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width: 76,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? AppTheme.primaryMint : const Color(0xFF04121F),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isSelected ? AppTheme.primaryMint : const Color(0x1F38BDF8),
+                width: 0.8,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$year',
+              style: TextStyle(
+                color: isFuture
+                    ? const Color(0xFF2A3C4D)
+                    : (isSelected ? const Color(0xFF001422) : Colors.white),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
   }
 }
