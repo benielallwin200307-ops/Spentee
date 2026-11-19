@@ -7,9 +7,11 @@ import 'transactions_screen.dart';
 import '../utils/date_restriction.dart';
 import '../services/financial_intelligence_engine.dart';
 import 'chat_screen.dart';
+import 'category_breakdown_screen.dart';
 
 /// Data model for category expense breakdown
 class _CategoryBreakdown {
+  final String? categoryId;
   final String label;
   final double amount;
   final double ratio;
@@ -18,6 +20,7 @@ class _CategoryBreakdown {
   final IconData icon;
 
   const _CategoryBreakdown({
+    this.categoryId,
     required this.label,
     required this.amount,
     required this.ratio,
@@ -43,7 +46,8 @@ class _MonthTrendData {
 }
 
 /// Period selection mode for the Insights screen
-enum _PeriodMode { day, month, year }
+enum PeriodMode { day, month, year }
+typedef _PeriodMode = PeriodMode;
 
 /// Screen 13 — Spentee Insights Screen
 /// Redesigned to closely match the reference fintech design.
@@ -436,7 +440,38 @@ class _InsightsScreenState extends State<InsightsScreen> {
         final amount = categoryTotals[cat]!;
         final ratio = amount / totalSpent;
         final percent = '${(ratio * 100).round()}%';
+
+        // Resolve Category ID from customCategories or standard category aliases
+        String? catId;
+        for (final c in appState.customCategories) {
+          if (c.name.trim().toLowerCase() == cat.trim().toLowerCase()) {
+            catId = c.id;
+            break;
+          }
+        }
+        if (catId == null) {
+          final l = cat.toLowerCase();
+          if (l.contains('food') || l.contains('drink')) {
+            catId = 'cat_food';
+          } else if (l.contains('transport') || l.contains('travel') || l.contains('car')) {
+            catId = 'cat_transport';
+          } else if (l.contains('shop')) {
+            catId = 'cat_shopping';
+          } else if (l.contains('bill') || l.contains('utilit')) {
+            catId = 'cat_bills';
+          } else if (l.contains('entertain') || l.contains('game')) {
+            catId = 'cat_ent';
+          } else if (l.contains('grocer')) {
+            catId = 'cat_groc';
+          } else if (l.contains('health') || l.contains('medic')) {
+            catId = 'cat_health';
+          } else {
+            catId = 'cat_others';
+          }
+        }
+
         categories.add(_CategoryBreakdown(
+          categoryId: catId,
           label: cat,
           amount: amount,
           ratio: ratio,
@@ -1026,66 +1061,84 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 Expanded(
                   child: Column(
                     children: categories.take(6).map((cat) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.5),
-                        child: Row(
-                          children: [
-                            // Circular icon with matching category color
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: cat.color,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                cat.icon,
-                                color: Colors.white,
-                                size: 13,
+                      return GestureDetector(
+                        key: ValueKey('category_breakdown_item_${cat.label}'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => CategoryBreakdownScreen(
+                                categoryName: cat.label,
+                                categoryId: cat.categoryId,
+                                categoryColor: cat.color,
+                                categoryIcon: cat.icon,
+                                selectedPeriod: _selectedPeriod,
+                                periodMode: _periodMode,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            // Category name
-                            Expanded(
-                              child: Text(
-                                cat.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFFE2E8F0),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.5),
+                          child: Row(
+                            children: [
+                              // Circular icon with matching category color
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: cat.color,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  cat.icon,
+                                  color: Colors.white,
+                                  size: 13,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 4),
-                            // Percentage
-                            Text(
-                              cat.percent,
-                              style: const TextStyle(
-                                color: Color(0xFF8E9DAE),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            // Amount
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerRight,
+                              const SizedBox(width: 8),
+                              // Category name
+                              Expanded(
                                 child: Text(
-                                  _formatINR(cat.amount),
+                                  cat.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.2,
+                                    color: Color(0xFFE2E8F0),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              // Percentage
+                              Text(
+                                cat.percent,
+                                style: const TextStyle(
+                                  color: Color(0xFF8E9DAE),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              // Amount
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    _formatINR(cat.amount),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     }).toList(),
