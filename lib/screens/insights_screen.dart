@@ -8,6 +8,8 @@ import '../utils/date_restriction.dart';
 import '../services/financial_intelligence_engine.dart';
 import 'chat_screen.dart';
 import 'category_breakdown_screen.dart';
+import '../ads/adaptive_banner_ad_widget.dart';
+import '../ads/ad_ids.dart';
 
 /// Data model for category expense breakdown
 class _CategoryBreakdown {
@@ -524,6 +526,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   hasPrevIncome: prevIncome > 0,
                   hasPrevSpent: prevSpent > 0,
                 ),
+
+                const SizedBox(height: 14),
+
+                // Adaptive AdMob Banner
+                AdaptiveBannerAdWidget(adUnitId: getBannerAdUnitIdInsights()),
 
                 const SizedBox(height: 14),
 

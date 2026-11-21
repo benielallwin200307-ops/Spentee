@@ -7,6 +7,8 @@ import '../models/budget.dart';
 import '../models/savings_goal.dart';
 import 'chat_history_screen.dart';
 import '../widgets/spentee_loading.dart';
+import '../ads/adaptive_banner_ad_widget.dart';
+import '../ads/ad_ids.dart';
 
 /// Screen 10 — Spentee AI Chatbot Screen
 /// Pixel-perfect redesign matching the reference UI:
@@ -668,6 +670,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   ],
                 ),
               ),
+
+            // Adaptive AdMob Banner
+            AdaptiveBannerAdWidget(adUnitId: getBannerAdUnitIdChat()),
 
             // 4. Fixed Message Composer (Screen 8)
             _buildComposer(appState),
