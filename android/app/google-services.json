@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "46636408233-l0s8bkb4prh7b5ll4jtm4i7jvv82ebdi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.spentee.spentee",
+            "certificate_hash": "120189c368b277baf5d513b581d0bd7a87174a0c"
+          }
+        },
+        {
           "client_id": "46636408233-s8gjuhe12h8c3n9lkh792nu1f8f9poqo.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
