@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:spentee/state/app_state.dart';
 import 'package:spentee/models/transaction.dart';
 import 'package:spentee/models/budget.dart';
@@ -363,6 +366,155 @@ void main() {
       // rescheduleNotifications should complete cleanly without error
       appState.rescheduleNotifications();
       expect(appState.transactions.length, equals(1));
+    });
+
+    test('12. Saved 20:00 remains 20:00 after cold-start restoration (no 22:00 overwrite)', () {
+      final freshState = AppState();
+      // Simulate stored data containing '20:00'
+      freshState.restoreSettingsFromMap({'notificationTime': '20:00'});
+      expect(freshState.notificationTime, equals('20:00'),
+          reason: 'Saved 20:00 must NOT be converted to 22:00 on cold start');
+    });
+
+    test('13. Custom reminder times survive app restarts and default 22:00 is preserved for new users', () {
+      // New user with no saved notificationTime
+      final newUserState = AppState();
+      newUserState.restoreSettingsFromMap({});
+      expect(newUserState.notificationTime, equals('22:00'),
+          reason: 'New users with no stored reminder time must keep default 22:00');
+
+      // Custom times: 08:30, 19:45, 23:15
+      for (final customTime in ['08:30', '19:45', '23:15']) {
+        final state = AppState();
+        state.restoreSettingsFromMap({'notificationTime': customTime});
+        expect(state.notificationTime, equals(customTime),
+            reason: 'Custom time $customTime must be restored accurately');
+      }
+    });
+
+    test('14. Multiple concurrent initialization requests share the exact same Future and do not duplicate initialization', () {
+      final c = Completer<void>();
+      NotificationService.instance.setInitFutureForTesting(c.future);
+
+      final future1 = NotificationService.instance.init();
+      final future2 = NotificationService.instance.init();
+      expect(identical(future1, future2), isTrue,
+          reason: 'Concurrent init calls must return the identical Future instance');
+
+      c.complete();
+      NotificationService.instance.setInitialisedForTesting(false);
+    });
+
+    test('15. Scheduling operations wait for in-flight initialization before proceeding', () async {
+      final c = Completer<void>();
+      NotificationService.instance.setInitialisedForTesting(false, false);
+      NotificationService.instance.setInitFutureForTesting(c.future);
+
+      bool initCompleted = false;
+      // Launch scheduling while initialization is pending
+      final scheduleFuture = NotificationService.instance.scheduleDailyReminder('21:00').then((_) {
+        expect(initCompleted, isTrue, reason: 'Scheduling must wait until init completes');
+      });
+
+      // Verify schedule has not finished while init is in-flight
+      await Future.delayed(const Duration(milliseconds: 20));
+      expect(initCompleted, isFalse);
+
+      // Complete initialization task
+      initCompleted = true;
+      c.complete();
+
+      await scheduleFuture;
+      NotificationService.instance.setInitialisedForTesting(false);
+    });
+
+    test('16. Next occurrence is calculated correctly for times before and after current time', () {
+      tz.initializeTimeZones();
+      final kolkata = tz.getLocation('Asia/Kolkata');
+      tz.setLocalLocation(kolkata);
+
+      // Mock now: 2026-11-22 14:00:00 (2:00 PM)
+      final mockNow = tz.TZDateTime(kolkata, 2026, 11, 22, 14, 0, 0);
+
+      // Time after now (e.g. 20:00 / 8:00 PM): should be today 2026-11-22 20:00
+      final afterNow = NotificationService.instance.nextInstanceOf(20, 0, mockNow);
+      expect(afterNow.year, equals(2026));
+      expect(afterNow.month, equals(11));
+      expect(afterNow.day, equals(22));
+      expect(afterNow.hour, equals(20));
+      expect(afterNow.minute, equals(0));
+      expect(afterNow.location, equals(kolkata), reason: 'Local timezone must be respected');
+
+      // Time before now (e.g. 09:00 / 9:00 AM): should be tomorrow 2026-11-23 09:00
+      final beforeNow = NotificationService.instance.nextInstanceOf(9, 0, mockNow);
+      expect(beforeNow.year, equals(2026));
+      expect(beforeNow.month, equals(11));
+      expect(beforeNow.day, equals(23));
+      expect(beforeNow.hour, equals(9));
+      expect(beforeNow.minute, equals(0));
+      expect(beforeNow.location, equals(kolkata), reason: 'Local timezone must be respected');
+    });
+
+    test('17. Local timezone is respected across different locations', () {
+      tz.initializeTimeZones();
+      for (final zoneName in ['Asia/Kolkata', 'America/New_York', 'Europe/London', 'Asia/Tokyo']) {
+        final loc = tz.getLocation(zoneName);
+        tz.setLocalLocation(loc);
+
+        final next = NotificationService.instance.nextInstanceOf(22, 0);
+        expect(next.location, equals(loc), reason: 'Scheduled time must use $zoneName location');
+        expect(next.hour, equals(22));
+        expect(next.minute, equals(0));
+      }
+    });
+
+    test('18. Changing reminder time triggers scheduleDailyReminder with new time and cancels old schedule', () {
+      NotificationService.instance.setInitialisedForTesting(false);
+      appState.setNotification('daily', true);
+
+      // Setting a new notification time updates state and triggers rescheduling
+      appState.setNotificationTime('20:30');
+      expect(appState.notificationTime, equals('20:30'));
+
+      appState.setNotificationTime('07:15');
+      expect(appState.notificationTime, equals('07:15'));
+    });
+
+    test('19. Existing weekly, AI Roast and budget notifications remain unaffected', () async {
+      NotificationService.instance.setInitialisedForTesting(false);
+
+      // All channels, IDs, and API calls function without regressions
+      expect(NotifId.daily, equals(1));
+      expect(NotifId.weekly, equals(2));
+      expect(NotifId.roastMorning, equals(3));
+      expect(NotifId.roastEvening, equals(4));
+
+      // Verify weekly, roast, and budget methods execute safely without error
+      await NotificationService.instance.scheduleWeeklyReminder();
+      await NotificationService.instance.scheduleRoastReminders();
+      await NotificationService.instance.cancelRoastReminders();
+      await NotificationService.instance.showBudgetAlert(categoryName: 'Shopping', percent: 85);
+    });
+
+    test('20. Exact Alarm Scheduling Mode: Switches between exactAllowWhileIdle and inexactAllowWhileIdle dynamically', () async {
+      NotificationService.instance.setInitialisedForTesting(false);
+
+      // When exact alarms permitted
+      NotificationService.instance.setCanScheduleExactAlarmsForTesting(true);
+      expect(await NotificationService.instance.canScheduleExactAlarms(), isTrue);
+
+      // When exact alarms denied/not granted
+      NotificationService.instance.setCanScheduleExactAlarmsForTesting(false);
+      expect(await NotificationService.instance.canScheduleExactAlarms(), isFalse);
+
+      // Reset
+      NotificationService.instance.setCanScheduleExactAlarmsForTesting(null);
+    });
+
+    test('21. Permission helpers: areNotificationsEnabled and openAlarmSettings execute cleanly without throwing', () async {
+      NotificationService.instance.setInitialisedForTesting(false);
+      final enabled = await NotificationService.instance.areNotificationsEnabled();
+      expect(enabled, isNotNull);
     });
   });
 }

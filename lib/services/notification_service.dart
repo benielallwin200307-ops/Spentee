@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/budget.dart';
 import '../models/roast.dart';
 import '../models/savings_goal.dart';
@@ -42,31 +43,38 @@ class NotificationService {
   bool _initialised = false;
   bool get isInitialised => _initialised;
 
+  Future<void>? _initFuture;
+  bool _preventAutoInitForTesting = false;
+
   @visibleForTesting
-  void setInitialisedForTesting([bool val = false]) {
+  void setInitialisedForTesting([bool val = false, bool preventAutoInit = true]) {
     _initialised = val;
+    _initFuture = null;
+    _preventAutoInitForTesting = preventAutoInit && !val;
+  }
+
+  @visibleForTesting
+  void setInitFutureForTesting(Future<void>? future) {
+    _initFuture = future;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Initialisation
   // ──────────────────────────────────────────────────────────────────────────
 
-  Future<void> init() async {
-    if (_initialised) return;
+  /// Initializes timezone data, notification channels, and the notification plugin.
+  /// Multiple concurrent callers will await the same initialization task.
+  Future<void> init() {
+    if (_initialised) return Future.value();
+    _initFuture ??= _doInit();
+    return _initFuture!;
+  }
 
+  Future<void> _doInit() async {
     try {
       // Set up timezone data.
       tz.initializeTimeZones();
-      try {
-        final tzInfo = await FlutterTimezone.getLocalTimezone()
-            .timeout(const Duration(seconds: 3));
-        tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
-      } catch (_) {
-        // Fall back to UTC if timezone detection fails or times out.
-        try {
-          tz.setLocalLocation(tz.getLocation('UTC'));
-        } catch (_) {}
-      }
+      await _configureLocalTimezone();
 
       // Android initialisation — use the launcher icon.
       const AndroidInitializationSettings androidSettings =
@@ -82,15 +90,85 @@ class NotificationService {
       _initialised = true;
       // Create notification channels (Android 8+).
       await _createChannels();
-    } catch (e) {
-      debugPrint('NotificationService init error: $e');
+      debugPrint('NotificationService: successfully initialised');
+    } catch (e, st) {
+      debugPrint('NotificationService init error: $e\n$st');
+      _initFuture = null;
     }
+  }
+
+  /// Ensures initialization is completed before executing scheduling or cancellation.
+  /// If initialization is running, awaits completion. Never silently discards requests.
+  Future<bool> _ensureInitialised() async {
+    if (_initialised) return true;
+    if (_initFuture != null) {
+      await _initFuture;
+      return _initialised;
+    }
+    if (_preventAutoInitForTesting) {
+      return false;
+    }
+    await init();
+    return _initialised;
+  }
+
+  /// Configures tz.local to the device's actual timezone with resilient offset matching.
+  Future<void> _configureLocalTimezone() async {
+    bool configured = false;
+    try {
+      final tzInfo = await FlutterTimezone.getLocalTimezone()
+          .timeout(const Duration(seconds: 10));
+      final identifier = tzInfo.identifier.trim();
+      if (identifier.isNotEmpty && tz.timeZoneDatabase.locations.containsKey(identifier)) {
+        tz.setLocalLocation(tz.getLocation(identifier));
+        configured = true;
+        debugPrint('NotificationService: local timezone configured to $identifier');
+      } else if (identifier.isNotEmpty) {
+        debugPrint('NotificationService: timezone "$identifier" not in tz database; attempting offset fallback');
+      }
+    } catch (e) {
+      debugPrint('NotificationService: platform timezone detection failed or timed out: $e');
+    }
+
+    if (configured) return;
+
+    // Resilient fallback: match by device system timezone offset rather than blindly falling back to UTC
+    try {
+      final systemOffset = DateTime.now().timeZoneOffset;
+      tz.Location? matched;
+      for (final loc in tz.timeZoneDatabase.locations.values) {
+        if (tz.TZDateTime.now(loc).timeZoneOffset == systemOffset) {
+          matched = loc;
+          if (loc.name.contains('/') && !loc.name.startsWith('Etc/')) {
+            break;
+          }
+        }
+      }
+      if (matched != null) {
+        tz.setLocalLocation(matched);
+        debugPrint('NotificationService: local timezone matched by device system offset $systemOffset -> ${matched.name}');
+        return;
+      }
+    } catch (e) {
+      debugPrint('NotificationService: error matching timezone by offset: $e');
+    }
+
+    // Last-resort fallback with explicit warning
+    debugPrint('NotificationService: WARNING - could not resolve device timezone; falling back to UTC as last resort');
+    try {
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    } catch (_) {}
   }
 
   /// Request Android 13+ POST_NOTIFICATIONS permission.
   /// Returns true if permission is granted (or not needed).
   Future<bool> requestPermission() async {
-    if (!_initialised) return false;
+    if (!_initialised) {
+      if (_initFuture != null) {
+        await _initFuture;
+      }
+      if (!_initialised) return false;
+    }
     final android = _plugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -99,7 +177,92 @@ class NotificationService {
     return granted ?? false;
   }
 
+  bool? _canScheduleExactAlarmsForTesting;
+
+  @visibleForTesting
+  void setCanScheduleExactAlarmsForTesting(bool? val) {
+    _canScheduleExactAlarmsForTesting = val;
+  }
+
+  /// Check whether exact alarms can be scheduled on this device (Android 12+).
+  Future<bool> canScheduleExactAlarms() async {
+    if (_canScheduleExactAlarmsForTesting != null) {
+      return _canScheduleExactAlarmsForTesting!;
+    }
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        final can = await android.canScheduleExactNotifications();
+        if (can != null) return can;
+      }
+    } catch (_) {}
+    try {
+      final status = await Permission.scheduleExactAlarm.status;
+      return status.isGranted;
+    } catch (_) {}
+    return false;
+  }
+
+  /// Check whether notifications are currently enabled in system settings.
+  Future<bool> areNotificationsEnabled() async {
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        final enabled = await android.areNotificationsEnabled();
+        if (enabled != null) return enabled;
+      }
+    } catch (_) {}
+    try {
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    } catch (_) {}
+    return true;
+  }
+
+  /// Request exact alarm permission by taking the user to system "Alarms & Reminders" settings.
+  Future<bool> requestExactAlarmsPermission() async {
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        await android.requestExactAlarmsPermission();
+        return await canScheduleExactAlarms();
+      }
+    } catch (_) {}
+    try {
+      final status = await Permission.scheduleExactAlarm.request();
+      return status.isGranted;
+    } catch (_) {}
+    return false;
+  }
+
+  /// Open device settings directly for alarms or general app settings.
+  Future<void> openAlarmSettings() async {
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        await android.requestExactAlarmsPermission();
+        return;
+      }
+    } catch (_) {}
+    await openAppSettings();
+  }
+
+  /// Open device general app settings.
+  Future<void> openDeviceAppSettings() async {
+    await openAppSettings();
+  }
+
   Future<AndroidScheduleMode> _determineScheduleMode() async {
+    try {
+      final canExact = await canScheduleExactAlarms();
+      if (canExact) {
+        return AndroidScheduleMode.exactAllowWhileIdle;
+      }
+    } catch (_) {}
     return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
@@ -114,14 +277,20 @@ class NotificationService {
       _Channel.reminders,
       'Spending Reminders',
       description: 'Daily and weekly spending log reminders',
-      importance: Importance.high,
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      showBadge: true,
     ));
 
     await android.createNotificationChannel(const AndroidNotificationChannel(
       _Channel.budget,
       'Budget Alerts',
       description: 'Alerts when a budget threshold is reached',
-      importance: Importance.high,
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      showBadge: true,
     ));
 
     await android.createNotificationChannel(const AndroidNotificationChannel(
@@ -129,6 +298,9 @@ class NotificationService {
       'AI Roast & Motivation',
       description: 'Daily motivational messages from your Spentee companion',
       importance: Importance.defaultImportance,
+      playSound: true,
+      enableVibration: true,
+      showBadge: true,
     ));
   }
 
@@ -142,8 +314,10 @@ class NotificationService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /// Returns the next TZDateTime that matches [hour]:[minute] in local tz.
-  tz.TZDateTime _nextInstanceOf(int hour, int minute) {
-    final now = tz.TZDateTime.now(tz.local);
+  /// Optionally accepts [customNow] for unit test verification.
+  @visibleForTesting
+  tz.TZDateTime nextInstanceOf(int hour, int minute, [tz.TZDateTime? customNow]) {
+    final now = customNow ?? tz.TZDateTime.now(tz.local);
     tz.TZDateTime scheduled = tz.TZDateTime(
       tz.local,
       now.year,
@@ -152,11 +326,14 @@ class NotificationService {
       hour,
       minute,
     );
-    if (scheduled.isBefore(now.add(const Duration(seconds: 5)))) {
+    if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
     return scheduled;
   }
+
+  tz.TZDateTime _nextInstanceOf(int hour, int minute) =>
+      nextInstanceOf(hour, minute);
 
   /// Returns the next Sunday at [hour]:[minute].
   tz.TZDateTime _nextSundayAt(int hour, int minute) {
@@ -174,9 +351,13 @@ class NotificationService {
 
   /// Schedule the Daily Spending Log reminder.
   /// Scheduled every day at [timeStr] ("HH:MM"), defaulting to 22:00 (10:00 PM).
-  /// Notification message: "Today, have you added your expenses? 💚"
+  /// Notification message: "Have you added all your expenses for today?"
   Future<void> scheduleDailyReminder([String timeStr = '22:00']) async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) {
+      debugPrint('NotificationService: Cannot schedule daily reminder - initialization incomplete');
+      return;
+    }
     await cancel(NotifId.daily);
     final parts = timeStr.split(':');
     final hour = int.tryParse(parts[0]) ?? 22;
@@ -184,7 +365,21 @@ class NotificationService {
     final scheduleMode = await _determineScheduleMode();
 
     const title = 'Daily Reminder';
-    const body = 'Today, have you added your expenses? 💚';
+    const body = 'Have you added all your expenses for today?';
+
+    const androidDetails = AndroidNotificationDetails(
+      _Channel.reminders,
+      'Spending Reminders',
+      channelDescription: 'Daily spending log reminder',
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: true,
+      enableVibration: true,
+      channelShowBadge: true,
+      visibility: NotificationVisibility.public,
+      category: AndroidNotificationCategory.reminder,
+      icon: '@mipmap/ic_launcher',
+    );
 
     try {
       await _plugin.zonedSchedule(
@@ -192,16 +387,7 @@ class NotificationService {
         title,
         body,
         _nextInstanceOf(hour, minute),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _Channel.reminders,
-            'Spending Reminders',
-            channelDescription: 'Daily spending log reminder',
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-          ),
-        ),
+        const NotificationDetails(android: androidDetails),
         androidScheduleMode: scheduleMode,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
@@ -215,16 +401,7 @@ class NotificationService {
         title,
         body,
         _nextInstanceOf(hour, minute),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _Channel.reminders,
-            'Spending Reminders',
-            channelDescription: 'Daily spending log reminder',
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-          ),
-        ),
+        const NotificationDetails(android: androidDetails),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
@@ -235,9 +412,27 @@ class NotificationService {
 
   /// Schedule the Weekly Spending Summary every Sunday at 09:00.
   Future<void> scheduleWeeklyReminder() async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) {
+      debugPrint('NotificationService: Cannot schedule weekly reminder - initialization incomplete');
+      return;
+    }
     await cancel(NotifId.weekly);
     final scheduleMode = await _determineScheduleMode();
+
+    const androidDetails = AndroidNotificationDetails(
+      _Channel.reminders,
+      'Spending Reminders',
+      channelDescription: 'Weekly summary reminder',
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: true,
+      enableVibration: true,
+      channelShowBadge: true,
+      visibility: NotificationVisibility.public,
+      category: AndroidNotificationCategory.reminder,
+      icon: '@mipmap/ic_launcher',
+    );
 
     try {
       await _plugin.zonedSchedule(
@@ -245,16 +440,7 @@ class NotificationService {
         '📊 Weekly Spending Summary',
         'Your Spentee AI weekly cash-flow breakdown is ready!',
         _nextSundayAt(9, 0),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _Channel.reminders,
-            'Spending Reminders',
-            channelDescription: 'Weekly summary reminder',
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-          ),
-        ),
+        const NotificationDetails(android: androidDetails),
         androidScheduleMode: scheduleMode,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
@@ -268,16 +454,7 @@ class NotificationService {
         '📊 Weekly Spending Summary',
         'Your Spentee AI weekly cash-flow breakdown is ready!',
         _nextSundayAt(9, 0),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _Channel.reminders,
-            'Spending Reminders',
-            channelDescription: 'Weekly summary reminder',
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-          ),
-        ),
+        const NotificationDetails(android: androidDetails),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
@@ -288,7 +465,8 @@ class NotificationService {
 
   /// Cancel all scheduled roast reminders and legacy schedules (2:00 PM, 9:00 PM).
   Future<void> cancelRoastReminders() async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) return;
     await cancel(NotifId.roastMorning);
     await cancel(NotifId.roastEvening);
     await cancel(NotifId.legacyRoast2PM);
@@ -331,7 +509,11 @@ class NotificationService {
     RoastIntensity intensity = RoastIntensity.savage,
     List<String> recentRoastIds = const [],
   }) async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) {
+      debugPrint('NotificationService: Cannot schedule roast reminders - initialization incomplete');
+      return;
+    }
 
     // 1. Remove legacy schedules (2:00 PM, 9:00 PM) and existing roast notifications
     await cancelRoastReminders();
@@ -447,7 +629,11 @@ class NotificationService {
     required String categoryName,
     required int percent,
   }) async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) {
+      debugPrint('NotificationService: Cannot show budget alert - initialization incomplete');
+      return;
+    }
     final id = NotifId.budgetBase + categoryName.hashCode.abs() % 100;
     await _plugin.show(
       id,
@@ -462,8 +648,13 @@ class NotificationService {
           _Channel.budget,
           'Budget Alerts',
           channelDescription: 'Budget threshold alert',
-          importance: Importance.high,
-          priority: Priority.high,
+          importance: Importance.max,
+          priority: Priority.max,
+          playSound: true,
+          enableVibration: true,
+          channelShowBadge: true,
+          visibility: NotificationVisibility.public,
+          category: AndroidNotificationCategory.alarm,
           icon: '@mipmap/ic_launcher',
         ),
       ),
@@ -473,13 +664,15 @@ class NotificationService {
 
   /// Cancel a single notification by ID.
   Future<void> cancel(int id) async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) return;
     await _plugin.cancel(id);
   }
 
   /// Cancel all Spentee notifications.
   Future<void> cancelAll() async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) return;
     await _plugin.cancelAll();
   }
 
@@ -500,7 +693,11 @@ class NotificationService {
     RoastIntensity intensity = RoastIntensity.savage,
     List<String> recentRoastIds = const [],
   }) async {
-    if (!_initialised) return;
+    final ready = await _ensureInitialised();
+    if (!ready) {
+      debugPrint('NotificationService: Cannot rescheduleAll - initialization incomplete');
+      return;
+    }
     final daily = notifications['daily'] ?? false;
     final weekly = notifications['weekly'] ?? false;
     final roasts = notifications['roasts'] ?? false;

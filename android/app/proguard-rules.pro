@@ -27,3 +27,12 @@
 -keep public class com.google.ads.** {
    public *;
 }
+
+# flutter_local_notifications keep rules
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
+-keep class com.google.gson.** { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+-keep class com.dexterous.flutterlocalnotifications.models.** { *; }
+-dontwarn com.dexterous.flutterlocalnotifications.**

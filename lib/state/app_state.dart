@@ -697,10 +697,8 @@ class AppState extends ChangeNotifier {
           }
           if (data.containsKey('notificationTime') &&
               data['notificationTime'] != null) {
-            final savedTime = data['notificationTime'] as String;
-            if (savedTime == '20:00') {
-              _notificationTime = '22:00';
-            } else {
+            final savedTime = data['notificationTime'].toString().trim();
+            if (savedTime.isNotEmpty) {
               _notificationTime = savedTime;
             }
           }
@@ -851,6 +849,23 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     saveToStorage();
     _applyNotificationSchedule(key, value);
+  }
+
+  @visibleForTesting
+  void restoreSettingsFromMap(Map<String, dynamic> data) {
+    if (data.containsKey('notificationTime') &&
+        data['notificationTime'] != null) {
+      final savedTime = data['notificationTime'].toString().trim();
+      if (savedTime.isNotEmpty) {
+        _notificationTime = savedTime;
+      }
+    }
+    if (data.containsKey('notifications') && data['notifications'] is Map) {
+      final notifMap = data['notifications'] as Map;
+      notifMap.forEach((k, v) {
+        if (v is bool) _notifications[k.toString()] = v;
+      });
+    }
   }
 
   /// Schedule or cancel a single notification type based on [value].

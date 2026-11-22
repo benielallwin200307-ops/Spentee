@@ -21,8 +21,199 @@ class RemindersScreen extends StatelessWidget {
     return timeStr;
   }
 
+  Future<void> _checkAndPromptPermissions(BuildContext context) async {
+    final notifsEnabled =
+        await NotificationService.instance.areNotificationsEnabled();
+    if (!notifsEnabled) {
+      await NotificationService.instance.requestPermission();
+    }
+
+    final canExact =
+        await NotificationService.instance.canScheduleExactAlarms();
+    final stillNotifs =
+        await NotificationService.instance.areNotificationsEnabled();
+
+    if (!stillNotifs || !canExact) {
+      if (context.mounted) {
+        _showPermissionGuideDialog(
+          context,
+          notificationsDenied: !stillNotifs,
+          alarmsDenied: !canExact,
+        );
+      }
+    }
+  }
+
+  void _showPermissionGuideDialog(
+    BuildContext context, {
+    required bool notificationsDenied,
+    required bool alarmsDenied,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0B1F27),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF133C47)),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.alarm_on_rounded,
+                color: AppTheme.primaryMint,
+                size: 24,
+              ),
+              SizedBox(width: 10),
+              Text(
+                'Enable Reminders',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'To deliver your daily spending log reminder reliably at your selected time, please enable permissions in your device settings:',
+                style: TextStyle(
+                  color: Color(0xFF88A8B4),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (notificationsDenied) ...[
+                _buildStepRow(
+                  '1',
+                  'Allow Notifications',
+                  'Tap "Notifications" and switch "Allow notifications" ON.',
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (alarmsDenied) ...[
+                _buildStepRow(
+                  notificationsDenied ? '2' : '1',
+                  'Alarms & Reminders',
+                  'Tap "Alarms & reminders" and switch "Allow setting alarms" ON.',
+                ),
+                const SizedBox(height: 12),
+              ],
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF071922),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF103340)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: AppTheme.primaryMint),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'If exact alarms remain disabled, Spentee will still deliver reminders using standard inexact scheduling.',
+                        style: TextStyle(
+                          color: Color(0xFF6C8C96),
+                          fontSize: 11,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Not Now', style: TextStyle(color: AppTheme.textGrey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryMint,
+                foregroundColor: const Color(0xFF03161C),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                if (alarmsDenied) {
+                  NotificationService.instance.openAlarmSettings();
+                } else {
+                  NotificationService.instance.openDeviceAppSettings();
+                }
+              },
+              child: const Text(
+                'Open Settings',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStepRow(String stepNumber, String title, String description) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppTheme.primaryMint.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppTheme.primaryMint, width: 1.5),
+          ),
+          child: Text(
+            stepNumber,
+            style: const TextStyle(
+              color: AppTheme.primaryMint,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: const TextStyle(
+                  color: Color(0xFF6C8C96),
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _pickTime(BuildContext context, AppState appState) async {
-    int initialHour = 20;
+    int initialHour = 22;
     int initialMinute = 0;
     try {
       final parts = appState.notificationTime.split(':');
@@ -68,6 +259,7 @@ class RemindersScreen extends StatelessWidget {
             behavior: SnackBarBehavior.floating,
           ),
         );
+        _checkAndPromptPermissions(context);
       }
     }
   }
@@ -147,10 +339,10 @@ class RemindersScreen extends StatelessWidget {
                 subtitle: 'A gentle evening nudge to record today\'s expenses.',
                 value: isDaily,
                 onChanged: (val) async {
-                  if (val) {
-                    await NotificationService.instance.requestPermission();
-                  }
                   appState.setNotification('daily', val);
+                  if (val && context.mounted) {
+                    await _checkAndPromptPermissions(context);
+                  }
                 },
                 child: isDaily
                     ? Padding(
