@@ -299,8 +299,8 @@ class ProfileScreen extends StatelessWidget {
                     icon: Icons.language_rounded,
                     iconBg: const Color(0xFF072B36),
                     iconColor: const Color(0xFF00E5FF),
-                    title: 'Language',
-                    subtitle: 'Choose your preferred language',
+                    title: 'Roast Language',
+                    subtitle: 'Choose your preferred language for AI roasts.',
                     trailingText: appState.selectedLanguage,
                     trailingTextColor: AppTheme.primaryMint,
                     onTap: () => _showLanguageSheet(context, appState),
@@ -647,7 +647,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Choose Language',
+                  'Choose Roast Language',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -664,7 +664,7 @@ class ProfileScreen extends StatelessWidget {
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Language updated to $code'),
+                          content: Text('Roast language updated to $code'),
                           backgroundColor: const Color(0xFF092E27),
                           behavior: SnackBarBehavior.floating,
                         ),

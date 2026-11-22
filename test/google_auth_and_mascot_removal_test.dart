@@ -104,7 +104,7 @@ void main() {
 
       // Profile options exist
       expect(find.text('App Settings'), findsOneWidget);
-      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('Roast Language'), findsOneWidget);
       expect(find.text('Reminders'), findsOneWidget);
 
       // Mascot and Theme Accent are completely removed

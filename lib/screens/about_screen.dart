@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../theme/app_theme.dart';
 import 'help_support_screen.dart';
@@ -6,6 +8,35 @@ import 'help_support_screen.dart';
 /// Screen displaying Spentee version, features, technical architecture, and legal policies.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
+
+  static const String _privacyPolicyUrl = 'https://spentee.com/privacy-policy';
+
+  Future<void> _openExternalPrivacyPolicy(BuildContext context) async {
+    final uri = Uri.parse(_privacyPolicyUrl);
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw 'Could not launch $uri';
+      }
+    } catch (e) {
+      debugPrint('Error launching external privacy policy: $e');
+      await Clipboard.setData(const ClipboardData(text: _privacyPolicyUrl));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Copied Privacy Policy URL: https://spentee.com/privacy-policy',
+            ),
+            backgroundColor: Color(0xFF0C2B36),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   void _showTermsDialog(BuildContext context) {
     showDialog(
@@ -53,6 +84,19 @@ class AboutScreen extends StatelessWidget {
           ),
         ),
         actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openExternalPrivacyPolicy(context);
+            },
+            child: const Text(
+              'Open in Browser',
+              style: TextStyle(
+                color: Color(0xFF00E5FF),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text(
@@ -437,6 +481,40 @@ class AboutScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // External Web Privacy Policy Link
+              InkWell(
+                onTap: () => _openExternalPrivacyPolicy(context),
+                borderRadius: BorderRadius.circular(12),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.open_in_browser_rounded,
+                        color: Color(0xFF7E9DA9),
+                        size: 15,
+                      ),
+                      SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Online Privacy Policy: spentee.com/privacy-policy',
+                          style: TextStyle(
+                            color: Color(0xFF7E9DA9),
+                            fontSize: 12.5,
+                            decoration: TextDecoration.underline,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
               const SizedBox(height: 28),

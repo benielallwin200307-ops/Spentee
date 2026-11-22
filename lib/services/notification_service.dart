@@ -96,28 +96,10 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
     if (android == null) return true;
     final granted = await android.requestNotificationsPermission();
-    try {
-      final canExact = await android.canScheduleExactNotifications();
-      if (canExact == false) {
-        await android.requestExactAlarmsPermission();
-      }
-    } catch (_) {}
     return granted ?? false;
   }
 
   Future<AndroidScheduleMode> _determineScheduleMode() async {
-    if (!_initialised) return AndroidScheduleMode.inexactAllowWhileIdle;
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    if (android != null) {
-      try {
-        final canExact = await android.canScheduleExactNotifications();
-        if (canExact == true) {
-          return AndroidScheduleMode.exactAllowWhileIdle;
-        }
-      } catch (_) {}
-    }
     return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
